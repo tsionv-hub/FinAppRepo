@@ -43,12 +43,26 @@ const en = {
   eRate: 'Google is limiting requests right now. Wait a minute and tap Reload.',
   ePopup: 'Sign-in did not complete ({c}). Tap the button again. If the window keeps failing to open, try the redirect method in the sign-in test.',
   dcur: 'In {c}: post-tax {a} · pre-tax {b}',
+  close: 'Close', dRT: 'Returns and tax', dToday: 'Today', dAt: 'On {d}', dVal: 'Value', dDep: 'Deposited (basis)', dGain: 'Gain', dTax: 'Tax if sold', dPost: 'After tax',
+  dSheet: 'In the sheet', dRate: 'at {r}', dRet: '5-year average return', dEff: 'Return used ({s})', dTaxT: 'Tax type', dDepF: 'Deposit fee', dMgmF: 'Management fee',
+  dFeesN: 'Fees are stored but not used in projections yet.', dTrack: 'Track', dStyle: 'Style', dTicker: 'Ticker', dQty: 'Quantity', dUpd: 'Last updated',
+  dInTot: 'Counted in totals', dSpendable: 'Spendable', yes: 'Yes', no: 'No', taxNone: 'None', taxCg: 'Capital gain', taxInc: 'Income',
+  dSreN: 'Created by the app: vested company shares are sold (income tax taken) and the net proceeds are reinvested here.',
+  dUnvN: 'Unvested shares are never spendable. They vest every {m} months and are sold as they vest.',
+  dDue: 'Due', dSpendQ: 'Paid out on due date', dStatus: 'Status', dHave: 'Available then', dShortBy: 'Short by', dLeft: 'Time left', dPrio: 'Priority',
+  dAmt: 'Amount', dFrom: 'Starts', dUntil: 'Last year', dMonthly: 'Monthly allowance', dTotal: 'Total until pension', dYears: 'Years',
+  dRetN: 'Paid monthly from liquid money; the rainy day fund is never touched. Yearly free cash and the stock grant stop at retirement.',
+  dResN: 'Counted in totals but never spent. Goals and free money only use money above it.', dLiqNow: 'Liquid after tax today',
+  dGoalN: 'A goal is funded if liquid money after tax, minus the rainy day fund, covers it on the 1st of its month.',
+  dBal: 'Balance', dMDep: 'Monthly deposit', dAccF: 'Fee on balance', dYRet: 'Yearly return', dCoef: 'Conversion coefficient', dStops: 'Deposits stop at early retirement',
+  dAtPen: 'At pension age ({a})', dMPen: 'Monthly pension (pre-tax)', dPenN: 'Pension is never part of totals, goals or free money.',
   ty: {} as Record<string, string>,
 };
 
 export type Key = Exclude<keyof typeof en, 'ty'>;
 
-const he: Record<Key, string> & { ty: Record<string, string> } = {
+// Hebrew strings may lag behind English; missing ones fall back to English.
+const he: Partial<Record<Key, string>> & { ty: Record<string, string> } = {
   title: 'תכנון פיננסי', reload: 'רענון', loading: 'קורא את הגיליון…', read: 'עודכן', free: 'כסף פנוי היום',
   freeN: 'אחרי מס, מנכסים נזילים בלבד (ללא מניות אינטל שלא הבשילו וללא פנסיה). כל יעד נשאר ממומן במועדו.', lim: 'מוגבל על ידי',
   none1: 'אין כרגע כסף פנוי. חיסכון של כ-{x} נוספים בחודש יממן את כל היעדים.', none2: 'אין כרגע כסף פנוי, וגם ₪1M נוספים בחודש לא יכסו את כל היעדים.',

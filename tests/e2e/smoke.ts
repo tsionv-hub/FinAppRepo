@@ -134,6 +134,35 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await page.isDisabled('#gb')) && (await page.isDisabled('#rb')) && (await page.isDisabled('#rb2')), 'adding and saving disabled in Hebrew');
   ok((await txt('#goals')).includes('החתונה של Alex'), 'goal names translated (unknown name kept)');
   await page.click('#lb');
+  ok(/On track|Short/.test(await txt('#goals .g[data-gd]:has-text("Early retirement")')), 'retirement row keeps its status after a cached re-render');
+
+  // 5b. Detail popups.
+  const dlgOpen = () => page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open);
+  await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '0'; e.dispatchEvent(new Event('input')); });
+  await page.click('summary#hs');
+  await page.click('#hl .g:has-text("Broker C")');
+  ok(await dlgOpen(), 'tapping a holding opens its details');
+  ok((await txt('#dlgT')) === 'Broker C' && /USD.*60,000 at 3\.700/.test(await txt('#dlgB')), 'holding popup shows the sheet amount in USD and the rate');
+  ok((await txt('#dlgB')).includes('Return used (Moderate)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
+  await page.screenshot({ path: OUT + '/popup-holding.png' });
+  await page.mouse.click(5, 5);
+  ok(!(await dlgOpen()), 'tapping outside closes the popup');
+  await page.click('#hl .g:has-text("Pension 1")');
+  ok((await txt('#dlgB')).includes('At pension age (67)'), 'pension fund popup shows the pension-age projection');
+  await page.click('#dlgX');
+  await page.click('#goals .g:has-text("Car")');
+  ok((await txt('#dlgB')).includes('Due1 June 2028'), 'goal popup shows the due date on the 1st: ' + (await txt('#dlgB')).match(/Due[^A-Z]*\d{4}/)?.[0]);
+  await page.screenshot({ path: OUT + '/popup-goal.png' });
+  await page.click('#dlgX');
+  await page.click('#goals .g:has-text("Early retirement")');
+  ok(/Starts.*Jan.*2037/.test(await txt('#dlgB')) && (await txt('#dlgB')).includes('Monthly allowance'), 'retirement popup shows start and allowance');
+  await page.click('#dlgX');
+  await page.click('#goals .g[data-res]');
+  ok((await txt('#dlgT')) === 'Rainy day fund', 'rainy day fund row opens its popup');
+  await page.click('#dlgX');
+  await page.click('#goals .g:has-text("Car") input[type=checkbox]');
+  ok(!(await dlgOpen()), 'tapping the spend checkbox does not open the popup');
+  await page.click('#goals .g:has-text("Car") input[type=checkbox]');
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no horizontal scroll at phone width');
 
   // 6. Errors: rate limit, offline, missing tab.
