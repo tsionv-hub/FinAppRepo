@@ -6,6 +6,7 @@ No backend and no analytics: financial data only travels between the phone and G
 - Spec (single source of truth): [`docs/SPEC.md`](docs/SPEC.md).
 - Behavioural reference: [`reference/prototype.html`](reference/prototype.html) (personal data removed).
 - Plan and open decisions: [`docs/PLAN.md`](docs/PLAN.md).
+- **Setting it up on your phone: [`docs/SETUP.md`](docs/SETUP.md).**
 
 ## Layout
 
@@ -18,18 +19,10 @@ No backend and no analytics: financial data only travels between the phone and G
 | `src/template.ts` | Builds the empty `.xlsx` template (Settings, Holdings, Pension, Goals, ToDo). |
 | `tests/` | Unit tests, a parity test that runs the prototype itself, and an end-to-end smoke test. |
 
-## Google Cloud setup (each user, one time)
+## Setup
 
-The app shows these steps on first run and asks for the client ID there; nothing is baked into the build.
-
-1. In Google Cloud Console create a project and enable the **Google Sheets API**.
-2. OAuth consent screen: External, Testing mode, add your Google account as a test user.
-3. Credentials → OAuth client ID → **Web application**.
-   - Authorized JavaScript origin: the site origin, e.g. `https://<you>.github.io`
-   - Authorized redirect URI (only for the redirect fallback): the exact app URL, e.g. `https://<you>.github.io/FinAppRepo/`
-4. Paste the client ID into the app. (Optionally bake a default in with `VITE_GOOGLE_CLIENT_ID` at build time.)
-
-The access token lives in memory only, so the app asks for one tap ("Sign in again") each time it is reopened.
+Step-by-step (GitHub Pages, Google sign-in, iPhone): [`docs/SETUP.md`](docs/SETUP.md).
+Deploys run from `.github/workflows/deploy.yml` on every push to `main`.
 
 ## Develop
 
