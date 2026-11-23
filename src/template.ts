@@ -1,7 +1,9 @@
 // Builds the empty sheet template (.xlsx) with the tabs and headers of SPEC 14.2.
 // Upload it to Google Drive and open it with Google Sheets.
 
-type Val = string | number | { f: string } | null;
+/** A cell: text, number, empty, or a formula with an optional cached value (shown before Sheets recalculates). */
+export type Val = string | number | { f: string; v?: number } | null;
+export type Tab = { name: string; rows: Val[][] };
 
 const HOLDINGS_HEAD = [
   'id', 'name', 'vendor', 'account_number', 'owner', 'type', 'investment_style', 'investment_track', 'currency',
@@ -19,7 +21,7 @@ function holdingRow(n: number, o: Record<string, Val>): Val[] {
 
 const EX = 'Example row: replace or delete. ';
 
-export const TEMPLATE_TABS: { name: string; rows: Val[][] }[] = [
+export const TEMPLATE_TABS: Tab[] = [
   {
     name: 'Settings',
     rows: [
@@ -106,7 +108,7 @@ function sheetXml(rows: Val[][]): string {
           const ref = colName(ci) + (ri + 1);
           if (v === null || v === '') return '';
           if (typeof v === 'number') return `<c r="${ref}"><v>${v}</v></c>`;
-          if (typeof v === 'object') return `<c r="${ref}"><f>${xmlEsc(v.f)}</f></c>`;
+          if (typeof v === 'object') return `<c r="${ref}"><f>${xmlEsc(v.f)}</f>${v.v != null ? `<v>${v.v}</v>` : ''}</c>`;
           return `<c r="${ref}" t="inlineStr"><is><t>${xmlEsc(v)}</t></is></c>`;
         })
         .join('');
@@ -116,8 +118,7 @@ function sheetXml(rows: Val[][]): string {
   return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${body}</sheetData></worksheet>`;
 }
 
-export function templateFiles(): { name: string; data: string }[] {
-  const tabs = TEMPLATE_TABS;
+export function workbookFiles(tabs: Tab[]): { name: string; data: string }[] {
   const files = [
     {
       name: '[Content_Types].xml',
@@ -210,6 +211,10 @@ export function zip(files: { name: string; data: string }[]): Uint8Array {
     p += a.length;
   }
   return out;
+}
+
+export function templateFiles(): { name: string; data: string }[] {
+  return workbookFiles(TEMPLATE_TABS);
 }
 
 export function templateXlsx(): Uint8Array {

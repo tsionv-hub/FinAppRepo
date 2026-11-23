@@ -17,6 +17,7 @@ let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdings
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
+let sheetCalls = 0;
 const fail = (m: string) => { console.error('FAIL: ' + m); process.exitCode = 1; };
 const ok = (c: unknown, m: string) => (c ? console.log('ok   ' + m) : fail(m));
 
@@ -44,6 +45,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await ctx.route('https://sheets.googleapis.com/**', async (route) => {
     const r = route.request();
     const u = new URL(r.url());
+    sheetCalls++;
     if (r.headers()['authorization'] !== 'Bearer FAKE') badAuth++;
     // Mocked routes still answer under setOffline, so drop the request like a dead network would.
     if (sheetsMode === 'offline') return route.abort('internetdisconnected');
@@ -57,6 +59,29 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     return route.fulfill({ json: { valueRanges: ranges.map((x) => ({ values: tabs[x.split('!')[0].replace(/'/g, '')] ?? [] })) } });
   });
   const txt = async (s: string) => ((await page.textContent(s)) ?? '').replace(/[⁦⁩]/g, '');
+
+  // 0. Example mode: no sign-in, no Google calls, nothing saved.
+  await page.goto(URL0);
+  await page.click('#demoGo');
+  await page.waitForSelector('#app:not([hidden])');
+  await page.waitForFunction(() => document.getElementById('fm')!.textContent!.includes('₪'));
+  ok(await page.isVisible('#demoBar'), 'example mode: banner shown');
+  ok((await txt('#fn')).includes('Limited by Early retirement'), 'example mode: free money limited by early retirement: ' + (await txt('#fm')));
+  await page.selectOption('#sc', 'pes');
+  await page.waitForFunction(() => /Saving about/.test(document.getElementById('fn')!.textContent!));
+  ok(true, 'example mode, Pessimistic: ' + (await txt('#fn')));
+  await page.selectOption('#sc', 'mod');
+  await page.click('summary:has(h2[data-t=assum])');
+  await page.click('#rb2');
+  ok((await txt('#gm')) === 'This is example data, so nothing is saved.', 'example mode: save buttons save nothing');
+  await page.screenshot({ path: OUT + '/example.png', fullPage: true });
+  await page.click('#demoExit');
+  await page.waitForSelector('#setupSheet:not([hidden])');
+  ok(sheetCalls === 0 && writes.length === 0, 'example mode made no Google calls');
+  await page.goto(URL0 + '?example');
+  await page.waitForSelector('#app:not([hidden])');
+  ok(await page.isVisible('#demoBar'), 'the ?example link opens example mode directly');
+  await page.click('#demoExit');
 
   // 1. First run: sheet link → client ID → sign in → checklist → planner.
   await page.goto(URL0);

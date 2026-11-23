@@ -92,3 +92,4 @@ dialog#dlg::backdrop { background: rgba(0, 0, 0, .35); }
 .dr { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; padding: 5px 0; border-top: 1px solid var(--ln); }
 .dr span:last-child { text-align: end; font-variant-numeric: tabular-nums; }
 .dnote { font-size: 13px; color: var(--mu); margin-top: 10px; white-space: pre-wrap; }
+.demo { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; background: color-mix(in srgb, var(--ac) 10%, var(--card)); border-color: color-mix(in srgb, var(--ac) 35%, var(--ln)); }

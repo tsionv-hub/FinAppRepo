@@ -8,7 +8,8 @@ import {
   type Holding, type Slot, type Snapshot, type StartMonth, type WhatIf,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
-import { appendGoals, loadSheet, saveReserve, saveRetirement, type SheetData } from '../sheets/data';
+import { appendGoals, fromRows, loadSheet, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
+import { exampleRows } from '../example';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
 import { get, KEYS, set } from '../storage';
@@ -29,6 +30,8 @@ export interface AppDeps {
   onCheck: (c: Checklist, canOpen: boolean) => void;
   /** Shows the main screen. */
   onReady: () => void;
+  /** True while exploring the built-in example (no Google calls, no saves). */
+  demo: () => boolean;
 }
 
 let deps: AppDeps;
@@ -55,6 +58,7 @@ export function errorText(e: unknown): string {
   if (e instanceof AuthError) return t('ePopup', { c: e.code });
   if (e instanceof SheetsError) {
     if (e.code === 'ratelimit') return t('eRate');
+    if (/not supported for this document/i.test(e.message)) return t('eXlsx');
     if (e.code === 'auth') return t('eAuth');
     if (e.code === 'forbidden') return t('eForb');
     if (e.code === 'notfound') return t('eNF');
@@ -119,12 +123,17 @@ function fillInputs(d: SheetData): void {
 }
 
 export async function load(): Promise<void> {
+  const demo = deps.demo();
   const c = deps.client();
-  if (!c) return;
+  if (!c && !demo) return;
   showMsg(t('loading'));
   start = startFromDate(new Date());
   try {
-    const res = await loadSheet(c, start);
+    let res: LoadResult;
+    if (demo) {
+      const rows = exampleRows();
+      res = fromRows('Example', Object.keys(rows), rows, start);
+    } else res = await loadSheet(c!, start);
     showMsg(null);
     $('reload').hidden = false;
     if (!res.data) {
@@ -135,7 +144,7 @@ export async function load(): Promise<void> {
     fillInputs(data);
     cache = null;
     updatedLine();
-    if (!get(KEYS.checked)) deps.onCheck(res.check, true);
+    if (!demo && !get(KEYS.checked)) deps.onCheck(res.check, true);
     else showApp();
   } catch (e) {
     if (e instanceof SheetsError && e.code === 'auth') {
@@ -150,7 +159,7 @@ export async function load(): Promise<void> {
 /** Opens the main screen once the sheet has been read (and checked on first run). */
 export function showApp(): void {
   if (!data) return;
-  set(KEYS.checked, '1');
+  if (!deps.demo()) set(KEYS.checked, '1');
   deps.onReady();
   render();
 }
@@ -443,6 +452,10 @@ function addGoal(): void {
 }
 
 async function withSave(btn: string, fn: (c: SheetsClient) => Promise<void>, okText: string, failSuffix = ''): Promise<void> {
+  if (deps.demo()) {
+    $('gm').textContent = t('demoNoSave');
+    return;
+  }
   const c = deps.client();
   if (!c || !data || getLang() === 'he') return;
   inp(btn).disabled = true;

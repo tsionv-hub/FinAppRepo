@@ -6,7 +6,9 @@ No backend and no analytics: financial data only travels between the phone and G
 - Spec (single source of truth): [`docs/SPEC.md`](docs/SPEC.md).
 - Behavioural reference: [`reference/prototype.html`](reference/prototype.html) (personal data removed).
 - Plan and open decisions: [`docs/PLAN.md`](docs/PLAN.md).
-- **Setting it up on your phone: [`docs/SETUP.md`](docs/SETUP.md).**
+- **User guide (for anyone using the app): [`docs/MANUAL.md`](docs/MANUAL.md).**
+- Setting it up yourself (hosting + Google sign-in): [`docs/SETUP.md`](docs/SETUP.md).
+- Example data: `src/example.ts` (a made-up household). Try it at `<app url>?example`.
 
 ## Layout
 
