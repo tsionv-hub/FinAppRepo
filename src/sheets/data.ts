@@ -5,6 +5,7 @@ import { parseGoals, parseHoldings, parsePension, parseSettings, type GoalsTab }
 import type { Goal, Holding, PensionFund, Settings, StartMonth } from '../model/types';
 import type { Cell, Rows } from '../model/parse';
 import { a1, columnLetter, SheetsClient, SheetsError } from './api';
+import { RULES, validate, type Checklist } from './validate';
 
 export interface SheetData {
   title: string;
@@ -15,29 +16,34 @@ export interface SheetData {
   fetchedAt: number;
 }
 
-export const REQUIRED_TABS = ['Settings', 'Holdings', 'Goals'];
-
-export class MissingTabError extends Error {
-  constructor(public tab: string) {
-    super('missing tab ' + tab);
-  }
+export interface LoadResult {
+  check: Checklist;
+  /** Null when a required tab or column is missing. */
+  data: SheetData | null;
+  title: string;
 }
 
-export async function loadSheet(c: SheetsClient, start: StartMonth): Promise<SheetData> {
+/** Reads every tab in one batch request, validates, then parses. */
+export async function loadSheet(c: SheetsClient, start: StartMonth): Promise<LoadResult> {
   const meta = await c.meta();
-  for (const t of REQUIRED_TABS) if (!meta.tabs.includes(t)) throw new MissingTabError(t);
-  const hasPension = meta.tabs.includes('Pension');
-  const ranges = [a1('Settings', 'A:B'), a1('Holdings'), a1('Goals')];
-  if (hasPension) ranges.push(a1('Pension'));
-  const [s, h, g, p] = await c.batchGet(ranges);
-  const settings = parseSettings(s);
+  const present = Object.keys(RULES).filter((t) => meta.tabs.includes(t));
+  const got = present.length ? await c.batchGet(present.map((t) => (t === 'Settings' ? a1(t, 'A:C') : a1(t)))) : [];
+  const rows: Record<string, Rows> = {};
+  present.forEach((t, i) => (rows[t] = got[i] ?? []));
+  const check = validate(meta.tabs, rows);
+  if (!check.ok) return { check, data: null, title: meta.title };
+  const settings = parseSettings(rows.Settings);
   return {
+    check,
     title: meta.title,
-    settings,
-    holdings: parseHoldings(h, settings.fx),
-    pension: hasPension ? parsePension(p) : [],
-    goals: parseGoals(g, start.year),
-    fetchedAt: Date.now(),
+    data: {
+      title: meta.title,
+      settings,
+      holdings: parseHoldings(rows.Holdings, settings.fx),
+      pension: rows.Pension ? parsePension(rows.Pension) : [],
+      goals: parseGoals(rows.Goals, start.year),
+      fetchedAt: Date.now(),
+    },
   };
 }
 

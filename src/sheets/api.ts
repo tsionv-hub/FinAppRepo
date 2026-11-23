@@ -5,7 +5,7 @@ import type { Rows } from '../model/parse';
 
 const BASE = 'https://sheets.googleapis.com/v4/spreadsheets/';
 
-export type SheetsErrorCode = 'auth' | 'forbidden' | 'notfound' | 'network' | 'other';
+export type SheetsErrorCode = 'auth' | 'forbidden' | 'notfound' | 'ratelimit' | 'network' | 'other';
 
 export class SheetsError extends Error {
   constructor(public code: SheetsErrorCode, public status: number, message: string) {
@@ -58,7 +58,8 @@ export class SheetsClient {
       } catch {
         /* ignore */
       }
-      const code: SheetsErrorCode = r.status === 401 ? 'auth' : r.status === 403 ? 'forbidden' : r.status === 404 ? 'notfound' : 'other';
+      const code: SheetsErrorCode =
+        r.status === 401 ? 'auth' : r.status === 429 ? 'ratelimit' : r.status === 403 && /quota|rate/i.test(msg) ? 'ratelimit' : r.status === 403 ? 'forbidden' : r.status === 404 ? 'notfound' : 'other';
       throw new SheetsError(code, r.status, msg);
     }
     return (await r.json()) as T;

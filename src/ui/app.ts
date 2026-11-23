@@ -8,7 +8,10 @@ import {
   type Snapshot, type StartMonth, type WhatIf,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
-import { appendGoals, loadSheet, MissingTabError, saveReserve, saveRetirement, type SheetData } from '../sheets/data';
+import { appendGoals, loadSheet, saveReserve, saveRetirement, type SheetData } from '../sheets/data';
+import type { Checklist } from '../sheets/validate';
+import { AuthError } from '../sheets/auth';
+import { get, KEYS, set } from '../storage';
 import { chartSvg } from './chart';
 import { getLang, goalName, locale, setLang, t, ty, type Lang } from './i18n';
 
@@ -22,6 +25,10 @@ export interface AppDeps {
   client: () => SheetsClient | null;
   /** Called when Google says the token is no longer valid. */
   onAuthError: () => void;
+  /** Shows the sheet checklist (first run, or something required is missing). */
+  onCheck: (c: Checklist, canOpen: boolean) => void;
+  /** Shows the main screen. */
+  onReady: () => void;
 }
 
 let deps: AppDeps;
@@ -29,7 +36,7 @@ let start: StartMonth;
 let data: SheetData | null = null;
 let pending: Goal[] = [];
 let listed: Goal[] = [];
-let cache: { key: string; snaps: Snapshot[]; r: SimResult; free: [number, number][]; fm: FreeMoney; p: Params; goals: Goal[] } | null = null;
+let cache: { key: string; snaps: Snapshot[]; r: SimResult; free: [number, number][] | null; fm: FreeMoney; p: Params; goals: Goal[] } | null = null;
 let pensionBalances: number[][] = [];
 
 // ---------- messages ----------
@@ -41,8 +48,9 @@ export function showMsg(text: string | null): void {
 }
 
 export function errorText(e: unknown): string {
-  if (e instanceof MissingTabError) return t('eTab', { t: e.tab });
+  if (e instanceof AuthError) return t('ePopup', { c: e.code });
   if (e instanceof SheetsError) {
+    if (e.code === 'ratelimit') return t('eRate');
     if (e.code === 'auth') return t('eAuth');
     if (e.code === 'forbidden') return t('eForb');
     if (e.code === 'notfound') return t('eNF');
@@ -112,14 +120,19 @@ export async function load(): Promise<void> {
   showMsg(t('loading'));
   start = startFromDate(new Date());
   try {
-    data = await loadSheet(c, start);
+    const res = await loadSheet(c, start);
+    showMsg(null);
+    $('reload').hidden = false;
+    if (!res.data) {
+      deps.onCheck(res.check, false);
+      return;
+    }
+    data = res.data;
     fillInputs(data);
     cache = null;
-    showMsg(null);
-    $('app').hidden = false;
-    $('reload').hidden = false;
     updatedLine();
-    render();
+    if (!get(KEYS.checked)) deps.onCheck(res.check, true);
+    else showApp();
   } catch (e) {
     if (e instanceof SheetsError && e.code === 'auth') {
       deps.onAuthError();
@@ -128,6 +141,22 @@ export async function load(): Promise<void> {
     showMsg(errorText(e));
     $('reload').hidden = false;
   }
+}
+
+/** Opens the main screen once the sheet has been read (and checked on first run). */
+export function showApp(): void {
+  if (!data) return;
+  set(KEYS.checked, '1');
+  deps.onReady();
+  render();
+}
+
+/** Drops loaded data (change sheet, sign out, forget). */
+export function clearData(): void {
+  data = null;
+  cache = null;
+  pending = [];
+  updatedLine();
 }
 
 // ---------- model inputs ----------
@@ -181,12 +210,26 @@ export function render(): void {
   $('post').textContent = f(td.postTax);
   const pe = d.pension.reduce((a, x) => a + x.balance, 0);
   $('tax').textContent = t('est') + ' ' + f(td.tax) + ' · ' + t('penl') + ' (' + f(pe) + ')';
+  // display_currency: bottom-line totals only (SPEC 3.1).
+  const dc = String(S.raw.display_currency ?? '').trim().toUpperCase();
+  const rate = S.fx[dc];
+  const sym: Record<string, string> = { USD: '$', EUR: '€' };
+  $('dcur').textContent = dc && dc !== 'ILS' && rate
+    ? t('dcur', { c: dc, a: '\u2066' + (sym[dc] ?? '') + Math.round(td.postTax / rate).toLocaleString('en-US') + '\u2069', b: '\u2066' + (sym[dc] ?? '') + Math.round(td.preTax / rate).toLocaleString('en-US') + '\u2069' })
+    : '';
 
   const key = JSON.stringify([p, goals.map((g) => [g.name, g.amount, g.year, g.month, g.spend, g.retirement, g.endYear, g.monthly]), d.fetchedAt]);
   if (!cache || cache.key !== key) {
     const snaps: Snapshot[] = [];
     const r = simulate(d.holdings, goals, p, { snaps });
-    cache = { key, snaps, r, free: freeCurve(snaps, p, goals, r.end), fm: freeMoney(d.holdings, goals, p), p, goals };
+    cache = { key, snaps, r, free: null, fm: freeMoney(d.holdings, goals, p), p, goals };
+    // The free-money curve is the slow part (SPEC 6.7): draw the panels first, add the line right after.
+    const c = cache;
+    setTimeout(() => {
+      if (cache !== c) return;
+      c.free = freeCurve(c.snaps, c.p, c.goals, c.r.end);
+      tmView();
+    }, 0);
   }
   freeView(cache.fm);
   nextView(cache.r);
@@ -314,7 +357,7 @@ export function tmView(): void {
   const band = rety != null && S.birthYear != null
     ? { k1: stepOf(start, rety, 0), k2: stepOf(start, S.birthYear + S.pensionStartAge, 0), label1: t('agel', { a: rety - S.birthYear }), label2: t('agel', { a: S.pensionStartAge }) }
     : null;
-  $('chart').innerHTML = chartSvg({ pts: r.pts, res: r.res, free: cache.free, sel: k, yearTicks, band });
+  $('chart').innerHTML = chartSvg({ pts: r.pts, res: r.res, free: cache.free ?? [], sel: k, yearTicks, band });
 
   // Holdings at the selected month.
   const s = snaps[k];

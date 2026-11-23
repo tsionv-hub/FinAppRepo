@@ -1,15 +1,16 @@
 import { createHash } from 'node:crypto';
 import { defineConfig, type Plugin } from 'vite';
 
-// Content Security Policy for production builds: scripts only from this app,
-// network only to Google's sign-in and Sheets endpoints. (Not applied in dev,
+// Content Security Policy for production builds (SPEC 7): scripts only from this
+// app plus Google's sign-in library; network only to Google sign-in and Sheets. (Not applied in dev,
 // where Vite needs inline scripts and a websocket.)
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' https://accounts.google.com/gsi/client",
+  "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
   "img-src 'self' data: blob:",
-  "connect-src 'self' https://sheets.googleapis.com https://oauth2.googleapis.com",
+  "frame-src https://accounts.google.com/gsi/",
+  "connect-src 'self' https://sheets.googleapis.com https://accounts.google.com/gsi/ https://oauth2.googleapis.com",
   "form-action 'none'",
   "base-uri 'none'",
   "object-src 'none'",

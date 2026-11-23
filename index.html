@@ -20,9 +20,9 @@
 <div class="sub"><span id="upd"></span><button class="s" id="reload" data-t="reload" hidden></button></div>
 <div class="card" id="msg" hidden></div>
 
-<!-- First launch: sheet link, then Google sign-in -->
+<!-- First run (SPEC 2): sheet link, sign-in setup, sign-in, sheet check -->
 <section id="setup" hidden>
-  <div class="card" id="setupSheet">
+  <div class="card" id="setupSheet" hidden>
     <h2 data-t="setupT"></h2>
     <p class="lbl" data-t="setupN"></p>
     <label for="sid" data-t="sheetL"></label>
@@ -30,14 +30,29 @@
     <div class="lbl bad" id="sidErr"></div>
     <button id="sidGo" style="margin-top:8px;width:100%" data-t="cont"></button>
   </div>
+  <div class="card" id="setupClient" hidden>
+    <h2 data-t="cidT"></h2>
+    <p class="lbl" data-t="cidN"></p>
+    <ol class="steps"><li data-t="cid1"></li><li data-t="cid2"></li><li data-t="cid3"></li><li id="cid4"></li><li id="cid5"></li><li data-t="cid6"></li></ol>
+    <label for="cid" data-t="cidL"></label>
+    <input type="text" id="cid" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="lbl bad" id="cidErr"></div>
+    <button id="cidGo" style="margin-top:8px;width:100%" data-t="saveL"></button>
+  </div>
   <div class="card" id="setupSign" hidden>
-    <h2 data-t="signT"></h2>
-    <p class="lbl" data-t="signN"></p>
-    <button id="signIn" style="width:100%" data-t="signT"></button>
+    <h2 id="signH"></h2>
+    <p class="lbl" id="signP"></p>
+    <button id="signIn" style="width:100%" data-t="contG"></button>
+  </div>
+  <div class="card" id="setupCheck" hidden>
+    <h2 data-t="chkT"></h2>
+    <p class="lbl" id="chkSum"></p>
+    <div id="chkList"></div>
+    <div class="row" style="margin-top:8px"><button class="s" id="chkAgain" data-t="chkAgain"></button><button id="openApp" data-t="openApp"></button></div>
   </div>
   <div class="card">
     <p class="lbl" data-t="tplN"></p>
-    <button class="s" id="tplBtn" data-t="tpl"></button>
+    <div class="foot" style="justify-content:flex-start;margin:0"><button class="s" id="tplBtn" data-t="tpl"></button><button class="s" id="setupForget" data-t="forget"></button><button class="s" id="setupDiag" data-t="diag"></button></div>
   </div>
 </section>
 
@@ -46,13 +61,14 @@
   <div class="card">
     <h2 data-t="diag"></h2>
     <pre id="diagOut" class="pre"></pre>
-    <div class="row" style="margin-top:8px"><button id="dSign">Sign in</button><button id="dRead">Test read</button></div>
-    <div class="row" style="margin-top:8px"><button class="s" id="dSilent">Silent refresh</button><button class="s" id="dOut">Sign out</button><button class="s" id="dBack">Back to app</button></div>
+    <div class="row" style="margin-top:8px"><button id="dPopup">1. Sign in (popup)</button><button id="dRedir">2. Sign in (redirect)</button></div>
+    <div class="row" style="margin-top:8px"><button id="dRead">Test read</button><button class="s" id="dMode"></button></div>
+    <div class="row" style="margin-top:8px"><button class="s" id="dOut">Sign out</button><button class="s" id="dBack">Back to app</button></div>
   </div>
 </section>
 
 <div id="app" hidden>
-<details class="card" style="padding:16px"><summary><span><span class="lbl" data-t="post" style="display:block;font-size:13px"></span><span class="big" id="post" style="font-size:34px"></span><span style="display:block;margin-top:6px;font-weight:500;font-size:14px;color:var(--mu)"><span data-t="pre"></span> <span id="pre"></span></span></span></summary><div class="lbl" id="tax"></div></details>
+<details class="card" style="padding:16px"><summary><span><span class="lbl" data-t="post" style="display:block;font-size:13px"></span><span class="big" id="post" style="font-size:34px"></span><span style="display:block;margin-top:6px;font-weight:500;font-size:14px;color:var(--mu)"><span data-t="pre"></span> <span id="pre"></span></span></span></summary><div class="lbl" id="tax"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
 
 <details class="card" open><summary><span class="lbl" data-t="free"></span><span class="big" id="fm"></span></summary><div class="lbl" id="fn"></div>
 <div class="cm" id="cm"></div><div id="cl" style="margin-top:8px"></div></details>
@@ -103,7 +119,7 @@
 
 <details class="card"><summary><h2 data-t="where"></h2></summary><div id="bk"></div></details>
 
-<div class="foot"><button class="s" id="chgSheet" data-t="chg"></button><button class="s" id="tplBtn2" data-t="tpl"></button><button class="s" id="signOut" data-t="out"></button></div>
+<div class="foot"><button class="s" id="chgSheet" data-t="chg"></button><button class="s" id="tplBtn2" data-t="tpl"></button><button class="s" id="signOut" data-t="out"></button><button class="s" id="forget" data-t="forget"></button><button class="s" id="toDiag" data-t="diag"></button></div>
 </div>
 <script type="module" src="/src/main.ts"></script>
 </body>

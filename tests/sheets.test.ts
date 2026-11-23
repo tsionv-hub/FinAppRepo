@@ -67,3 +67,64 @@ describe('template', () => {
     for (const t of TEMPLATE_TABS) expect(out).toContain(`name="${t.name}"`);
   });
 });
+
+import { validate } from '../src/sheets/validate';
+import { goalName, setLang } from '../src/ui/i18n';
+import { goalsRows as GR, holdingsRows, settingsRows } from './fixture';
+import { parseHoldings, parsePension } from '../src/model';
+
+describe('sheet check (SPEC 2.3)', () => {
+  it('passes the fixture, Pension optional', () => {
+    const tabs = ['Settings', 'Holdings', 'Goals'];
+    const c = validate(tabs, { Settings: settingsRows, Holdings: holdingsRows, Goals: GR });
+    expect(c.ok).toBe(true);
+    expect(c.items.find((i) => i.name === 'Pension')).toMatchObject({ found: false, required: false });
+  });
+
+  it('flags missing required tabs and columns, warns on optional ones', () => {
+    const goals = [GR[0].filter((h) => h !== 'target_year' && h !== 'target_month')];
+    const c = validate(['Settings', 'Goals'], { Settings: [['USD', 3]], Goals: goals });
+    expect(c.ok).toBe(false);
+    const miss = c.items.filter((i) => !i.found).map((i) => `${i.kind}:${i.name}:${i.required}`);
+    expect(miss).toContain('tab:Holdings:true');
+    expect(miss).toContain('column:target_year:true');
+    expect(miss).toContain('column:target_month:false');
+    expect(miss).toContain('key:income_tax_pct:true');
+  });
+});
+
+describe('template content (SPEC 3.6)', () => {
+  const rows = (name: string) => TEMPLATE_TABS.find((t) => t.name === name)!.rows.map((r) => r.map((v) => (v && typeof v === 'object' ? 0 : v)));
+  it('passes the app’s own sheet check and parses', () => {
+    const tabs = TEMPLATE_TABS.map((t) => t.name);
+    expect(validate(tabs, Object.fromEntries(tabs.map((t) => [t, rows(t)]))).ok).toBe(true);
+    const s = parseSettings(rows('Settings'));
+    expect(s.incomeTaxPct).toBe(50);
+    expect(s.capitalGainsTaxPct).toBe(25);
+    const H = parseHoldings(rows('Holdings'), { ILS: 1, USD: 3.7 });
+    const types = new Set(H.map((h) => h.type));
+    for (const ty of ['Study fund', 'Investment fund', 'Savings plan', 'Brokerage', 'Cash', 'Stocks', 'Stocks (unvested)']) expect(types.has(ty)).toBe(true);
+    expect(parsePension(rows('Pension'))).toHaveLength(1);
+    const g = parseGoals(rows('Goals'), 2026);
+    expect(g.reserveRow).toBe(2);
+  });
+  it('stock rows take their value from GOOGLEFINANCE', () => {
+    const h = TEMPLATE_TABS.find((t) => t.name === 'Holdings')!.rows;
+    const ci = (h[0] as string[]).indexOf('current_amount');
+    const stock = h.find((r) => r[5] === 'Stocks')!;
+    expect(stock[ci]).toEqual({ f: expect.stringContaining('GOOGLEFINANCE(Q') });
+  });
+});
+
+describe('Hebrew goal names (SPEC 6.6)', () => {
+  it('translates names and words, leaves unknown words', () => {
+    setLang('he');
+    expect(goalName("Noa's wedding")).toBe('החתונה של נועה');
+    expect(goalName("Zork's wedding")).toBe('החתונה של Zork');
+    expect(goalName('New car')).toBe('New רכב');
+    expect(goalName('Rainy day fund')).toBe('קרן ליום סגריר');
+    expect(goalName('Apartment down payment')).toBe('דירה מקדמה');
+    setLang('en');
+    expect(goalName('New car')).toBe('New car');
+  });
+});

@@ -154,6 +154,9 @@ export function run(
   goals: Goal[],
   endYear: number,
   snaps?: Snapshot[],
+  /** Stop at the first goal (or retirement month) that is short. Used by the
+   *  free-money searches, which only need to know whether everything is funded. */
+  stopOnFail = false,
 ): { pts: [number, number, number][]; res: GoalResult[] } {
   const pts: [number, number, number][] = [];
   const res: GoalResult[] = [];
@@ -249,6 +252,10 @@ export function run(
         rs.fail = true;
         rs.short += (w - Math.max(0, av)) / infl(k);
         takeLiquid(av > 0 && q0 > 0 ? av / q0 : 0);
+        if (stopOnFail) {
+          res.push({ g: rg, k: rs.k, ok: false, short: rs.short, have: 0 });
+          return { pts, res };
+        }
       }
     }
 
@@ -259,6 +266,7 @@ export function run(
       const a = g.amount * infl(k);
       const av = q - p.reserve * infl(k);
       res.push({ g, k, ok: av >= a, short: Math.max(0, a - av) / infl(k), have: Math.max(0, av) / infl(k) });
+      if (stopOnFail && av < a) return { pts, res };
       if (g.spend && q > 0) takeLiquid(Math.min(1, a / q));
     }
 
@@ -295,14 +303,14 @@ export function simulate(
   H: Holding[],
   goals: Goal[],
   p: Params,
-  opts: { takeFraction?: number; extraMonthly?: number; snaps?: Snapshot[] } = {},
+  opts: { takeFraction?: number; extraMonthly?: number; snaps?: Snapshot[]; stopOnFail?: boolean } = {},
 ): SimResult {
   const gs = goals.slice().sort(goalOrder);
   const end = simEndYear(p.start, gs);
   const S = initialSlots(H, p, opts.takeFraction ?? 0);
   const t0 = totals(S, p);
   opts.snaps?.push({ k: 0, S: copySlots(S) });
-  const r = run(S, 0, p, opts.extraMonthly ?? 0, gs, end, opts.snaps);
+  const r = run(S, 0, p, opts.extraMonthly ?? 0, gs, end, opts.snaps, opts.stopOnFail);
   r.pts.unshift([0, t0[0], t0[1]]);
   return { ...r, end };
 }
@@ -332,7 +340,7 @@ export function freeAt(s: Snapshot, p: Params, goals: Goal[], endYear: number, i
           x.b *= 1 - f;
           x.d *= 1 - f;
         }
-      return allOk(run(S2, s.k, p, 0, rem, endYear));
+      return allOk(run(S2, s.k, p, 0, rem, endYear, undefined, true));
     };
     if (!good(hiX)) {
       if (!good(0)) fm = 0;
@@ -396,7 +404,7 @@ export function freeMoney(H: Holding[], goals: Goal[], p: Params, iterations = 2
   for (const h of H) if (liquid(h, p)) L += h.value - taxOf(h, h.value, h.deposited, p.cgTax, p.incomeTax);
   const hiX = Math.max(0, L - p.reserve);
   const ok = (x: number, xm: number, gl: Goal[]) =>
-    allOk(simulate(H, gl, p, { takeFraction: L > 0 ? x / L : 0, extraMonthly: xm }));
+    allOk(simulate(H, gl, p, { takeFraction: L > 0 ? x / L : 0, extraMonthly: xm, stopOnFail: true }));
   const maxFree = (gl: Goal[]) => {
     if (hiX <= 0) return 0;
     if (ok(hiX, 0, gl)) return hiX;

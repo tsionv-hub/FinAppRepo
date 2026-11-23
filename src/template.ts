@@ -3,63 +3,91 @@
 
 type Val = string | number | { f: string } | null;
 
+const HOLDINGS_HEAD = [
+  'id', 'name', 'vendor', 'account_number', 'owner', 'type', 'investment_style', 'investment_track', 'currency',
+  'current_amount', 'deposited_amount', 'return_5y_avg_pct', 'deposit_fee_pct', 'management_fee_pct', 'tax_type',
+  'include_in_total', 'ticker', 'quantity', 'available_from', 'opened_date', 'last_updated', 'notes',
+];
+
+/** One generic example row per holding type (SPEC 3.6). Stock values come from GOOGLEFINANCE in the sheet. */
+function holdingRow(n: number, o: Record<string, Val>): Val[] {
+  const row = n + 1;
+  const v: Record<string, Val> = { id: 'H' + n, include_in_total: 1, ...o };
+  if (o.ticker) v.current_amount = { f: `R${row}*GOOGLEFINANCE(Q${row},"price")` };
+  return HOLDINGS_HEAD.map((h) => (h in v ? v[h] : null));
+}
+
+const EX = 'Example row: replace or delete. ';
+
 export const TEMPLATE_TABS: { name: string; rows: Val[][] }[] = [
   {
     name: 'Settings',
     rows: [
-      ['key', 'value'],
-      ['base_currency', 'ILS'],
-      ['display_currency', 'ILS'],
-      ['inflation_enabled', 0],
-      ['inflation_rate_pct', 2.5],
-      ['start_date', null],
-      ['USD', { f: 'GOOGLEFINANCE("CURRENCY:USDILS")' }],
-      ['EUR', { f: 'GOOGLEFINANCE("CURRENCY:EURILS")' }],
-      ['monthly_saving_ILS', 0],
-      ['yearly_free_cash_ILS', 0],
-      ['yearly_intel_grant_USD', 0],
-      ['capital_gains_tax_pct', 25],
-      ['income_tax_pct', 47],
-      ['intel_vest_years', 4],
-      ['intel_vest_every_months', 6],
-      ['birth_year', null],
-      ['retirement_age', null],
-      ['pre_retirement_allowance_ILS', 0],
-      ['pension_start_age', 67],
-      ['pension_deposit_growth_pct', 0],
-      ['pension_exempt_pct', 67],
-      ['pension_exempt_ceiling_ILS', 9430],
-      ['pension_tax_rate_pct', 20],
-      ['old_age_allowance_ILS', 0],
-      ['return_factor_optimistic', 1],
-      ['return_factor_moderate', 0.75],
-      ['return_factor_pessimistic', 0.5],
+      ['key', 'value', 'notes'],
+      ['base_currency', 'ILS', 'All amounts are converted to this'],
+      ['display_currency', 'ILS', 'ILS, USD or EUR; bottom-line totals only'],
+      ['inflation_enabled', 0, '1 = show amounts in today’s money'],
+      ['inflation_rate_pct', 2.5, 'Yearly inflation %'],
+      ['start_date', null, 'Informational; the app starts from the current month'],
+      ['USD', { f: 'GOOGLEFINANCE("CURRENCY:USDILS")' }, 'Live rate to ILS'],
+      ['EUR', { f: 'GOOGLEFINANCE("CURRENCY:EURILS")' }, 'Live rate to ILS'],
+      ['monthly_saving_ILS', 0, 'Added every month to your liquid holdings'],
+      ['yearly_free_cash_ILS', 0, 'Added every January to capital-gain holdings'],
+      ['yearly_intel_grant_USD', 0, 'Value of the yearly stock grant in USD (not shares)'],
+      ['capital_gains_tax_pct', 25, 'Tax on gains when selling'],
+      ['income_tax_pct', 50, 'Marginal rate, used for stock sales'],
+      ['intel_vest_years', 4, 'Each grant vests over this many years'],
+      ['intel_vest_every_months', 6, 'A tranche vests every N months'],
+      ['birth_year', null, 'Needed for retirement and pension'],
+      ['retirement_age', null, 'Early retirement age'],
+      ['pre_retirement_allowance_ILS', 0, 'Monthly amount from retirement until pension'],
+      ['pension_start_age', 67, 'Age the pension starts'],
+      ['pension_deposit_growth_pct', 0, 'Yearly growth of pension deposits'],
+      ['pension_exempt_pct', 67, 'Exempt share of the pension'],
+      ['pension_exempt_ceiling_ILS', 9430, 'Monthly ceiling for the exemption, per person'],
+      ['pension_tax_rate_pct', 20, 'Tax on the taxable part of the pension'],
+      ['old_age_allowance_ILS', 0, 'Optional monthly old-age allowance'],
+      ['return_factor_optimistic', 1, 'Multiplies every 5-year return'],
+      ['return_factor_moderate', 0.75, 'Default scenario'],
+      ['return_factor_pessimistic', 0.5, ''],
     ],
   },
   {
     name: 'Holdings',
-    rows: [[
-      'id', 'name', 'vendor', 'account_number', 'owner', 'type', 'investment_style', 'investment_track', 'currency',
-      'current_amount', 'deposited_amount', 'return_5y_avg_pct', 'deposit_fee_pct', 'management_fee_pct', 'tax_type',
-      'include_in_total', 'ticker', 'quantity', 'available_from', 'opened_date', 'last_updated', 'notes',
-    ]],
+    rows: [
+      HOLDINGS_HEAD,
+      holdingRow(1, { name: 'Study fund A', vendor: 'Provider', owner: 'Person 1', type: 'Study fund', currency: 'ILS', current_amount: 100000, deposited_amount: 80000, return_5y_avg_pct: 7, tax_type: 'none', notes: EX + 'type: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). tax_type: none, capital_gain, income. include_in_total: 1 or 0. Pension goes in the Pension tab.' }),
+      holdingRow(2, { name: 'Investment fund A', vendor: 'Provider', owner: 'Person 1', type: 'Investment fund', currency: 'ILS', current_amount: 50000, deposited_amount: 40000, return_5y_avg_pct: 6, tax_type: 'capital_gain', notes: EX }),
+      holdingRow(3, { name: 'Savings plan A', vendor: 'Provider', owner: 'Person 2', type: 'Savings plan', currency: 'ILS', current_amount: 30000, deposited_amount: 30000, return_5y_avg_pct: 4, tax_type: 'capital_gain', notes: EX }),
+      holdingRow(4, { name: 'Brokerage A', vendor: 'Broker', owner: 'Person 2', type: 'Brokerage', currency: 'USD', current_amount: 10000, deposited_amount: 8000, return_5y_avg_pct: 9, tax_type: 'capital_gain', notes: EX + 'Amounts are in the row’s currency.' }),
+      holdingRow(5, { name: 'Checking', vendor: 'Bank', owner: 'Person 1', type: 'Cash', currency: 'ILS', current_amount: 20000, tax_type: 'none', notes: EX + 'Blank return = 0.' }),
+      holdingRow(6, { name: 'Company shares (vested)', owner: 'Person 1', type: 'Stocks', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 100, return_5y_avg_pct: 0, tax_type: 'income', notes: EX + 'current_amount = quantity × GOOGLEFINANCE price.' }),
+      holdingRow(7, { name: 'Company shares (unvested)', owner: 'Person 1', type: 'Stocks (unvested)', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 200, return_5y_avg_pct: 0, tax_type: 'income', notes: EX + 'Never spendable until vested.' }),
+    ],
   },
   {
     name: 'Pension',
-    rows: [[
-      'id', 'name', 'owner', 'current_amount_ILS', 'monthly_deposit_ILS', 'deposit_fee_pct', 'accumulation_fee_pct',
-      'yearly_return_pct', 'conversion_coefficient', 'stops_at_early_retirement', 'notes',
-    ]],
+    rows: [
+      ['id', 'name', 'owner', 'current_amount_ILS', 'monthly_deposit_ILS', 'deposit_fee_pct', 'accumulation_fee_pct', 'yearly_return_pct', 'conversion_coefficient', 'stops_at_early_retirement', 'notes'],
+      ['P1', 'Pension fund A', 'Person 1', 300000, 3000, 1.5, 0.2, 5, 200, 1, EX + 'One row per fund. stops_at_early_retirement: 1 = deposits stop when you retire early.'],
+    ],
   },
   {
     name: 'Goals',
     rows: [
       ['id', 'name', 'target_amount_ILS', 'target_year', 'target_month', 'priority', 'notes', 'spend_when_due', 'type'],
-      ['G1', 'Rainy day fund', 0, null, null, 1, 'Never spent', null, 'reserve'],
-      ['G2', 'Early retirement', 0, null, null, 2, 'Year and amount come from Settings', null, 'retirement'],
+      ['G1', 'Rainy day fund', 0, null, null, 1, 'type reserve: never spent; only the amount is used', null, 'reserve'],
+      ['G2', 'Early retirement', 0, null, null, 2, 'type retirement: amount and date come from Settings', null, 'retirement'],
+      ['G3', 'Car', 100000, 2030, 6, 3, EX + 'Due on the 1st of target_month (blank = January). spend_when_due: 1 = paid out.', 1, null],
     ],
   },
-  { name: 'ToDo', rows: [['id', 'item', 'area', 'status', 'notes']] },
+  {
+    name: 'ToDo',
+    rows: [
+      ['id', 'item', 'area', 'status', 'notes'],
+      ['T1', 'Example task', 'General', 'open', EX + 'status: open, in progress, done. Not read by the app.'],
+    ],
+  },
 ];
 
 const xmlEsc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
