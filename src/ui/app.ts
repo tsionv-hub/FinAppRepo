@@ -5,7 +5,7 @@
 import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
-  type Snapshot, type StartMonth, type WhatIf,
+  type Holding, type Slot, type Snapshot, type StartMonth, type WhatIf,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, loadSheet, saveReserve, saveRetirement, type SheetData } from '../sheets/data';
@@ -38,6 +38,10 @@ let pending: Goal[] = [];
 let listed: Goal[] = [];
 let cache: { key: string; snaps: Snapshot[]; r: SimResult; free: [number, number][] | null; fm: FreeMoney; p: Params; goals: Goal[] } | null = null;
 let pensionBalances: number[][] = [];
+/** What each tappable row stands for, so a tap can open its details. */
+let holdRows: Slot[] = [];
+let goalRows: Goal[] = [];
+let curK = 0;
 
 // ---------- messages ----------
 
@@ -233,9 +237,10 @@ export function render(): void {
   }
   freeView(cache.fm);
   nextView(cache.r);
-  pensionView(w, goals);
+  pensionView(w, cache.goals);
   tmView();
-  goalsView(cache.r, goals, td.liquidPostTax, w.reserve);
+  // Use the cached goal objects: results point at them (the retirement goal is rebuilt each render).
+  goalsView(cache.r, cache.goals, td.liquidPostTax, w.reserve);
 
   const bk = td.byType;
   const tt = Object.values(bk).reduce((a, x) => a + x, 0);
@@ -361,21 +366,22 @@ export function tmView(): void {
 
   // Holdings at the selected month.
   const s = snaps[k];
-  const rows = s.S.filter((x) => !(x.h.synthetic && x.b < 1))
-    .sort((a, b) => b.b - a.b)
-    .map((x) => {
+  curK = k;
+  holdRows = s.S.filter((x) => !(x.h.synthetic && x.b < 1)).sort((a, b) => b.b - a.b);
+  const rows = holdRows
+    .map((x, i) => {
       const h = x.h;
       const pre = x.b / infl;
       const post = (x.b - taxOf(h, x.b, x.d, p.cgTax, p.incomeTax)) / infl;
       const inc = h.type === 'Pension' ? false : h.type === 'Stocks (unvested)' ? p.countUnvested : h.include;
       const meta = esc(ty(h.type)) + (h.synthetic ? ' · ' + t('avgr', { r: h.ret.toFixed(1) }) : ' · ' + t('r5') + ' ' + h.ret.toFixed(1) + '%')
         + (h.vendor ? ' · ' + esc(h.vendor) : '') + (h.owner ? ' · ' + esc(h.owner) : '') + (inc ? '' : ' · ' + t('sepn'));
-      return `<div class="g"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b><div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
+      return `<div class="g" data-h="${i}"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b><div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
     });
   const pens = data.pension.map((fd, i) => {
     const bs = pensionBalances[i];
     const v = bs ? bs[Math.min(k, bs.length - 1)] : fd.balance;
-    return `<div class="g"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
+    return `<div class="g" data-pf="${i}"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
   });
   $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
   $('hl').innerHTML = rows.join('') + pens.join('');
@@ -385,10 +391,11 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
   let o = '';
   if (reserve > 0) {
     const cv = liquidNow >= reserve;
-    o += `<div class="g"><div class="gh"><div><b>${esc(t('rdf'))}</b><div class="lbl">${f(reserve)} · ${t('resv')}</div></div><div><span class="${cv ? 'ok' : 'bad'}">${cv ? t('cov') : t('sh') + ' ' + f(reserve - liquidNow)}</span></div></div></div>`;
+    o += `<div class="g" data-res="1"><div class="gh"><div><b>${esc(t('rdf'))}</b><div class="lbl">${f(reserve)} · ${t('resv')}</div></div><div><span class="${cv ? 'ok' : 'bad'}">${cv ? t('cov') : t('sh') + ' ' + f(reserve - liquidNow)}</span></div></div></div>`;
   }
   const raw = allGoals();
   listed = [];
+  goalRows = [];
   const he = getLang() === 'he';
   goals.slice().sort(goalOrder).forEach((x) => {
     const y = r.res.find((z) => z.g === x);
@@ -396,8 +403,9 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
     // The retirement goal is re-derived each render; map it back to its sheet row.
     const orig = x.retirement ? raw.find((g) => g.retirement)! : x;
     const i = listed.push(orig) - 1;
+    goalRows.push(x);
     const date = new Date(x.year, (x.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
-    o += `<div class="g"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
+    o += `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
       + (orig.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}"${he ? ' disabled' : ''}>${t('rm')}</button>` : '')
       + `<div class="lbl">${f(x.amount)} · ${date}${x.retirement ? ' · ' + t('age') + ' ' + inp('ra').value : ''}</div></div><div>`
       + (y ? `<span class="${y.ok ? 'ok' : 'bad'}">${y.ok ? t('on') : t('sh') + ' ' + f(y.short)}</span>` + (x.retirement ? '' : `<div class="lbl">${t('prj')} ${f(y.have)}</div>`) : '')
@@ -473,6 +481,123 @@ function renderSoon(): void {
   timer = window.setTimeout(render, 150);
 }
 
+// ---------- detail popups ----------
+
+const pct = (v: number | null | undefined, d = 2) => (v == null ? '–' : v.toFixed(d).replace(/\.?0+$/, '') + '%');
+const row = (label: string, value: string) => `<div class="dr"><span>${label}</span><span>${value}</span></div>`;
+const sec = (title: string) => `<div class="dsec">${title}</div>`;
+const yn = (b: boolean) => (b ? t('yes') : t('no'));
+
+function openDialog(title: string, sub: string, body: string): void {
+  $('dlgT').textContent = title;
+  $('dlgB').innerHTML = (sub ? `<p class="dsub">${sub}</p>` : '') + body;
+  const d = $<HTMLDialogElement>('dlg');
+  if (!d.open) d.showModal();
+  $('dlgB').scrollTop = 0;
+}
+
+/** Value lines for a balance b with basis d, in display money. */
+function valueLines(x: { b: number; d: number; h: Holding }, infl: number, p: Params): string {
+  const tax = taxOf(x.h, x.b, x.d, p.cgTax, p.incomeTax);
+  return row(t('dVal'), f(x.b / infl)) + row(t('dDep'), f(x.d / infl)) + row(t('dGain'), f((x.b - x.d) / infl))
+    + row(t('dTax'), f(tax / infl)) + row(t('dPost'), f((x.b - tax) / infl));
+}
+
+function holdingDetails(x: Slot): void {
+  if (!cache || !data) return;
+  const { p } = cache;
+  const h = x.h;
+  const i = h.info;
+  const inc = h.type === 'Stocks (unvested)' ? p.countUnvested : h.include;
+  const scen = $<HTMLSelectElement>('sc').selectedOptions[0]?.textContent ?? '';
+  const taxName = h.tax === 'capital_gain' ? t('taxCg') : h.tax === 'income' ? t('taxInc') : t('taxNone');
+  let body = sec(t('dToday')) + valueLines({ b: h.value, d: h.deposited, h }, 1, p);
+  if (curK > 0) {
+    const infl = p.inflationOn ? Math.pow(1 + p.inflationRate, curK / 12) : 1;
+    body += sec(t('dAt', { d: dateAt(curK, 'long') })) + valueLines(x, infl, p);
+  }
+  body += sec(t('dRT'))
+    + row(t('dRet'), pct(h.ret)) + row(t('dEff', { s: scen }), pct(h.ret * p.returnFactor))
+    + row(t('dTaxT'), taxName) + row(t('dInTot'), yn(inc)) + row(t('dSpendable'), yn(inc && h.type !== 'Stocks (unvested)'));
+  if (i) {
+    body += sec(t('dSheet'));
+    if (i.currency !== 'ILS') body += row(i.currency, `⁦${i.amount.toLocaleString('en-US')} ${t('dRate', { r: i.rate.toFixed(3) })}⁩`);
+    if (i.ticker) body += row(t('dTicker'), esc(i.ticker));
+    if (i.quantity != null) body += row(t('dQty'), i.quantity.toLocaleString('en-US'));
+    if (i.track) body += row(t('dTrack'), esc(i.track));
+    if (i.style) body += row(t('dStyle'), esc(i.style));
+    if (i.depositFeePct != null) body += row(t('dDepF'), pct(i.depositFeePct));
+    if (i.managementFeePct != null) body += row(t('dMgmF'), pct(i.managementFeePct));
+    if (i.lastUpdated) body += row(t('dUpd'), esc(i.lastUpdated));
+  }
+  if (i?.depositFeePct != null || i?.managementFeePct != null) body += `<div class="dnote">${t('dFeesN')}</div>`;
+  if (h.synthetic) body += `<div class="dnote">${t('dSreN')}</div>`;
+  if (h.type === 'Stocks (unvested)') body += `<div class="dnote">${t('dUnvN', { m: data.settings.vestEveryMonths })}</div>`;
+  if (i?.notes) body += `<div class="dnote">${esc(i.notes)}</div>`;
+  const sub = [ty(h.type), h.vendor, h.owner].filter(Boolean).map(esc).join(' · ');
+  openDialog(h.synthetic ? t('sre') : h.name, sub, body);
+}
+
+function pensionDetails(idx: number): void {
+  if (!data || !cache) return;
+  const fd = data.pension[idx];
+  const bs = pensionBalances[idx];
+  const S = data.settings;
+  const w = whatIf();
+  let body = sec(t('dToday')) + row(t('dBal'), f(fd.balance)) + row(t('dMDep'), f(fd.monthlyDeposit))
+    + row(t('dDepF'), pct(fd.depositFeePct)) + row(t('dAccF'), pct(fd.accumulationFeePct)) + row(t('dYRet'), pct(fd.returnPct))
+    + row(t('dCoef'), String(fd.coefficient)) + row(t('dStops'), yn(fd.stopsAtEarlyRetirement));
+  if (bs) {
+    const kEnd = bs.length - 1;
+    const inf = (k: number) => (w.inflationOn ? Math.pow(1 + w.inflationRatePct / 100, k / 12) : 1);
+    if (curK > 0 && curK < kEnd) body += sec(t('dAt', { d: dateAt(curK, 'long') })) + row(t('dBal'), f(bs[curK] / inf(curK)));
+    body += sec(t('dAtPen', { a: S.pensionStartAge })) + row(t('dBal'), f(bs[kEnd] / inf(kEnd))) + row(t('dMPen'), f(bs[kEnd] / fd.coefficient / inf(kEnd)));
+  }
+  body += `<div class="dnote">${t('dPenN')}</div>`;
+  openDialog(fd.name, [ty('Pension'), fd.owner].filter(Boolean).map(esc).join(' · '), body);
+}
+
+function goalDetails(g: Goal): void {
+  if (!cache) return;
+  const z = cache.r.res.find((x) => x.g === g);
+  const status = z ? `<span class="${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh')}</span>` : '–';
+  let body = '';
+  if (g.retirement) {
+    const years = Math.max(0, (g.endYear ?? g.year) - g.year + 1);
+    body += row(t('dFrom'), dateAt(stepOf(start, g.year, 0))) + row(t('dUntil'), String(g.endYear ?? g.year)) + row(t('dYears'), String(years))
+      + row(t('dMonthly'), f(g.monthly ?? 0)) + row(t('dTotal'), f(g.amount)) + row(t('dStatus'), status);
+    if (z && !z.ok) body += row(t('dShortBy'), f(z.short));
+    body += `<div class="dnote">${t('dRetN')}</div>`;
+  } else {
+    const due = stepOf(start, g.year, (g.month || 1) - 1);
+    body += row(t('dAmt'), f(g.amount)) + row(t('dDue'), new Date(g.year, (g.month || 1) - 1, 1).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }))
+      + row(t('dLeft'), dur(Math.max(0, due))) + row(t('dSpendQ'), yn(g.spend)) + row(t('dStatus'), status);
+    if (z) body += row(t('dHave'), f(z.have)) + (z.ok ? '' : row(t('dShortBy'), f(z.short)));
+    if (g.priority != null) body += row(t('dPrio'), String(g.priority));
+    body += `<div class="dnote">${t('dGoalN')}</div>`;
+    if (g.notes) body += `<div class="dnote">${esc(g.notes)}</div>`;
+  }
+  openDialog(goalName(g.name), g.pending ? t('ns') : '', body);
+}
+
+function reserveDetails(): void {
+  if (!data || !cache) return;
+  const reserve = whatIf().reserve;
+  const lq = today(data.holdings, cache.p).liquidPostTax;
+  const cv = lq >= reserve;
+  const body = row(t('dAmt'), f(reserve)) + row(t('dLiqNow'), f(lq))
+    + row(t('dStatus'), `<span class="${cv ? 'ok' : 'bad'}">${cv ? t('cov') : t('sh') + ' ' + f(reserve - lq)}</span>`)
+    + `<div class="dnote">${t('dResN')}</div>`;
+  openDialog(t('rdf'), '', body);
+}
+
+/** Taps on a row (not on its checkbox or buttons) open its details. */
+function rowTap(e: Event): HTMLElement | null {
+  const el = e.target as HTMLElement;
+  if (el.closest('input, button, label, a')) return null;
+  return el.closest<HTMLElement>('.g');
+}
+
 export function initApp(d: AppDeps): void {
   deps = d;
   ['sc', 'infl', 'uv'].forEach((i) => $(i).addEventListener('change', render));
@@ -489,6 +614,24 @@ export function initApp(d: AppDeps): void {
     const g = listed[parseInt(b.dataset.rm!, 10)];
     pending = pending.filter((x) => x !== g);
     render();
+  });
+  $('hl').addEventListener('click', (e) => {
+    const r = rowTap(e);
+    if (r?.dataset.h) holdingDetails(holdRows[parseInt(r.dataset.h, 10)]);
+    else if (r?.dataset.pf) pensionDetails(parseInt(r.dataset.pf, 10));
+  });
+  $('goals').addEventListener('click', (e) => {
+    const r = rowTap(e);
+    if (r?.dataset.gd) goalDetails(goalRows[parseInt(r.dataset.gd, 10)]);
+    else if (r?.dataset.res) reserveDetails();
+  });
+  const dlg = $<HTMLDialogElement>('dlg');
+  $('dlgX').addEventListener('click', () => dlg.close());
+  // Tap outside the box (on the backdrop) closes it.
+  dlg.addEventListener('click', (e) => {
+    const b = dlg.getBoundingClientRect();
+    const ev = e as MouseEvent;
+    if (e.target === dlg && (ev.clientX < b.left || ev.clientX > b.right || ev.clientY < b.top || ev.clientY > b.bottom)) dlg.close();
   });
   $('goals').addEventListener('change', (e) => {
     const c = e.target as HTMLInputElement;

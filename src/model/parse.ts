@@ -105,6 +105,19 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
         include: blank(x.include_in_total) ? true : num(x.include_in_total) === 1 || /^true$/i.test(String(x.include_in_total)),
         value,
         deposited: blank(x.deposited_amount) ? value : num(x.deposited_amount) * rate,
+        info: {
+          currency: String(x.currency ?? 'ILS').trim() || 'ILS',
+          amount: num(x.current_amount),
+          rate,
+          track: String(x.investment_track ?? '').trim(),
+          style: String(x.investment_style ?? '').trim(),
+          depositFeePct: numOrNull(x.deposit_fee_pct),
+          managementFeePct: numOrNull(x.management_fee_pct),
+          ticker: String(x.ticker ?? '').trim(),
+          quantity: numOrNull(x.quantity),
+          lastUpdated: String(x.last_updated ?? '').trim(),
+          notes: String(x.notes ?? '').trim(),
+        },
       };
     });
   H.push(reinvestmentHolding(H));
@@ -182,6 +195,8 @@ export function parseGoals(rows: Rows, startYear: number): GoalsTab {
       month: Math.min(12, Math.max(1, parseInt(String(x.target_month ?? ''), 10) || 1)),
       spend: blank(x.spend_when_due) ? true : num(x.spend_when_due) === 1 || /^true$/i.test(String(x.spend_when_due)),
       retirement: String(x.type ?? '').trim() === 'retirement',
+      notes: String(x.notes ?? '').trim(),
+      priority: blank(x.priority) ? undefined : num(x.priority),
     }))
     // The retirement row's year is derived from birth year + retirement age, so keep it regardless.
     .filter((g) => g.retirement || g.year >= startYear);

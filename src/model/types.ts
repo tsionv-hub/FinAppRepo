@@ -26,6 +26,24 @@ export interface Holding {
   deposited: number;
   /** True for the app-generated Stock reinvestment holding. */
   synthetic?: boolean;
+  /** Display-only details from the sheet (account numbers are never read). */
+  info?: HoldingInfo;
+}
+
+export interface HoldingInfo {
+  currency: string;
+  /** current_amount in the row's own currency. */
+  amount: number;
+  /** Rate to ILS used. */
+  rate: number;
+  track: string;
+  style: string;
+  depositFeePct: number | null;
+  managementFeePct: number | null;
+  ticker: string;
+  quantity: number | null;
+  lastUpdated: string;
+  notes: string;
 }
 
 export interface PensionFund {
@@ -54,6 +72,8 @@ export interface Goal {
   retirement: boolean;
   /** Added in the app, not saved yet. */
   pending?: boolean;
+  notes?: string;
+  priority?: number;
   /** Retirement goal only: last year of the allowance (inclusive) and monthly allowance. */
   endYear?: number;
   monthly?: number;
