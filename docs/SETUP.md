@@ -85,6 +85,15 @@ The **Sign-in test** screen shows what the app sees (installed or not, token sta
 
 ---
 
+## Letting friends use it
+
+Friends don't repeat parts A and B. They use **your** app address and **your** client ID:
+1. Google Cloud → **Google Auth Platform** → **Audience** → *Test users* → **Add users** → their Gmail. (Up to 100 people.)
+2. Make sure the client ID is baked in (part B step 8), so they aren't asked for it.
+3. Send them the app link and the user guide (`docs/MANUAL.md`).
+
+Their data stays between their phone and their own sheet; you can't see it.
+
 ## Day to day
 
 - **Change your numbers:** edit the Google Sheet, then tap **Reload** in the app.

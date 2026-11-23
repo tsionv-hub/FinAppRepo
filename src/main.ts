@@ -9,12 +9,15 @@ import {
 import type { Checklist } from './sheets/validate';
 import { forgetAll, get, KEYS, remove, set } from './storage';
 import { templateXlsx } from './template';
+import { exampleXlsx } from './example';
 import { applyLang, clearData, errorText, initApp, load, showApp, showMsg } from './ui/app';
 import { t, type Lang } from './ui/i18n';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const K_SILENT = 'fp_silent_tried';
+/** Exploring the built-in example: in memory only, so reopening the app starts fresh. */
+let demo = new URLSearchParams(location.search).has('example');
 
 const sheetId = () => get(KEYS.sheet);
 function client(): SheetsClient | null {
@@ -50,6 +53,7 @@ function screen(name: 'setup' | 'diag' | 'app'): void {
 function showStep(step: Step, err?: string | null): void {
   screen('setup');
   $('setupSheet').hidden = step !== 'sheet';
+  $('setupDemo').hidden = step !== 'sheet';
   $('setupClient').hidden = step !== 'client';
   $('setupSign').hidden = step !== 'sign';
   $('setupCheck').hidden = step !== 'check';
@@ -103,11 +107,11 @@ async function signInTap(returnTo = ''): Promise<void> {
   }
 }
 
-function downloadTemplate(): void {
-  const blob = new Blob([templateXlsx() as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+function download(bytes: Uint8Array, name: string): void {
+  const blob = new Blob([bytes as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'finance-planner-template.xlsx';
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
@@ -183,7 +187,18 @@ function wire(): void {
   $('signIn').addEventListener('click', () => signInTap());
   $('chkAgain').addEventListener('click', () => load());
   $('openApp').addEventListener('click', () => showApp());
-  for (const b of ['tplBtn', 'tplBtn2']) $(b).addEventListener('click', downloadTemplate);
+  for (const b of ['tplBtn', 'tplBtn2']) $(b).addEventListener('click', () => download(templateXlsx(), 'finance-planner-template.xlsx'));
+  $('exBtn').addEventListener('click', () => download(exampleXlsx(), 'finance-planner-example.xlsx'));
+  $('demoGo').addEventListener('click', () => {
+    demo = true;
+    route();
+  });
+  $('demoExit').addEventListener('click', () => {
+    demo = false;
+    clearData();
+    if (location.search.includes('example')) history.replaceState(null, '', location.pathname);
+    route();
+  });
   $('chgSheet').addEventListener('click', () => {
     remove(KEYS.sheet);
     remove(KEYS.checked);
@@ -243,6 +258,12 @@ function wire(): void {
 }
 
 function route(): void {
+  $('demoBar').hidden = !demo;
+  $('foot').hidden = demo;
+  if (demo) {
+    load();
+    return;
+  }
   if (new URLSearchParams(location.search).has('diag')) {
     screen('diag');
     showMsg(null);
@@ -273,6 +294,7 @@ function main(): void {
       screen('app');
       showMsg(null);
     },
+    demo: () => demo,
   });
   applyLang(saved === 'he' ? 'he' : 'en');
   wire();

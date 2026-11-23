@@ -30,14 +30,19 @@ export async function loadSheet(c: SheetsClient, start: StartMonth): Promise<Loa
   const got = present.length ? await c.batchGet(present.map((t) => (t === 'Settings' ? a1(t, 'A:C') : a1(t)))) : [];
   const rows: Record<string, Rows> = {};
   present.forEach((t, i) => (rows[t] = got[i] ?? []));
-  const check = validate(meta.tabs, rows);
-  if (!check.ok) return { check, data: null, title: meta.title };
+  return fromRows(meta.title, meta.tabs, rows, start);
+}
+
+/** Validates and parses rows already read (from the sheet, or the built-in example). */
+export function fromRows(title: string, tabs: string[], rows: Record<string, Rows>, start: StartMonth): LoadResult {
+  const check = validate(tabs, rows);
+  if (!check.ok) return { check, data: null, title };
   const settings = parseSettings(rows.Settings);
   return {
     check,
-    title: meta.title,
+    title,
     data: {
-      title: meta.title,
+      title,
       settings,
       holdings: parseHoldings(rows.Holdings, settings.fx),
       pension: rows.Pension ? parsePension(rows.Pension) : [],
