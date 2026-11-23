@@ -1,0 +1,499 @@
+// Main screen: loads the sheet, keeps what-if values from the inputs, renders
+// every panel. Ported from the prototype's render(), freeMoney(), tmView(),
+// nextView(), pensionView() and the save functions.
+
+import {
+  buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
+  simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
+  type Snapshot, type StartMonth, type WhatIf,
+} from '../model';
+import { SheetsClient, SheetsError } from '../sheets/api';
+import { appendGoals, loadSheet, saveReserve, saveRetirement, type SheetData } from '../sheets/data';
+import type { Checklist } from '../sheets/validate';
+import { AuthError } from '../sheets/auth';
+import { get, KEYS, set } from '../storage';
+import { chartSvg } from './chart';
+import { getLang, goalName, locale, setLang, t, ty, type Lang } from './i18n';
+
+const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
+const inp = (id: string) => $<HTMLInputElement>(id);
+const N = (id: string) => parseFloat(inp(id).value) || 0;
+const f = (v: number) => '⁦₪' + Math.round(v).toLocaleString('en-US') + '⁩';
+const esc = (s: string) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
+export interface AppDeps {
+  client: () => SheetsClient | null;
+  /** Called when Google says the token is no longer valid. */
+  onAuthError: () => void;
+  /** Shows the sheet checklist (first run, or something required is missing). */
+  onCheck: (c: Checklist, canOpen: boolean) => void;
+  /** Shows the main screen. */
+  onReady: () => void;
+}
+
+let deps: AppDeps;
+let start: StartMonth;
+let data: SheetData | null = null;
+let pending: Goal[] = [];
+let listed: Goal[] = [];
+let cache: { key: string; snaps: Snapshot[]; r: SimResult; free: [number, number][] | null; fm: FreeMoney; p: Params; goals: Goal[] } | null = null;
+let pensionBalances: number[][] = [];
+
+// ---------- messages ----------
+
+export function showMsg(text: string | null): void {
+  const m = $('msg');
+  m.hidden = !text;
+  m.textContent = text ?? '';
+}
+
+export function errorText(e: unknown): string {
+  if (e instanceof AuthError) return t('ePopup', { c: e.code });
+  if (e instanceof SheetsError) {
+    if (e.code === 'ratelimit') return t('eRate');
+    if (e.code === 'auth') return t('eAuth');
+    if (e.code === 'forbidden') return t('eForb');
+    if (e.code === 'notfound') return t('eNF');
+    if (e.code === 'network') return t('eNet', { c: navigator.onLine ? 'network' : 'offline' });
+    return t('eNet', { c: e.status ? `${e.status} ${e.message}` : e.message });
+  }
+  return t('eNet', { c: String((e as Error)?.message ?? e) });
+}
+
+// ---------- language ----------
+
+export function applyLang(l?: Lang): void {
+  if (l) setLang(l);
+  const lang = getLang();
+  document.documentElement.lang = lang;
+  document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
+  document.title = t('title');
+  $('lb').textContent = lang === 'he' ? 'English' : 'עברית';
+  document.querySelectorAll<HTMLElement>('[data-t]').forEach((e) => (e.textContent = t(e.dataset.t as never)));
+  document.querySelectorAll<HTMLInputElement>('[data-p]').forEach((e) => (e.placeholder = t(e.dataset.p as never)));
+  const ms = $<HTMLSelectElement>('gmo');
+  const cur = ms.value || '1';
+  ms.innerHTML = '';
+  for (let i = 1; i <= 12; i++) {
+    const o = document.createElement('option');
+    o.value = String(i);
+    o.textContent = new Date(2026, i - 1, 1).toLocaleDateString(locale(), { month: 'long' });
+    ms.appendChild(o);
+  }
+  ms.value = cur;
+  const he = lang === 'he';
+  ['gn', 'ga', 'gy', 'gmo', 'gsp', 'gb', 'sv', 'rb', 'rb2'].forEach((i) => (inp(i).disabled = he));
+  $('gm').textContent = he ? t('enOnly') : '';
+  updatedLine();
+  if (data) render();
+}
+
+function updatedLine(): void {
+  $('upd').textContent = data
+    ? t('read') + ' ' + new Date(data.fetchedAt).toLocaleString(locale(), { dateStyle: 'medium', timeStyle: 'short' }) + ' · USD ' + data.settings.usd.toFixed(3)
+    : '';
+}
+
+// ---------- loading ----------
+
+function fillInputs(d: SheetData): void {
+  const s = d.settings;
+  const set = (id: string, v: number | null) => (inp(id).value = v == null ? '' : String(v));
+  set('ms', s.monthlySaving);
+  set('fc', s.yearlyFreeCash);
+  set('gr', s.yearlyGrantUSD);
+  set('ir', s.inflationRatePct);
+  set('cg', s.capitalGainsTaxPct);
+  set('it', s.incomeTaxPct);
+  inp('infl').checked = s.inflationEnabled;
+  set('ra', s.retirementAge);
+  set('al', s.retirementAllowance);
+  set('rd', d.goals.reserve);
+  set('pg', s.pensionDepositGrowthPct);
+  set('pt', s.pensionTaxRatePct);
+  set('po', s.oldAgeAllowance);
+}
+
+export async function load(): Promise<void> {
+  const c = deps.client();
+  if (!c) return;
+  showMsg(t('loading'));
+  start = startFromDate(new Date());
+  try {
+    const res = await loadSheet(c, start);
+    showMsg(null);
+    $('reload').hidden = false;
+    if (!res.data) {
+      deps.onCheck(res.check, false);
+      return;
+    }
+    data = res.data;
+    fillInputs(data);
+    cache = null;
+    updatedLine();
+    if (!get(KEYS.checked)) deps.onCheck(res.check, true);
+    else showApp();
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') {
+      deps.onAuthError();
+      return;
+    }
+    showMsg(errorText(e));
+    $('reload').hidden = false;
+  }
+}
+
+/** Opens the main screen once the sheet has been read (and checked on first run). */
+export function showApp(): void {
+  if (!data) return;
+  set(KEYS.checked, '1');
+  deps.onReady();
+  render();
+}
+
+/** Drops loaded data (change sheet, sign out, forget). */
+export function clearData(): void {
+  data = null;
+  cache = null;
+  pending = [];
+  updatedLine();
+}
+
+// ---------- model inputs ----------
+
+function whatIf(): WhatIf {
+  const ra = inp('ra').value.trim();
+  return {
+    scenario: $<HTMLSelectElement>('sc').value as Scenario,
+    monthlySaving: N('ms'),
+    yearlyFreeCash: N('fc'),
+    yearlyGrantUSD: N('gr'),
+    inflationOn: inp('infl').checked,
+    inflationRatePct: N('ir'),
+    capitalGainsTaxPct: N('cg'),
+    incomeTaxPct: N('it'),
+    countUnvested: inp('uv').checked,
+    reserve: N('rd'),
+    retirementAge: ra === '' ? null : parseFloat(ra),
+    allowance: N('al'),
+    pensionDepositGrowthPct: N('pg'),
+    pensionTaxRatePct: N('pt'),
+    oldAgeAllowance: N('po'),
+  };
+}
+
+function allGoals(): Goal[] {
+  return data ? [...data.goals.goals, ...pending] : [];
+}
+
+function model() {
+  const d = data!;
+  const w = whatIf();
+  const goals = resolveGoals(allGoals(), { birthYear: d.settings.birthYear, retirementAge: w.retirementAge, pensionStartAge: d.settings.pensionStartAge, allowance: w.allowance }, start);
+  const p = buildParams(d.settings, w, start, retirementYear(goals));
+  return { w, goals, p };
+}
+
+// ---------- render ----------
+
+export function render(): void {
+  if (!data) return;
+  const d = data;
+  const { w, goals, p } = model();
+  const S = d.settings;
+  $('scn').textContent = t('scf', { f: S.returnFactors[w.scenario] });
+  $('rb').hidden = !d.goals.reserveRow;
+  $('ri').textContent = S.birthYear != null ? t('ri', { b: S.birthYear, p: S.pensionStartAge }) : t('noBirth');
+
+  const td = today(d.holdings, p);
+  $('pre').textContent = f(td.preTax);
+  $('post').textContent = f(td.postTax);
+  const pe = d.pension.reduce((a, x) => a + x.balance, 0);
+  $('tax').textContent = t('est') + ' ' + f(td.tax) + ' · ' + t('penl') + ' (' + f(pe) + ')';
+  // display_currency: bottom-line totals only (SPEC 3.1).
+  const dc = String(S.raw.display_currency ?? '').trim().toUpperCase();
+  const rate = S.fx[dc];
+  const sym: Record<string, string> = { USD: '$', EUR: '€' };
+  $('dcur').textContent = dc && dc !== 'ILS' && rate
+    ? t('dcur', { c: dc, a: '\u2066' + (sym[dc] ?? '') + Math.round(td.postTax / rate).toLocaleString('en-US') + '\u2069', b: '\u2066' + (sym[dc] ?? '') + Math.round(td.preTax / rate).toLocaleString('en-US') + '\u2069' })
+    : '';
+
+  const key = JSON.stringify([p, goals.map((g) => [g.name, g.amount, g.year, g.month, g.spend, g.retirement, g.endYear, g.monthly]), d.fetchedAt]);
+  if (!cache || cache.key !== key) {
+    const snaps: Snapshot[] = [];
+    const r = simulate(d.holdings, goals, p, { snaps });
+    cache = { key, snaps, r, free: null, fm: freeMoney(d.holdings, goals, p), p, goals };
+    // The free-money curve is the slow part (SPEC 6.7): draw the panels first, add the line right after.
+    const c = cache;
+    setTimeout(() => {
+      if (cache !== c) return;
+      c.free = freeCurve(c.snaps, c.p, c.goals, c.r.end);
+      tmView();
+    }, 0);
+  }
+  freeView(cache.fm);
+  nextView(cache.r);
+  pensionView(w, goals);
+  tmView();
+  goalsView(cache.r, goals, td.liquidPostTax, w.reserve);
+
+  const bk = td.byType;
+  const tt = Object.values(bk).reduce((a, x) => a + x, 0);
+  $('bk').innerHTML = Object.keys(bk)
+    .map((k) => `<div class="bk"><span>${esc(ty(k))}</span><span>${f(bk[k])} · ${Math.round((bk[k] / tt) * 100)}%</span></div>`)
+    .join('');
+}
+
+function freeView(fm: FreeMoney): void {
+  $('fm').textContent = f(fm.free);
+  let s = t('freeN');
+  const n = fm.note;
+  if (n.kind === 'limited') s += ' ' + t('lim') + ' ' + goalName(n.goal.name) + ' (' + n.goal.year + ').';
+  if (n.kind === 'allReserved') s = t('allRes');
+  if (n.kind === 'impossible') s = t('none2');
+  if (n.kind === 'saveMore') s = t('none1', { x: f(n.perMonth) });
+  $('fn').textContent = s;
+
+  const L = fm.liquid;
+  let bar = '';
+  let lg = '';
+  const row = (c: string, name: string, v: number, note?: string) =>
+    `<div class="lg"><span><b style="background:${c}"></b>${name}${note ? ` <span class="lbl">${note}</span>` : ''}</span><span>${f(v)}</span></div>`;
+  const seg = (c: string, v: number) => {
+    if (L > 0 && v > 0.5) bar += `<i style="width:${(v / L) * 100}%;background:${c}"></i>`;
+  };
+  if (whatIf().reserve > 0) {
+    seg('var(--c-res)', fm.reserve);
+    lg += row('var(--c-res)', esc(t('rdf')), fm.reserve);
+  }
+  if (fm.hasRetirement) {
+    seg('var(--c-ret)', fm.retirementSetAside);
+    lg += row('var(--c-ret)', esc(t('erg')), fm.retirementSetAside, fm.retirementSetAside > 0.5 ? '' : esc(t('cfs')));
+  }
+  if (fm.otherCount) {
+    seg('var(--c-goal)', fm.otherSetAside);
+    lg += row('var(--c-goal)', esc(t('ogl')) + ' (' + fm.otherCount + ')', fm.otherSetAside, fm.otherSetAside > 0.5 ? '' : esc(t('cfs')));
+  }
+  seg('var(--free)', fm.free);
+  lg += row('var(--free)', esc(t('freeL')), fm.free);
+  $('cm').innerHTML = bar;
+  $('cl').innerHTML = lg;
+}
+
+function dateAt(k: number, month: 'short' | 'long' = 'short'): string {
+  const m = monthAt(start, k);
+  return new Date(m.year, m.month0, 1).toLocaleDateString(locale(), { month, year: 'numeric' });
+}
+
+function dur(k: number): string {
+  const y = Math.floor(k / 12), m = k % 12, he = getLang() === 'he';
+  return (y ? y + (he ? ' שנ׳ ' : 'y ') : '') + (m ? m + (he ? ' חו׳' : 'm') : '') || (he ? 'עכשיו' : 'now');
+}
+
+function nextView(r: SimResult): void {
+  const it = r.res.slice().sort((a, b) => a.k - b.k).slice(0, 3);
+  $('nx').innerHTML =
+    it
+      .map((z) => {
+        const g = z.g;
+        // Normal goals are paid the step before their due month; show the due month.
+        const o2 = g.retirement ? 0 : 1;
+        return `<div class="g"><div class="gh"><div><b>${esc(goalName(g.name))}</b><div class="lbl">${g.retirement ? t('retS') + ' ' : ''}${dateAt(z.k + o2)} · ${t('inT')} ${dur(z.k + o2)}</div></div><div>${g.retirement ? f(g.monthly ?? 0) + '/' + t('mo2') : f(g.amount)}<div class="lbl ${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh') + ' ' + f(z.short)}</div></div></div></div>`;
+      })
+      .join('') || `<div class="lbl">${t('nog')}</div>`;
+}
+
+function pensionView(w: WhatIf, goals: Goal[]): void {
+  const S = data!.settings;
+  const has = S.birthYear != null;
+  $('pnBody').hidden = !has;
+  $('pnNo').hidden = has;
+  pensionBalances = [];
+  if (!has) {
+    $('pnS').textContent = '';
+    return;
+  }
+  const rety = retirementYear(goals);
+  const pr = projectPension(data!.pension, {
+    start, birthYear: S.birthYear!, pensionStartAge: S.pensionStartAge, retirementYear: rety,
+    depositGrowthPct: w.pensionDepositGrowthPct, exemptPct: S.pensionExemptPct, exemptCeiling: S.pensionExemptCeiling,
+    taxRatePct: w.pensionTaxRatePct, oldAgeAllowance: w.oldAgeAllowance, allowance: w.allowance,
+    inflationOn: w.inflationOn, inflationRate: w.inflationRatePct / 100,
+  });
+  pensionBalances = pr.funds.map((x) => x.balances);
+  const inf = w.inflationOn ? Math.pow(1 + w.inflationRatePct / 100, pr.kEnd / 12) : 1;
+  $('pfl').innerHTML = pr.funds
+    .map((x) => `<div class="g"><div class="gh"><div><b>${esc(x.fund.name)}</b><div class="lbl">${esc(x.fund.owner)} · ${f(x.fund.balance)} → ${f(x.final / inf)}</div></div><div>${f(x.monthly / inf)}<div class="lbl">/${t('mo2')}</div></div></div></div>`)
+    .join('');
+  $('pn1').textContent = f(pr.total);
+  $('pn2').textContent = f(pr.monthlyPreTax);
+  $('pn3').textContent = f(pr.monthlyAfterTax);
+  $('pnS').textContent = f(pr.monthlyPreTax) + '/' + t('mo2');
+  $('pn4').textContent = pr.coverage == null ? '–' : Math.round(pr.coverage * 100) + '%';
+  $('pn5').textContent = t('pnote', {
+    n: f(pr.today), d: f(pr.deposits), f: f(pr.fees), y: rety ?? S.birthYear! + S.pensionStartAge, p: S.pensionStartAge,
+    x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), m: w.inflationOn ? '' : t('pnom'),
+  });
+}
+
+export function tmView(): void {
+  if (!cache || !data) return;
+  const { r, snaps, p, goals } = cache;
+  const sl = inp('tm');
+  const mx = r.pts[r.pts.length - 1][0];
+  sl.max = String(mx);
+  const k = Math.min(mx, Math.max(0, parseInt(sl.value, 10) || 0));
+  const infl = p.inflationOn ? Math.pow(1 + p.inflationRate, k / 12) : 1;
+  const pt = r.pts[k];
+  $('th').textContent = k === 0 ? t('now') : t('stat', { d: dateAt(k, 'long') });
+  $('t1').textContent = f(pt[1]);
+  $('t2').textContent = f(pt[2]);
+  $('t3').textContent = f(freeAt(snaps[k], p, goals.slice().sort(goalOrder), r.end));
+
+  const S = data.settings;
+  const rety = retirementYear(goals);
+  const yearTicks: { k: number; label: string }[] = [];
+  for (let y = start.year + 1; y <= r.end; y++) yearTicks.push({ k: stepOf(start, y, 0), label: String(y) });
+  const band = rety != null && S.birthYear != null
+    ? { k1: stepOf(start, rety, 0), k2: stepOf(start, S.birthYear + S.pensionStartAge, 0), label1: t('agel', { a: rety - S.birthYear }), label2: t('agel', { a: S.pensionStartAge }) }
+    : null;
+  $('chart').innerHTML = chartSvg({ pts: r.pts, res: r.res, free: cache.free ?? [], sel: k, yearTicks, band });
+
+  // Holdings at the selected month.
+  const s = snaps[k];
+  const rows = s.S.filter((x) => !(x.h.synthetic && x.b < 1))
+    .sort((a, b) => b.b - a.b)
+    .map((x) => {
+      const h = x.h;
+      const pre = x.b / infl;
+      const post = (x.b - taxOf(h, x.b, x.d, p.cgTax, p.incomeTax)) / infl;
+      const inc = h.type === 'Pension' ? false : h.type === 'Stocks (unvested)' ? p.countUnvested : h.include;
+      const meta = esc(ty(h.type)) + (h.synthetic ? ' · ' + t('avgr', { r: h.ret.toFixed(1) }) : ' · ' + t('r5') + ' ' + h.ret.toFixed(1) + '%')
+        + (h.vendor ? ' · ' + esc(h.vendor) : '') + (h.owner ? ' · ' + esc(h.owner) : '') + (inc ? '' : ' · ' + t('sepn'));
+      return `<div class="g"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b><div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
+    });
+  const pens = data.pension.map((fd, i) => {
+    const bs = pensionBalances[i];
+    const v = bs ? bs[Math.min(k, bs.length - 1)] : fd.balance;
+    return `<div class="g"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
+  });
+  $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
+  $('hl').innerHTML = rows.join('') + pens.join('');
+}
+
+function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: number): void {
+  let o = '';
+  if (reserve > 0) {
+    const cv = liquidNow >= reserve;
+    o += `<div class="g"><div class="gh"><div><b>${esc(t('rdf'))}</b><div class="lbl">${f(reserve)} · ${t('resv')}</div></div><div><span class="${cv ? 'ok' : 'bad'}">${cv ? t('cov') : t('sh') + ' ' + f(reserve - liquidNow)}</span></div></div></div>`;
+  }
+  const raw = allGoals();
+  listed = [];
+  const he = getLang() === 'he';
+  goals.slice().sort(goalOrder).forEach((x) => {
+    const y = r.res.find((z) => z.g === x);
+    const pc = y && x.amount > 0 ? Math.min(100, (y.have / x.amount) * 100) : y?.ok ? 100 : 0;
+    // The retirement goal is re-derived each render; map it back to its sheet row.
+    const orig = x.retirement ? raw.find((g) => g.retirement)! : x;
+    const i = listed.push(orig) - 1;
+    const date = new Date(x.year, (x.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
+    o += `<div class="g"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
+      + (orig.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}"${he ? ' disabled' : ''}>${t('rm')}</button>` : '')
+      + `<div class="lbl">${f(x.amount)} · ${date}${x.retirement ? ' · ' + t('age') + ' ' + inp('ra').value : ''}</div></div><div>`
+      + (y ? `<span class="${y.ok ? 'ok' : 'bad'}">${y.ok ? t('on') : t('sh') + ' ' + f(y.short)}</span>` + (x.retirement ? '' : `<div class="lbl">${t('prj')} ${f(y.have)}</div>`) : '')
+      + '</div></div>'
+      + (x.retirement ? '' : `<label class="chk"><input type="checkbox" data-sp="${i}"${x.spend ? ' checked' : ''}>${t('spend')}</label>`)
+      + `<div class="bar"><i style="width:${pc}%"></i></div></div>`;
+  });
+  $('gs').textContent = t('goals') + ' (' + (goals.length + (reserve > 0 ? 1 : 0)) + ')';
+  $('goals').innerHTML = o || `<div class="lbl">${t('nog')}</div>`;
+  const np = pending.length;
+  $('sv').hidden = !np;
+  $('sv').textContent = np === 1 ? t('save1') : t('saveN', { n: np });
+}
+
+// ---------- actions ----------
+
+function addGoal(): void {
+  if (getLang() === 'he') return;
+  const n = inp('gn').value.trim();
+  const a = N('ga');
+  const y = parseInt(inp('gy').value, 10);
+  if (/[֐-׿]/.test(n)) {
+    $('gm').textContent = t('enName');
+    return;
+  }
+  if (!n || a <= 0 || !(y >= start.year && y <= start.year + 60)) {
+    $('gm').textContent = t('need', { y: start.year });
+    return;
+  }
+  pending.push({ name: n, amount: a, year: y, month: parseInt($<HTMLSelectElement>('gmo').value, 10) || 1, spend: inp('gsp').checked, retirement: false, pending: true });
+  $<HTMLSelectElement>('gmo').value = '1';
+  inp('gn').value = inp('ga').value = inp('gy').value = '';
+  $('gm').textContent = t('addedH');
+  render();
+}
+
+async function withSave(btn: string, fn: (c: SheetsClient) => Promise<void>, okText: string, failSuffix = ''): Promise<void> {
+  const c = deps.client();
+  if (!c || !data || getLang() === 'he') return;
+  inp(btn).disabled = true;
+  $('gm').textContent = t('wr');
+  try {
+    await fn(c);
+    $('gm').textContent = okText;
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    $('gm').textContent = errorText(e) + failSuffix;
+  }
+  inp(btn).disabled = false;
+}
+
+function saveGoals(): Promise<void> {
+  return withSave('sv', async (c) => {
+    await appendGoals(c, data!.goals, pending);
+    pending = [];
+    await load();
+  }, t('saved'), ' ' + t('chk'));
+}
+
+function saveRes(): Promise<void> {
+  const v = N('rd');
+  if (v < 0 || !data?.goals.reserveRow) return Promise.resolve();
+  return withSave('rb', (c) => saveReserve(c, data!.goals, v), t('rsaved'));
+}
+
+function saveRet(): Promise<void> {
+  return withSave('rb2', (c) => saveRetirement(c, data!.settings, N('ra'), N('al')), t('rsaved2'));
+}
+
+let timer: number | undefined;
+function renderSoon(): void {
+  clearTimeout(timer);
+  timer = window.setTimeout(render, 150);
+}
+
+export function initApp(d: AppDeps): void {
+  deps = d;
+  ['sc', 'infl', 'uv'].forEach((i) => $(i).addEventListener('change', render));
+  ['ms', 'fc', 'gr', 'ir', 'cg', 'it', 'rd', 'ra', 'al', 'pg', 'pt', 'po'].forEach((i) => $(i).addEventListener('input', renderSoon));
+  $('tm').addEventListener('input', tmView);
+  $('gb').addEventListener('click', addGoal);
+  $('sv').addEventListener('click', saveGoals);
+  $('rb').addEventListener('click', saveRes);
+  $('rb2').addEventListener('click', saveRet);
+  $('reload').addEventListener('click', load);
+  $('goals').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-rm]');
+    if (!b) return;
+    const g = listed[parseInt(b.dataset.rm!, 10)];
+    pending = pending.filter((x) => x !== g);
+    render();
+  });
+  $('goals').addEventListener('change', (e) => {
+    const c = e.target as HTMLInputElement;
+    if (!c.dataset.sp) return;
+    listed[parseInt(c.dataset.sp, 10)].spend = c.checked;
+    render();
+  });
+}
