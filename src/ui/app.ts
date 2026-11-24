@@ -230,8 +230,8 @@ export function render(): void {
   $('tax').textContent = t('est') + ' ' + f(td.tax) + ' · ' + t('penl') + ' (' + f(pe) + ')';
   // Loans are not subtracted from the headline; "after debts" shows the net figure.
   const owed = d.loans.reduce((a, l) => a + l.balance, 0);
-  $('debt').hidden = owed <= 0;
-  $('debt').textContent = owed > 0 ? t('debtL') + ' ' + f(td.postTax - owed) : '';
+  $('debtW').hidden = owed <= 0;
+  $('debt').textContent = owed > 0 ? f(td.postTax - owed) : '';
   // display_currency: bottom-line totals only (SPEC 3.1).
   const dc = String(S.raw.display_currency ?? '').trim().toUpperCase();
   const rate = S.fx[dc];

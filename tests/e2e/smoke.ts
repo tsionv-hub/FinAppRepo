@@ -133,19 +133,27 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await page.locator('#cl .lg').count()) === 5, 'colored money legend has 5 lines (loan repayments added)');
   ok((await txt('#cl')).includes('Loan repayments'), 'legend shows loan repayments');
   ok((await page.locator('#chart circle').count()) >= 4 + 6 + 2, 'chart marks every goal, every vacation year and both loans: ' + (await page.locator('#chart circle').count()));
-  ok(/After debts ₪[\d,]+/.test(await txt('#debt')), 'totals show the "after debts" line: ' + (await txt('#debt')));
+  ok(/^After debts₪[\d,]+$/.test(await txt('#debtW')), 'totals show "after debts": ' + (await txt('#debtW')));
   const postN = Number((await txt('#post')).replace(/\D/g, ''));
   ok(Number((await txt('#debt')).replace(/\D/g, '')) === postN - 86000, 'after debts = post-tax − ₪86,000 owed');
   ok((await txt('#goals .g[data-gd]:has-text("Family vacation")')).includes('every year until 2032'), 'recurring goal shows as one row: ' + (await txt('#goals .g[data-gd]:has-text("Family vacation") .lbl')));
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
   ok((await page.locator('#nx .g').count()) === 3, 'next goals shows three');
   ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).map((d) => d.id).join()) === 'pProj', 'only the projection graph starts open');
-  ok(/Post-tax today₪[\d,]+Pre-tax today ₪[\d,]+After debts ₪[\d,]+Free to spend today₪[\d,]+/.test(await txt('#pToday > summary')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')));
+  ok(/Yourmoneytoday🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Afterdebts₪[\d,]+Freetospendtoday₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
+  ok(await page.evaluate(() => {
+    const s = document.querySelector('#pToday > summary')!;
+    const r = s.getBoundingClientRect();
+    const fl = s.querySelector('.freeline')!.getBoundingClientRect();
+    const after = getComputedStyle(s, '::after');
+    return after.content === '"➕"' && after.order === '9' && fl.bottom < r.bottom && fl.height < 60;
+  }), 'the ➕ sits at the bottom of the closed "today" card, and the free-money line stays on one line');
   ok(await page.evaluate(() => !!(document.getElementById('chart')!.compareDocumentPosition(document.getElementById('sc')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'the return scenario is below the graph');
   const marker = (id: string) => page.evaluate((i) => getComputedStyle(document.querySelector(`#${i} > summary`)!, '::after').content, id);
   ok((await marker('pGoals')) === '"➕"' && (await marker('pProj')) === '"➖"', 'closed panels show ➕, open ones ➖');
   ok((await txt('.hint')).includes('Tap ➕ to open a panel and ➖ to close it'), 'the tip mentions ➕ and ➖');
   await page.screenshot({ path: OUT + '/app-en.png', fullPage: true });
+  await page.locator('#pToday').screenshot({ path: OUT + '/today-card.png' });
 
   // 2b. Inflation switch at the top, with its explanation.
   ok(await page.evaluate(() => {
