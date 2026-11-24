@@ -68,9 +68,9 @@ svg { width: 100%; height: auto; display: block; }
 .leg .band { display: inline-block; width: 10px; height: 8px; background: var(--ac); opacity: .25; margin-inline-end: 5px; }
 details.card > summary { cursor: pointer; display: flex; justify-content: space-between; align-items: center; gap: 8px; list-style: none; font-weight: 600; }
 details.card > summary::-webkit-details-marker { display: none; }
-details.card > summary::after { content: "\25BE"; color: var(--mu); font-size: 12px; flex: none; }
-details.card:not([open]) > summary::after { content: "\25B8"; }
-[dir=rtl] details.card:not([open]) > summary::after { content: "\25C2"; }
+/* Open/close marker: ➕ while closed, ➖ while open. */
+details.card > summary::after { content: "➖"; font-size: 15px; line-height: 1; flex: none; width: 22px; text-align: center; }
+details.card:not([open]) > summary::after { content: "➕"; }
 details.card[open] > summary { margin-bottom: 10px; }
 details.card > summary h2 { margin: 0; }
 .foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 4px 0 24px; }
@@ -182,3 +182,8 @@ details.card > summary:focus-visible, .hq:focus-visible, .jump button:focus-visi
 
 /* One-line tip under the inflation bar */
 .hint { font-size: 13px; color: var(--mu); margin: -2px 4px 0; }
+
+/* "Your money today": totals and free money in one card */
+.freeline { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--ln); }
+.freeline .lbl { font-size: 14px; font-weight: 600; color: var(--tx); }
+.freeline .big { font-size: 24px; }

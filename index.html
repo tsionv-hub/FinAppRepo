@@ -74,23 +74,24 @@
 
 <div id="app" hidden>
 <nav class="jump" id="jump" aria-label="Sections">
-<button data-go="pTot" data-t="jTot"></button><button data-go="pFree" data-t="jFree"></button><button data-go="pProj" data-t="jProj"></button><button data-go="pGoals" data-t="jGoals"></button><button data-go="pRet" data-t="jRet"></button><button data-go="lnCard" data-t="jLoans" id="jLoans" hidden></button><button data-go="pPen" data-t="jPen"></button><button data-go="pHold" data-t="jHold"></button><button data-go="pAss" data-t="jAss"></button>
+<button data-go="pToday" data-t="jToday"></button><button data-go="pProj" data-t="jProj"></button><button data-go="pGoals" data-t="jGoals"></button><button data-go="pRet" data-t="jRet"></button><button data-go="lnCard" data-t="jLoans" id="jLoans" hidden></button><button data-go="pPen" data-t="jPen"></button><button data-go="pHold" data-t="jHold"></button><button data-go="pAss" data-t="jAss"></button>
 </nav>
 <div class="infl-bar warn" id="inflBar" role="status"><span class="infl-ic" id="inflIc" aria-hidden="true">!</span><div class="infl-txt" id="inflTxt"></div><div class="infl-act"><button class="infl-btn" id="infl" aria-pressed="false"></button><button type="button" class="hq" id="inflHelp" aria-label="?">🤔</button></div></div>
 
 <div class="hint" data-t="hint"></div>
 <div class="grp" data-t="gToday"></div>
-<details class="card tot" id="pTot"><summary><span class="ttl-col"><span class="ttl"><span class="pi">💰</span><span class="lbl" data-t="post"></span></span><span class="big" id="post"></span><span class="sub2"><span data-t="pre"></span> <span id="pre"></span></span><span class="sub2" id="debt" hidden></span></span><button type="button" class="hq" data-help="tot" aria-label="?">🤔</button></summary><div class="lbl" id="tax"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
-
-<details class="card" id="pFree" open><summary><span class="ttl"><span class="pi">🟢</span><h2 data-t="free"></h2></span><span class="big sumr" id="fm"></span><button type="button" class="hq" data-help="free" aria-label="?">🤔</button></summary><div class="lbl" id="fn"></div>
-<div class="cm" id="cm"></div><div id="cl" style="margin-top:8px"></div></details>
+<details class="card tot" id="pToday"><summary><span class="ttl-col"><span class="ttl"><span class="pi">💰</span><span class="lbl" data-t="post"></span></span><span class="big" id="post"></span><span class="sub2"><span data-t="pre"></span> <span id="pre"></span></span><span class="sub2" id="debt" hidden></span><span class="freeline"><span class="lbl" data-t="freeShort"></span><span class="big free" id="fm"></span></span></span><button type="button" class="hq" data-help="today" aria-label="?">🤔</button></summary>
+<div class="lbl" id="fn"></div>
+<div class="cm" id="cm"></div><div id="cl" style="margin-top:8px"></div>
+<div class="lbl" id="tax" style="margin-top:12px"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
 
 <div class="grp" data-t="gPlans"></div>
-<details class="card" id="pProj" open><summary><span class="ttl"><span class="pi">📈</span><h2 data-t="proj"></h2></span><button type="button" class="hq" data-help="proj" aria-label="?">🤔</button></summary><div class="row" style="align-items:end;margin-bottom:8px"><div><label for="sc" data-t="scl"></label><select id="sc"><option value="opt" data-t="sco"></option><option value="mod" data-t="scm" selected></option><option value="pes" data-t="scp"></option></select></div><div class="lbl" id="scn"></div></div>
+<details class="card" id="pProj" open><summary><span class="ttl"><span class="pi">📈</span><h2 data-t="proj"></h2></span><button type="button" class="hq" data-help="proj" aria-label="?">🤔</button></summary>
 <h2 id="th" style="font-size:14px;margin:0 0 6px"></h2><input type="range" id="tm" min="0" max="140" value="0" step="1" style="width:100%">
 <div class="row" style="margin-top:8px"><div><div class="lbl" data-t="legPre"></div><div class="big" id="t1" style="font-size:16px"></div></div><div><div class="lbl" data-t="legPost"></div><div class="big" id="t2" style="font-size:16px"></div></div><div><div class="lbl" data-t="legFree"></div><div class="big free" id="t3" style="font-size:16px"></div></div></div>
 <div id="chart" dir="ltr" style="margin-top:10px"></div>
-<div class="leg"><span><b style="background:var(--ac2)"></b><span data-t="legPre"></span></span><span><b style="background:var(--ac)"></b><span data-t="legPost"></span></span><span><b style="background:var(--free)"></b><span data-t="legFree"></span></span><span><i class="dot"></i><span data-t="legGoal"></span></span><span><i class="band"></i><span data-t="legRet"></span></span></div></details>
+<div class="leg"><span><b style="background:var(--ac2)"></b><span data-t="legPre"></span></span><span><b style="background:var(--ac)"></b><span data-t="legPost"></span></span><span><b style="background:var(--free)"></b><span data-t="legFree"></span></span><span><i class="dot"></i><span data-t="legGoal"></span></span><span><i class="band"></i><span data-t="legRet"></span></span></div>
+<div class="row" style="align-items:end;margin-top:12px"><div><label for="sc" data-t="scl"></label><select id="sc"><option value="opt" data-t="sco"></option><option value="mod" data-t="scm" selected></option><option value="pes" data-t="scp"></option></select></div><div class="lbl" id="scn"></div></div></details>
 
 <details class="card" id="pNext"><summary><span class="ttl"><span class="pi">⏭️</span><h2 data-t="nxt"></h2></span><span class="sumr lbl" id="nxK"></span><button type="button" class="hq" data-help="next" aria-label="?">🤔</button></summary><div id="nx"></div></details>
 
