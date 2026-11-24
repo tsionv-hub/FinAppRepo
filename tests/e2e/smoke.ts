@@ -134,6 +134,26 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).length) === 2, 'only Free money and Projection start open');
   await page.screenshot({ path: OUT + '/app-en.png', fullPage: true });
 
+  // 2b. Inflation switch at the top, with its explanation.
+  ok(await page.evaluate(() => {
+    const bar = document.querySelector('.infl-bar')!;
+    const first = document.querySelector('#app details.card')!;
+    return bar.compareDocumentPosition(first) === Node.DOCUMENT_POSITION_FOLLOWING && !!bar.querySelector('#infl') && !document.querySelector('details #infl');
+  }), 'inflation switch sits at the top of the main screen, above the totals');
+  await page.click('#inflHelp');
+  ok((await txt('#dlgT')) === 'Inflation: what this switch does' && /At 2\.5% a year, ₪100,000 in 2036 buys what about ₪78,120 buys today/.test(await txt('#dlgB')), 'the ? explains inflation with the current rate: ' + (await txt('#dlgB')).match(/At [^.]*\./)?.[0]);
+  ok(!/\{\w+\}/.test(await txt('#dlgB')), 'no unfilled {placeholders} in the explanation');
+  await page.screenshot({ path: OUT + '/popup-inflation.png' });
+  await page.click('#dlgX');
+  const fmOff = await txt('#fm');
+  await page.click('#infl');
+  await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOff);
+  ok(true, 'turning inflation on recomputes free money: ' + fmOff + ' -> ' + (await txt('#fm')));
+  await page.click('#inflHelp');
+  ok((await txt('#dlgB')).includes('Now: on'), 'the explanation shows the switch is on');
+  await page.click('#dlgX');
+  await page.click('#infl');
+
   // 3. What-ifs.
   const before = await txt('#fm');
   await page.selectOption('#sc', 'pes');
@@ -193,13 +213,14 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
       if (k === 'ty' || typeof en !== 'string') continue;
       const he = (T.he as Record<string, unknown>)[k];
       if (he === en) continue;
+      if (/\{\w+\}/.test(shown)) out.push('unfilled placeholder on screen');
       for (const frag of en.split(/\{\w+\}/)) if (frag.trim().length >= 12 && shown.includes(frag.trim())) out.push(`${k}: "${frag.trim()}"`);
     }
     return out;
   };
   let untranslated = await englishLeft();
   ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
-  for (const sel of ['#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
+  for (const sel of ['#inflHelp', '#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
     await page.click(sel);
     untranslated = untranslated.concat(await englishLeft());
     await page.click('#dlgX');

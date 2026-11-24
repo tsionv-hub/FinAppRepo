@@ -21,7 +21,7 @@ const en = {
   goals: 'Goals', newGoal: 'New goal', name: 'Name', amount: 'Amount ₪', year: 'Year', spend: 'Pay out on due date', add: 'Add goal', save1: 'Save 1 new goal to sheet', saveN: 'Save {n} new goals to sheet',
   ns: '(not saved)', rm: 'Remove', on: 'On track', sh: 'Short', prj: 'Projected balance', nog: 'No goals yet.', assum: 'Assumptions',
   ms: 'Monthly saving ₪', fc: 'Yearly free cash ₪ (Jan)', gr: 'Yearly Intel grant $ (Jan)', ir: 'Inflation %', cg: 'Capital gains tax %', it: 'Income tax %',
-  inflc: 'Show in today’s money (adjust for inflation)', uvc: 'Count unvested Intel shares in totals', whatif: 'Changes here only affect this view. To keep them, use a Save button or edit your sheet.',
+  inflc: 'Today’s money (adjust for inflation)', uvc: 'Count unvested Intel shares in totals', whatif: 'Changes here only affect this view. To keep them, use a Save button or edit your sheet.',
   where: 'Your money today by type (pre-tax)', need: 'Enter a name, an amount and a year ({y} or later).', addedH: 'Added to this view only. Tap Save to write it to your sheet.',
   wr: 'Saving to your sheet…', saved: 'Saved to the Goals tab.', chk: 'Check the Goals tab before trying again.',
   // standalone app
@@ -77,6 +77,13 @@ const en = {
   dgPopOk: 'Popup sign-in OK', dgPopFail: 'Popup sign-in FAILED: {e}', dgRedOk: 'Redirect sign-in OK', dgRedFail: 'Redirect sign-in FAILED: {e}',
   dgSwitched: 'The app now uses: {m}', dgSignedOut: 'Signed out', dgReadOk: 'Test read OK in {ms} ms: "{t}", tabs: {tabs}; Settings rows read: {n}',
   dgReadFail: 'Test read FAILED: {e}', dgNoSheet: 'Test read: no sheet link saved yet. Enter it on the main screen first.', mPopup: 'popup', mRedirect: 'redirect',
+  qm: '?', ihT: 'Inflation: what this switch does',
+  ihOff: '<b>Off:</b> amounts are in future shekels. A goal of ₪100,000 in {y} counts as ₪100,000 then, and the chart grows faster than your buying power.',
+  ihOn: '<b>On:</b> everything is shown in today’s money. Goals, the rainy day fund and the retirement allowance are treated as today’s prices and grow with inflation, so they cost more in future shekels.',
+  ihEff: 'Turning it on usually lowers free money and can turn some goals short: it is the more realistic view.',
+  ihEx: 'At {r}% a year, ₪100,000 in {y} buys what about {a} buys today, and a ₪100,000 goal in {y} will cost about {b} then.',
+  ihRate: 'The rate ({r}%) is in Assumptions. The switch starts from inflation_enabled in your sheet and is never saved: it only changes this view.',
+  ihNow: 'Now: {s}', ihStOn: 'on (today’s money)', ihStOff: 'off (future shekels)',
   ty: { Loan: 'Loan' } as Record<string, string>,
 };
 
@@ -100,7 +107,7 @@ const he: Record<Key, string> & { ty: Record<string, string> } = {
   goals: 'יעדים', newGoal: 'יעד חדש', name: 'שם', amount: 'סכום ₪', year: 'שנה', spend: 'לשלם במועד היעד', add: 'הוסף יעד', save1: 'שמור יעד חדש אחד בגיליון', saveN: 'שמור {n} יעדים חדשים בגיליון',
   ns: '(לא נשמר)', rm: 'הסר', on: 'במסלול', sh: 'חסר', prj: 'יתרה צפויה', nog: 'אין יעדים עדיין.', assum: 'הנחות',
   ms: 'חיסכון חודשי ₪', fc: 'מזומן פנוי שנתי ₪ (ינואר)', gr: 'מענק אינטל שנתי $ (ינואר)', ir: 'אינפלציה %', cg: 'מס רווח הון %', it: 'מס הכנסה %',
-  inflc: 'הצג בכסף של היום (התאמה לאינפלציה)', uvc: 'כלול מניות אינטל שלא הבשילו בסיכומים', whatif: 'שינויים כאן משפיעים רק על התצוגה. כדי לשמור, השתמש בכפתור שמירה או ערוך את הגיליון.',
+  inflc: 'כסף של היום (התאמה לאינפלציה)', uvc: 'כלול מניות אינטל שלא הבשילו בסיכומים', whatif: 'שינויים כאן משפיעים רק על התצוגה. כדי לשמור, השתמש בכפתור שמירה או ערוך את הגיליון.',
   where: 'הכסף שלך היום לפי סוג (לפני מס)', need: 'הזן שם, סכום ושנה ({y} ואילך).', addedH: 'נוסף לתצוגה בלבד. לחץ שמור כדי לכתוב לגיליון.',
   wr: 'שומר בגיליון…', saved: 'נשמר בלשונית היעדים.', chk: 'בדוק את לשונית היעדים לפני ניסיון נוסף.',
   setupT: 'חיבור לגיליון Google', setupN: 'הדבק את הקישור לגיליון הכספים שלך (או את המזהה שלו). הוא נשמר בטלפון הזה בלבד.', sheetL: 'קישור או מזהה גיליון', cont: 'המשך',
@@ -155,6 +162,13 @@ const he: Record<Key, string> & { ty: Record<string, string> } = {
   dgPopOk: 'התחברות בחלון קופץ הצליחה', dgPopFail: 'התחברות בחלון קופץ נכשלה: {e}', dgRedOk: 'התחברות בהפניה הצליחה', dgRedFail: 'התחברות בהפניה נכשלה: {e}',
   dgSwitched: 'האפליקציה משתמשת עכשיו ב: {m}', dgSignedOut: 'התנתקת', dgReadOk: 'בדיקת קריאה הצליחה ב-{ms} אלפיות שנייה: "{t}", לשוניות: {tabs}; שורות Settings שנקראו: {n}',
   dgReadFail: 'בדיקת קריאה נכשלה: {e}', dgNoSheet: 'בדיקת קריאה: עדיין לא נשמר קישור לגיליון. הזינו אותו קודם במסך הראשי.', mPopup: 'חלון קופץ', mRedirect: 'הפניה',
+  qm: '?', ihT: 'אינפלציה: מה המתג הזה עושה',
+  ihOff: '<b>כבוי:</b> הסכומים בשקלים עתידיים. יעד של ₪100,000 ב-{y} נחשב ₪100,000 אז, והגרף עולה מהר יותר מכוח הקנייה שלכם.',
+  ihOn: '<b>פועל:</b> הכול מוצג בכסף של היום. היעדים, הקרן ליום סגריר וקצבת הפרישה נחשבים במחירי היום ועולים עם האינפלציה, כך שבשקלים עתידיים הם עולים יותר.',
+  ihEff: 'הפעלה בדרך כלל מקטינה את הכסף הפנוי ועלולה להפוך יעדים לחסרים: זו התמונה המציאותית יותר.',
+  ihEx: 'באינפלציה של {r}% בשנה, ₪100,000 ב-{y} יקנו בערך מה ש-{a} קונים היום, ויעד של ₪100,000 ב-{y} יעלה אז בערך {b}.',
+  ihRate: 'השיעור ({r}%) נמצא בהנחות. המתג מתחיל מ-inflation_enabled בגיליון ולעולם לא נשמר: הוא משנה רק את התצוגה.',
+  ihNow: 'עכשיו: {s}', ihStOn: 'פועל (כסף של היום)', ihStOff: 'כבוי (שקלים עתידיים)',
   ty: {
     Loan: 'הלוואה',
     Pension: 'פנסיה', 'Study fund': 'קרן השתלמות', 'Investment fund': 'קופת גמל להשקעה', 'Savings plan': 'קופת חיסכון', Brokerage: 'חשבון מסחר',
@@ -178,7 +192,8 @@ export function locale(): string {
 
 export function t(k: Key, o?: Record<string, string | number>): string {
   let s: string = T[lang][k] ?? en[k] ?? k;
-  if (o) for (const x in o) s = s.replace('{' + x + '}', String(o[x]));
+  // Every occurrence: a sentence may use the same placeholder twice.
+  if (o) for (const x in o) s = s.split('{' + x + '}').join(String(o[x]));
   return s;
 }
 

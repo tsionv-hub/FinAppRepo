@@ -69,7 +69,7 @@ describe('template', () => {
 });
 
 import { validate } from '../src/sheets/validate';
-import { goalName, setLang } from '../src/ui/i18n';
+import { goalName, setLang, t as tr, T } from '../src/ui/i18n';
 import { goalsRows as GR, holdingsRows, settingsRows } from './fixture';
 import { parseHoldings, parsePension } from '../src/model';
 
@@ -129,5 +129,23 @@ describe('Hebrew goal names (SPEC 6.6)', () => {
     expect(goalName('Apartment down payment')).toBe('מקדמה לדירה');
     setLang('en');
     expect(goalName('New car')).toBe('New car');
+  });
+});
+
+describe('strings', () => {
+  it('fill every occurrence of a placeholder', () => {
+    setLang('en');
+    expect(tr('ihEx', { r: 2, y: 2036, a: 'A', b: 'B' })).not.toMatch(/\{\w+\}/);
+    setLang('he');
+    expect(tr('ihEx', { r: 2, y: 2036, a: 'A', b: 'B' })).not.toMatch(/\{\w+\}/);
+    setLang('en');
+  });
+
+  it('Hebrew uses the same placeholders as English for every string', () => {
+    const ph = (s: string) => [...new Set(s.match(/\{\w+\}/g) ?? [])].sort().join(',');
+    for (const [k, en] of Object.entries(T.en)) {
+      if (k === 'ty') continue;
+      expect(ph((T.he as Record<string, string>)[k]), k).toBe(ph(en as string));
+    }
   });
 });
