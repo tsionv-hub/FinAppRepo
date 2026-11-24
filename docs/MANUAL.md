@@ -1,6 +1,6 @@
 # Finance Planner: user guide
 
-**[עברית: איך מתחילים](START.he.md)** · First time? The short version is [Getting started](START.md).
+**[עברית](MANUAL.he.md)** · First time? The short version is [Getting started](START.md).
 
 Finance Planner shows where your money stands today and whether your plans are funded in the future. It reads your numbers from **your own Google Sheet**; nothing is sent anywhere else, and nothing is stored on any server.
 
@@ -43,17 +43,20 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 | Panel | What it tells you |
 |---|---|
+| **Inflation bar** (top) | Yellow ⚠ while amounts are in future shekels; tap **Adjust for inflation** for today's money. **?** explains it. |
 | **Post-tax today** | Everything you have, minus the tax you'd pay if you sold it all now. Pension is not included. |
 | **Free money today** | How much you could spend **now** and still pay for every goal on time and keep the rainy day fund. The colored bar shows how your money is set aside: rainy day fund, early retirement, other goals, free. |
 | **Projection** | Your money over time. Move the slider to see any month. Dots mark goals: green = funded, red = short. The shaded band is early retirement. Pick a return scenario (Optimistic, Moderate, Pessimistic). |
 | **Next goals / Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
-| **Assumptions** | Saving per month, yearly extra cash, inflation, tax rates, retirement age and allowance. Changes are "what if" only. |
+| **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates, retirement age and allowance. Changes are "what if" only. |
 | **Holdings / Breakdown** | Every account, and your money by type. Loans show here as minus amounts. |
 
 **Tap any holding, loan or goal** for details.
 
 **Language:** tap **עברית / English** at the top. Everything works in both, including adding goals.
+
+**How it works** (top) gives the basics in a few lines. **Send feedback** (bottom) opens an email to the person who shared the app.
 
 ---
 

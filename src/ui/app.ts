@@ -14,6 +14,7 @@ import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
 import { get, KEYS, set } from '../storage';
 import { chartSvg } from './chart';
+import { docsUrl } from '../docs';
 import { getLang, goalName, locale, setLang, t, ty, type Lang } from './i18n';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -723,6 +724,18 @@ function inflationBar(): void {
     ? `<b>${t('inflOnT')}</b>${t('inflOnN', { r: pctTxt })}`
     : `<b>${t('inflOffT')}</b>${t('inflOffN', { r: pctTxt, y, a: f(100000 / Math.pow(1 + r / 100, 10)) })}`;
   $('infl').textContent = on ? t('inflOffBtn') : t('inflOnBtn');
+}
+
+/** "How it works": the basics in a few lines, with a link to the full guide in the current language. */
+export function showHelp(): void {
+  const li = (...k: Parameters<typeof t>[0][]) => `<ul class="hwl">${k.map((x) => `<li>${t(x)}</li>`).join('')}</ul>`;
+  const url = docsUrl(t('hwDoc'));
+  const body = `<p class="dsub" style="font-size:14px;color:var(--tx)">${t('hwIntro')}</p>`
+    + sec(t('hwFill')) + li('hw1', 'hw2', 'hw3', 'hw4')
+    + sec(t('hwCalc')) + li('hw5', 'hw6', 'hw7')
+    + sec(t('hwTip')) + li('hw8', 'hw9')
+    + (url ? `<a class="hwlink" href="${url}" target="_blank" rel="noopener">${t('hwGuide')} ›</a>` : '');
+  openDialog(t('hwT'), '', body);
 }
 
 /** The "?" next to the inflation switch: what it does, with examples at the current rate. */
