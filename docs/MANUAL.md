@@ -41,6 +41,8 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 ## 3. What you see
 
+The screen has three groups: **Today**, **Your plans** and **Details & settings**. The bar at the top jumps straight to any panel. Every panel has a **🤔** button with a short explanation.
+
 | Panel | What it tells you |
 |---|---|
 | **Inflation bar** (top) | Yellow ⚠ while amounts are in future shekels; tap **Adjust for inflation** for today's money. **?** explains it. |
@@ -48,8 +50,9 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 | **Free money today** | How much you could spend **now** and still pay for every goal on time and keep the rainy day fund. The colored bar shows how your money is set aside: rainy day fund, early retirement, other goals, free. |
 | **Projection** | Your money over time. Move the slider to see any month. Dots mark goals: green = funded, red = short. The shaded band is early retirement. Pick a return scenario (Optimistic, Moderate, Pessimistic). |
 | **Next goals / Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
+| **Early retirement** | When you stop working, the monthly allowance until your pension, and whether your money lasts. Change the age and allowance here. See section 4. |
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
-| **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates, retirement age and allowance. Changes are "what if" only. |
+| **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates and the rainy day fund. Changes are "what if" only. |
 | **Loans** | Each loan: what you still owe (at the date on the slider), the payment plan and whether it's on track. Only shown if your sheet has a Loans tab with loans. |
 | **Holdings / Breakdown** | Every account, and your money by type. |
 
@@ -61,7 +64,28 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 ---
 
-## 4. Good to know
+## 4. Early retirement
+
+Early retirement means you stop working **before** your pension starts, and live from your savings until then.
+
+**How it works**
+- **Start:** January of the year you reach your retirement age (**default 60**; set `retirement_age` in Settings or change it in the panel).
+- **Until:** December of the year before your pension starts (`pension_start_age`, usually 67).
+- **Each month in between**, the monthly allowance (`pre_retirement_allowance_ILS`) is paid from your liquid money: after tax, never from the rainy day fund, never from pension or unvested shares.
+- **What changes at retirement:** yearly free cash and the stock grant stop. Monthly saving continues (a default you can change later).
+- **With inflation on**, the allowance is in today's money and grows each year.
+
+**What the panel shows**
+- Start and end dates, your age, number of years, the monthly allowance and the total until your pension.
+- **Status:** *On track* if every month is covered; *Short ₪X* shows how much is missing in total.
+- **Set aside today:** how much of today's money is kept aside for it (also the purple part of the free money bar).
+- **Pension then covers:** how much of the allowance your pension will replace once it starts.
+
+**To plan it:** the Goals tab needs a row with `type` = `retirement` (the template has it), and Settings needs your `birth_year`. To try another age or allowance, change them in the panel; tap **Save retirement settings** to keep them in your sheet.
+
+---
+
+## 5. Good to know
 
 - **Your sheet is the source of truth.** Edit numbers in Google Sheets, then tap **Reload** in the app.
 - **The app writes to your sheet only when you tap a Save button**: new goals, the rainy day fund, and retirement age and allowance. Nothing else, never automatically.
@@ -75,7 +99,7 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 ---
 
-## 5. Privacy
+## 6. Privacy
 
 - Your numbers go only between your phone and your Google Sheet.
 - The person who sent you the app **cannot** see your sheet or your numbers.
@@ -83,7 +107,7 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 ---
 
-## 6. Problems?
+## 7. Problems?
 
 | What you see | Try this |
 |---|---|

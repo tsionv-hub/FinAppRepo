@@ -73,6 +73,7 @@ describe('parsing', () => {
     expect(s.vestEveryMonths).toBe(6);
     expect(s.pensionStartAge).toBe(67);
     expect(s.birthYear).toBeNull();
+    expect(s.retirementAge).toBe(60);
   });
 });
 

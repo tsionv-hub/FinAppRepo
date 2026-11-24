@@ -46,6 +46,10 @@ let pensionBalances: number[][] = [];
 let holdRows: Slot[] = [];
 let goalRows: Goal[] = [];
 let curK = 0;
+/** Share of the retirement allowance the pension covers (for the retirement panel). */
+let lastCoverage: number | null = null;
+
+const pill = (ok: boolean, text: string) => `<span class="pill ${ok ? 'ok' : 'bad'}">${text}</span>`;
 
 // ---------- messages ----------
 
@@ -252,6 +256,7 @@ export function render(): void {
   freeView(cache.fm);
   nextView(cache.r);
   pensionView(w, cache.goals);
+  retView(cache.goals, cache.r, cache.fm);
   tmView();
   // Use the cached goal objects: results point at them (the retirement goal is rebuilt each render).
   goalsView(cache.r, cache.goals, td.liquidPostTax, w.reserve);
@@ -315,6 +320,7 @@ function dur(k: number): string {
 
 function nextView(r: SimResult): void {
   const it = r.res.slice().sort((a, b) => a.k - b.k).slice(0, 3);
+  $('nxK').textContent = it.length ? goalName(it[0].g.name) + ' · ' + dur(it[0].k + (it[0].g.retirement || it[0].g.loan?.kind === 'installments' ? 0 : 1)) : '';
   $('nx').innerHTML =
     it
       .map((z) => {
@@ -324,7 +330,7 @@ function nextView(r: SimResult): void {
         const o2 = g.retirement || (l && l.kind === 'installments') ? 0 : 1;
         const what = g.retirement ? t('retS') + ' ' : l ? (l.kind === 'installments' ? t('lnPaidOff') : t('lnRepay')) + ' ' : '';
         const amt = g.retirement ? f(g.monthly ?? 0) + '/' + t('mo2') : l?.kind === 'installments' ? f(l.monthlyPayment) + '/' + t('mo2') : f(g.amount);
-        return `<div class="g"><div class="gh"><div><b>${esc(goalName(g.name))}</b><div class="lbl">${what}${dateAt(z.k + o2)} · ${t('inT')} ${dur(z.k + o2)}</div></div><div>${amt}<div class="lbl ${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh') + ' ' + f(z.short)}</div></div></div></div>`;
+        return `<div class="g"><div class="gh"><div><b>${esc(goalName(g.name))}</b><div class="lbl">${what}${dateAt(z.k + o2)} · ${t('inT')} ${dur(z.k + o2)}</div></div><div>${amt}<div>${pill(z.ok, z.ok ? t('on') : t('sh') + ' ' + f(z.short))}</div></div></div></div>`;
       })
       .join('') || `<div class="lbl">${t('nog')}</div>`;
 }
@@ -332,6 +338,7 @@ function nextView(r: SimResult): void {
 function pensionView(w: WhatIf, goals: Goal[]): void {
   const S = data!.settings;
   const has = S.birthYear != null;
+  lastCoverage = null;
   $('pnBody').hidden = !has;
   $('pnNo').hidden = has;
   pensionBalances = [];
@@ -356,6 +363,7 @@ function pensionView(w: WhatIf, goals: Goal[]): void {
   $('pn3').textContent = f(pr.monthlyAfterTax);
   $('pnS').textContent = f(pr.monthlyPreTax) + '/' + t('mo2');
   $('pn4').textContent = pr.coverage == null ? '–' : Math.round(pr.coverage * 100) + '%';
+  lastCoverage = pr.coverage;
   $('pn5').textContent = t('pnote', {
     n: f(pr.today), d: f(pr.deposits), f: f(pr.fees), y: rety ?? S.birthYear! + S.pensionStartAge, p: S.pensionStartAge,
     x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), m: w.inflationOn ? '' : t('pnom'),
@@ -404,7 +412,8 @@ export function tmView(): void {
     const v = bs ? bs[Math.min(k, bs.length - 1)] : fd.balance;
     return `<div class="g" data-pf="${i}"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
   });
-  $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
+  $('hsT').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
+  $('hsK').textContent = k === 0 ? t('now') : dateAt(k, 'short');
   $('hl').innerHTML = rows.join('') + pens.join('');
   loansView(s, infl);
 }
@@ -413,6 +422,7 @@ export function tmView(): void {
 function loansView(s: Snapshot, infl: number): void {
   const L = data!.loans;
   $('lnCard').hidden = !L.length;
+  $('jLoans').hidden = !L.length;
   if (!L.length) return;
   let total = 0;
   $('lnl').innerHTML = L.map((l, i) => {
@@ -424,7 +434,7 @@ function loansView(s: Snapshot, infl: number): void {
       ? t('lnPerMo', { a: f(l.monthlyPayment) }) + (months != null ? ' · ' + t('lnUntil', { d: dateAt(months) }) : '')
       : t('lnOn', { d: new Date(l.year, l.month - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' }) });
     const meta = (l.kind === 'installments' ? t('lnInst') : t('lnLump')) + (l.ratePct ? ' · ' + l.ratePct + '%' : '') + (l.owner ? ' · ' + esc(l.owner) : '');
-    const status = z ? `<div class="lbl ${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh') + ' ' + f(z.short)}</div>` : '';
+    const status = z ? `<div>${pill(z.ok, z.ok ? t('on') : t('sh') + ' ' + f(z.short))}</div>` : '';
     return `<div class="g" data-ln="${i}"><div class="gh"><div><b>${esc(l.name)}</b><div class="lbl">${meta}</div><div class="lbl">${plan}</div></div>`
       + `<div><div class="${owed > 0 ? 'bad' : 'ok'}">${owed > 0 ? '−' + f(owed / infl) : t('lnPaidOff')}</div>${status}</div></div></div>`;
   }).join('');
@@ -432,11 +442,62 @@ function loansView(s: Snapshot, infl: number): void {
   $('lnTot').textContent = total > 0 ? '−' + f(total) : t('lnPaidOff');
 }
 
+/** Early retirement panel: when, how much, whether it is funded, and what changes. */
+function retView(goals: Goal[], r: SimResult, fm: FreeMoney): void {
+  const S = data!.settings;
+  const g = goals.find((x) => x.retirement);
+  let body = '';
+  let key = '';
+  if (S.birthYear == null) body = `<div class="lbl">${t('noBirth')}</div>`;
+  else if (!g) {
+    body = `<div class="lbl">${t('retNone')}</div>`;
+    key = t('retOff');
+  } else {
+    const z = r.res.find((x) => x.g === g);
+    const age = g.year - S.birthYear;
+    const years = Math.max(0, (g.endYear ?? g.year) - g.year + 1);
+    const status = z ? pill(z.ok, z.ok ? t('on') : t('sh') + ' ' + f(z.short)) : '–';
+    const ym = (y: number, m0: number) => new Date(y, m0, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
+    body = row(t('retStart'), `${ym(g.year, 0)} · ${t('agel', { a: age })}`)
+      + row(t('retEnd'), ym(g.endYear ?? g.year, 11))
+      + row(t('retPen'), `${ym(S.birthYear + S.pensionStartAge, 0)} · ${t('agel', { a: S.pensionStartAge })}`)
+      + row(t('dYears'), String(years))
+      + row(t('dMonthly'), f(g.monthly ?? 0))
+      + row(t('dTotal'), f(g.amount))
+      + row(t('dStatus'), status)
+      + row(t('retAside'), fm.retirementSetAside > 0.5 ? f(fm.retirementSetAside) : t('cfs'))
+      + (lastCoverage != null ? row(t('retCov'), Math.round(lastCoverage * 100) + '%') : '')
+      + `<div class="dnote">${t('retWhat')}</div>`;
+    key = `${t('agel', { a: age })} ${z ? pill(z.ok, z.ok ? t('on') : t('sh')) : ''}`;
+  }
+  $('retBody').innerHTML = body;
+  $('retK').innerHTML = key;
+}
+
+/** 🤔 on each panel: a short explanation. */
+const PANEL_HELP: Record<string, [Parameters<typeof t>[0], Parameters<typeof t>[0]]> = {
+  tot: ['post', 'hTot'], free: ['free', 'hFree'], proj: ['proj', 'hProj'], next: ['nxt', 'hNext'], goals: ['goals', 'hGoals'],
+  ret: ['erg', 'hRet'], loans: ['lnPanel', 'hLoans'], pen: ['pen', 'hPen'], hold: ['hold', 'hHold'], bk: ['where', 'hBk'], ass: ['assum', 'hAss'],
+};
+
+function panelHelp(key: string): void {
+  const h = PANEL_HELP[key];
+  if (h) openDialog(t(h[0]), '', `<div class="dhelp">${t(h[1])}</div>`);
+}
+
+/** Jump bar: opens the panel and scrolls to it. */
+function jumpTo(id: string): void {
+  const d = document.getElementById(id) as HTMLDetailsElement | null;
+  if (!d) return;
+  d.open = true;
+  d.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: number): void {
   let o = '';
   if (reserve > 0) {
     const cv = liquidNow >= reserve;
-    o += `<div class="g" data-res="1"><div class="gh"><div><b>${esc(t('rdf'))}</b><div class="lbl">${f(reserve)} · ${t('resv')}</div></div><div><span class="${cv ? 'ok' : 'bad'}">${cv ? t('cov') : t('sh') + ' ' + f(reserve - liquidNow)}</span></div></div></div>`;
+    o += `<div class="g" data-res="1"><div class="gh"><div><b>${esc(t('rdf'))}</b><div class="lbl">${f(reserve)} · ${t('resv')}</div></div><div>${pill(cv, cv ? t('cov') : t('sh') + ' ' + f(reserve - liquidNow))}</div></div></div>`;
   }
   const raw = allGoals();
   listed = [];
@@ -457,12 +518,15 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
     o += `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
       + (orig.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}">${t('rm')}</button>` : '')
       + `<div class="lbl">${f(x.amount)} · ${date}${x.retirement ? ' · ' + t('age') + ' ' + inp('ra').value : ''}</div></div><div>`
-      + (y ? `<span class="${y.ok ? 'ok' : 'bad'}">${y.ok ? t('on') : t('sh') + ' ' + f(y.short)}</span>` + (x.retirement ? '' : `<div class="lbl">${t('prj')} ${f(y.have)}</div>`) : '')
+      + (y ? pill(y.ok, y.ok ? t('on') : t('sh') + ' ' + f(y.short)) + (x.retirement ? '' : `<div class="lbl">${t('prj')} ${f(y.have)}</div>`) : '')
       + '</div></div>'
       + (x.retirement ? '' : `<label class="chk"><input type="checkbox" data-sp="${i}"${x.spend ? ' checked' : ''}>${t('spend')}</label>`)
       + `<div class="bar"><i style="width:${pc}%"></i></div></div>`;
   });
-  $('gs').textContent = t('goals') + ' (' + (goals.length + (reserve > 0 ? 1 : 0)) + ')';
+  $('gsT').textContent = t('goals') + ' (' + (goals.length + (reserve > 0 ? 1 : 0)) + ')';
+  // Header: are all goals funded? (a recurring goal counts once)
+  const short = new Set(r.res.filter((z) => !z.ok && !z.g.loan).map((z) => z.g.series ?? z.g)).size;
+  $('gsK').innerHTML = goals.length ? (short ? pill(false, t('nShort', { n: short })) : pill(true, t('allOn'))) : '';
   $('goals').innerHTML = o || `<div class="lbl">${t('nog')}</div>`;
   const np = pending.length;
   $('sv').hidden = !np;
@@ -480,8 +544,8 @@ function recurringRow(x: Goal, zs: GoalResult[], i: number): string {
   const next = zs[0];
   const first = new Date(x.year, (x.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
   const status = !zs.length ? '' : bad
-    ? `<span class="bad">${t('shortIn', { y: bad.g.year })} ${f(bad.short)}</span>`
-    : `<span class="ok">${t('on')}</span>`;
+    ? pill(false, `${t('shortIn', { y: bad.g.year })} ${f(bad.short)}`)
+    : pill(true, t('on'));
   const pc = zs.length ? (nOk / zs.length) * 100 : 0;
   return `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
     + (x.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}">${t('rm')}</button>` : '')
@@ -791,6 +855,18 @@ export function initApp(d: AppDeps): void {
     const g = listed[parseInt(b.dataset.rm!, 10)];
     pending = pending.filter((x) => x !== g);
     render();
+  });
+  // 🤔 buttons sit inside panel headers: show help without opening or closing the panel.
+  document.addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('.hq[data-help]');
+    if (!b) return;
+    e.preventDefault();
+    e.stopPropagation();
+    panelHelp(b.dataset.help!);
+  }, true);
+  $('jump').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-go]');
+    if (b) jumpTo(b.dataset.go!);
   });
   $('hl').addEventListener('click', (e) => {
     const r = rowTap(e);

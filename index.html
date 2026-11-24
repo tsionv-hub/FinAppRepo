@@ -73,35 +73,49 @@
 </section>
 
 <div id="app" hidden>
-<div class="infl-bar warn" id="inflBar" role="status"><span class="infl-ic" id="inflIc" aria-hidden="true">!</span><div class="infl-txt" id="inflTxt"></div><div class="infl-act"><button class="infl-btn" id="infl" aria-pressed="false"></button><button class="s q" id="inflHelp" aria-label="?" data-t="qm"></button></div></div>
-<details class="card" style="padding:16px"><summary><span><span class="lbl" data-t="post" style="display:block;font-size:13px"></span><span class="big" id="post" style="font-size:34px"></span><span style="display:block;margin-top:6px;font-weight:500;font-size:14px;color:var(--mu)"><span data-t="pre"></span> <span id="pre"></span></span><span id="debt" hidden style="display:block;margin-top:2px;font-weight:500;font-size:14px;color:var(--mu)"></span></span></summary><div class="lbl" id="tax"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
+<nav class="jump" id="jump" aria-label="Sections">
+<button data-go="pTot" data-t="jTot"></button><button data-go="pFree" data-t="jFree"></button><button data-go="pProj" data-t="jProj"></button><button data-go="pGoals" data-t="jGoals"></button><button data-go="pRet" data-t="jRet"></button><button data-go="lnCard" data-t="jLoans" id="jLoans" hidden></button><button data-go="pPen" data-t="jPen"></button><button data-go="pHold" data-t="jHold"></button><button data-go="pAss" data-t="jAss"></button>
+</nav>
+<div class="infl-bar warn" id="inflBar" role="status"><span class="infl-ic" id="inflIc" aria-hidden="true">!</span><div class="infl-txt" id="inflTxt"></div><div class="infl-act"><button class="infl-btn" id="infl" aria-pressed="false"></button><button type="button" class="hq" id="inflHelp" aria-label="?">🤔</button></div></div>
 
-<details class="card" open><summary><span class="lbl" data-t="free"></span><span class="big" id="fm"></span></summary><div class="lbl" id="fn"></div>
+<div class="grp" data-t="gToday"></div>
+<details class="card tot" id="pTot"><summary><span class="ttl-col"><span class="ttl"><span class="pi">💰</span><span class="lbl" data-t="post"></span></span><span class="big" id="post"></span><span class="sub2"><span data-t="pre"></span> <span id="pre"></span></span><span class="sub2" id="debt" hidden></span></span><button type="button" class="hq" data-help="tot" aria-label="?">🤔</button></summary><div class="lbl" id="tax"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
+
+<details class="card" id="pFree" open><summary><span class="ttl"><span class="pi">🟢</span><h2 data-t="free"></h2></span><span class="big sumr" id="fm"></span><button type="button" class="hq" data-help="free" aria-label="?">🤔</button></summary><div class="lbl" id="fn"></div>
 <div class="cm" id="cm"></div><div id="cl" style="margin-top:8px"></div></details>
 
-<details class="card" open><summary><h2 data-t="proj"></h2></summary><div class="row" style="align-items:end;margin-bottom:8px"><div><label for="sc" data-t="scl"></label><select id="sc"><option value="opt" data-t="sco"></option><option value="mod" data-t="scm" selected></option><option value="pes" data-t="scp"></option></select></div><div class="lbl" id="scn"></div></div>
+<div class="grp" data-t="gPlans"></div>
+<details class="card" id="pProj" open><summary><span class="ttl"><span class="pi">📈</span><h2 data-t="proj"></h2></span><button type="button" class="hq" data-help="proj" aria-label="?">🤔</button></summary><div class="row" style="align-items:end;margin-bottom:8px"><div><label for="sc" data-t="scl"></label><select id="sc"><option value="opt" data-t="sco"></option><option value="mod" data-t="scm" selected></option><option value="pes" data-t="scp"></option></select></div><div class="lbl" id="scn"></div></div>
 <h2 id="th" style="font-size:14px;margin:0 0 6px"></h2><input type="range" id="tm" min="0" max="140" value="0" step="1" style="width:100%">
 <div class="row" style="margin-top:8px"><div><div class="lbl" data-t="legPre"></div><div class="big" id="t1" style="font-size:16px"></div></div><div><div class="lbl" data-t="legPost"></div><div class="big" id="t2" style="font-size:16px"></div></div><div><div class="lbl" data-t="legFree"></div><div class="big free" id="t3" style="font-size:16px"></div></div></div>
 <div id="chart" dir="ltr" style="margin-top:10px"></div>
 <div class="leg"><span><b style="background:var(--ac2)"></b><span data-t="legPre"></span></span><span><b style="background:var(--ac)"></b><span data-t="legPost"></span></span><span><b style="background:var(--free)"></b><span data-t="legFree"></span></span><span><i class="dot"></i><span data-t="legGoal"></span></span><span><i class="band"></i><span data-t="legRet"></span></span></div></details>
 
-<details class="card"><summary><h2 data-t="nxt"></h2></summary><div id="nx"></div></details>
+<details class="card" id="pNext"><summary><span class="ttl"><span class="pi">⏭️</span><h2 data-t="nxt"></h2></span><span class="sumr lbl" id="nxK"></span><button type="button" class="hq" data-help="next" aria-label="?">🤔</button></summary><div id="nx"></div></details>
 
-<details class="card"><summary id="gs"></summary><div id="goals"></div>
-<div class="row" style="margin-top:10px;align-items:end">
-<div style="flex:2"><label for="gn" data-t="newGoal"></label><input type="text" id="gn" data-p="name"></div>
+<details class="card" id="pGoals"><summary id="gs"><span class="ttl"><span class="pi">🎯</span><h2 id="gsT"></h2></span><span class="sumr" id="gsK"></span><button type="button" class="hq" data-help="goals" aria-label="?">🤔</button></summary><div id="goals"></div>
+<div class="addg"><div class="addh" data-t="newGoal"></div>
+<div class="row" style="align-items:end">
+<div style="flex:2"><label for="gn" data-t="name"></label><input type="text" id="gn" data-p="name"></div>
 <div><label for="ga" data-t="amount"></label><input type="number" id="ga" inputmode="numeric"></div>
 <div><label for="gy" data-t="year"></label><input type="number" id="gy" inputmode="numeric"></div></div>
 <div class="row" style="margin-top:8px;align-items:end"><div><label for="gmo" data-t="month"></label><select id="gmo"></select></div><div></div></div>
 <div class="row" style="margin-top:8px;align-items:end"><div><label for="grp" data-t="repL"></label><input type="number" id="grp" inputmode="numeric" min="0"></div><div><label for="gru" data-t="untilL"></label><input type="number" id="gru" inputmode="numeric"></div></div>
 <label class="chk"><input type="checkbox" id="gsp" checked><span data-t="spend"></span></label>
 <button style="margin-top:8px;width:100%" id="gb" data-t="add"></button>
-<button id="sv" hidden style="margin-top:8px;width:100%"></button>
+<button id="sv" hidden style="margin-top:8px;width:100%"></button></div>
 </details><div class="lbl" id="gm" style="margin:-6px 4px 12px"></div>
 
-<details class="card" id="lnCard" hidden><summary><h2 id="lnS"></h2><span class="big bad" id="lnTot"></span></summary><div id="lnl"></div><div class="lbl" style="margin-top:8px" data-t="lnPanelN"></div></details>
+<details class="card" id="pRet"><summary><span class="ttl"><span class="pi">🏖️</span><h2 data-t="erg"></h2></span><span class="sumr" id="retK"></span><button type="button" class="hq" data-help="ret" aria-label="?">🤔</button></summary>
+<div id="retBody"></div>
+<div class="addg"><div class="addh" data-t="retChange"></div>
+<div class="row" style="align-items:end"><div><label for="ra" data-t="ral"></label><input type="number" id="ra" inputmode="numeric"></div><div><label for="al" data-t="all"></label><input type="number" id="al" inputmode="numeric"></div></div>
+<div class="lbl" id="ri" style="margin-top:8px"></div>
+<button id="rb2" style="width:100%;margin-top:8px" data-t="rs2"></button></div></details>
 
-<details class="card"><summary><h2 data-t="pen"></h2><span class="big" id="pnS"></span></summary>
+<details class="card" id="lnCard" hidden><summary><span class="ttl"><span class="pi">🏦</span><h2 id="lnS"></h2></span><span class="big bad sumr" id="lnTot"></span><button type="button" class="hq" data-help="loans" aria-label="?">🤔</button></summary><div id="lnl"></div><div class="lbl" style="margin-top:8px" data-t="lnPanelN"></div></details>
+
+<details class="card" id="pPen"><summary><span class="ttl"><span class="pi">👵</span><h2 data-t="pen"></h2></span><span class="big sumr" id="pnS"></span><button type="button" class="hq" data-help="pen" aria-label="?">🤔</button></summary>
 <div id="pnBody">
 <div class="row"><div><div class="lbl" data-t="pt1"></div><div class="big" id="pn1"></div></div><div><div class="lbl" data-t="pt2"></div><div class="big" id="pn2"></div></div></div>
 <div class="row" style="margin-top:8px"><div><div class="lbl" data-t="pt3"></div><div class="big" id="pn3" style="font-size:18px"></div></div><div><div class="lbl" data-t="pt4"></div><div class="big" id="pn4" style="font-size:18px"></div></div></div>
@@ -111,8 +125,12 @@
 <div class="row" style="margin-top:8px"><div><label for="pg" data-t="pg"></label><input type="number" id="pg" step="0.1"></div><div><label for="pt" data-t="ptx"></label><input type="number" id="pt"></div></div>
 <div class="row" style="margin-top:8px"><div><label for="po" data-t="po"></label><input type="number" id="po" inputmode="numeric"></div><div class="lbl" data-t="pfn"></div></div></details></details>
 
-<details class="card"><summary><h2 data-t="assum"></h2></summary><div class="row" style="align-items:end;margin-bottom:8px"><div><label for="ra" data-t="ral"></label><input type="number" id="ra" inputmode="numeric"></div><div><label for="al" data-t="all"></label><input type="number" id="al" inputmode="numeric"></div></div>
-<div class="row" style="align-items:center;margin-bottom:8px"><div class="lbl" id="ri"></div><div><button id="rb2" style="width:100%" data-t="rs2"></button></div></div>
+<div class="grp" data-t="gDetails"></div>
+<details class="card" id="pHold"><summary id="hs"><span class="ttl"><span class="pi">📂</span><h2 id="hsT"></h2></span><span class="sumr lbl" id="hsK"></span><button type="button" class="hq" data-help="hold" aria-label="?">🤔</button></summary><div id="hl"></div></details>
+
+<details class="card" id="pBk"><summary><span class="ttl"><span class="pi">🥧</span><h2 data-t="where"></h2></span><button type="button" class="hq" data-help="bk" aria-label="?">🤔</button></summary><div id="bk"></div></details>
+
+<details class="card" id="pAss"><summary><span class="ttl"><span class="pi">⚙️</span><h2 data-t="assum"></h2></span><button type="button" class="hq" data-help="ass" aria-label="?">🤔</button></summary>
 <div class="row" style="align-items:end;margin-bottom:8px"><div><label for="rd" data-t="rdl"></label><input type="number" id="rd" inputmode="numeric"></div><div><button id="rb" style="width:100%" data-t="rsv"></button></div></div>
 <div class="row"><div><label for="ms" data-t="ms"></label><input type="number" id="ms" inputmode="numeric"></div>
 <div><label for="fc" data-t="fc"></label><input type="number" id="fc" inputmode="numeric"></div></div>
@@ -122,10 +140,6 @@
 <div><label for="it" data-t="it"></label><input type="number" id="it"></div></div>
 <label class="chk"><input type="checkbox" id="uv" checked><span data-t="uvc"></span></label>
 <div class="lbl" style="margin-top:8px" data-t="whatif"></div></details>
-
-<details class="card"><summary id="hs"></summary><div id="hl"></div></details>
-
-<details class="card"><summary><h2 data-t="where"></h2></summary><div id="bk"></div></details>
 
 <div class="fbrow"><a class="fb" id="fbBtn" data-t="fb" hidden></a><span class="lbl" id="ver"></span></div>
 <div class="foot" id="foot"><button class="s" id="chgSheet" data-t="chg"></button><button class="s" id="tplBtn2" data-t="tpl"></button><button class="s" id="signOut" data-t="out"></button><button class="s" id="forget" data-t="forget"></button><button class="s" id="toDiag" data-t="diag"></button></div>

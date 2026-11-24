@@ -41,7 +41,7 @@ export const TEMPLATE_TABS: Tab[] = [
       ['intel_vest_years', 4, 'Each grant vests over this many years'],
       ['intel_vest_every_months', 6, 'A tranche vests every N months'],
       ['birth_year', null, 'Needed for retirement and pension'],
-      ['retirement_age', null, 'Early retirement age'],
+      ['retirement_age', 60, 'Early retirement age (blank = 60)'],
       ['pre_retirement_allowance_ILS', 0, 'Monthly amount from retirement until pension'],
       ['pension_start_age', 67, 'Age the pension starts'],
       ['pension_deposit_growth_pct', 0, 'Yearly growth of pension deposits'],

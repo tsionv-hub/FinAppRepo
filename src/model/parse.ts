@@ -72,7 +72,8 @@ export function parseSettings(rows: Rows): Settings {
     vestYears: num(S.intel_vest_years) || 4,
     vestEveryMonths: num(S.intel_vest_every_months) || 6,
     birthYear: numOrNull(S.birth_year),
-    retirementAge: numOrNull(S.retirement_age),
+    // Early retirement age; blank = 60.
+    retirementAge: numOr(S.retirement_age, 60),
     retirementAllowance: num(S.pre_retirement_allowance_ILS),
     pensionStartAge: num(S.pension_start_age) || 67,
     pensionDepositGrowthPct: num(S.pension_deposit_growth_pct),
