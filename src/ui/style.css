@@ -93,3 +93,7 @@ dialog#dlg::backdrop { background: rgba(0, 0, 0, .35); }
 .dr span:last-child { text-align: end; font-variant-numeric: tabular-nums; }
 .dnote { font-size: 13px; color: var(--mu); margin-top: 10px; white-space: pre-wrap; }
 .demo { display: flex; justify-content: space-between; align-items: center; gap: 10px; font-size: 13px; background: color-mix(in srgb, var(--ac) 10%, var(--card)); border-color: color-mix(in srgb, var(--ac) 35%, var(--ln)); }
+/* Inflation switch at the top of the main screen */
+.infl-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin: -4px 2px 10px; }
+button.q { width: 28px; height: 28px; padding: 0; border-radius: 50%; font-weight: 700; font-size: 14px; flex: none; }
+.dex { background: var(--bg); border-radius: 8px; padding: 8px 10px; margin-top: 8px; font-size: 13px; }

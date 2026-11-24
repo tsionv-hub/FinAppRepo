@@ -697,11 +697,28 @@ function rowTap(e: Event): HTMLElement | null {
   return el.closest<HTMLElement>('.g');
 }
 
+/** The "?" next to the inflation switch: what it does, with examples at the current rate. */
+function inflationHelp(): void {
+  const w = whatIf();
+  const r = w.inflationRatePct;
+  const y = start.year + 10;
+  const factor = Math.pow(1 + r / 100, 10);
+  const pctTxt = String(Math.round(r * 10) / 10);
+  const body = `<p class="dsub">${t('ihNow', { s: w.inflationOn ? t('ihStOn') : t('ihStOff') })}</p>`
+    + `<div class="dnote" style="color:var(--tx)">${t('ihOff', { y })}</div>`
+    + `<div class="dnote" style="color:var(--tx)">${t('ihOn')}</div>`
+    + `<div class="dex">${t('ihEx', { r: pctTxt, y, a: f(100000 / factor), b: f(100000 * factor) })}</div>`
+    + `<div class="dnote">${t('ihEff')}</div>`
+    + `<div class="dnote">${t('ihRate', { r: pctTxt })}</div>`;
+  openDialog(t('ihT'), '', body);
+}
+
 export function initApp(d: AppDeps): void {
   deps = d;
   ['sc', 'infl', 'uv'].forEach((i) => $(i).addEventListener('change', render));
   ['ms', 'fc', 'gr', 'ir', 'cg', 'it', 'rd', 'ra', 'al', 'pg', 'pt', 'po'].forEach((i) => $(i).addEventListener('input', renderSoon));
   $('tm').addEventListener('input', tmView);
+  $('inflHelp').addEventListener('click', inflationHelp);
   $('gb').addEventListener('click', addGoal);
   $('sv').addEventListener('click', saveGoals);
   $('rb').addEventListener('click', saveRes);
