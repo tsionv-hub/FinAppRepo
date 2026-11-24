@@ -80,7 +80,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForFunction(() => /Saving about/.test(document.getElementById('fn')!.textContent!));
   ok(true, 'example mode, Pessimistic: ' + (await txt('#fn')));
   await page.selectOption('#sc', 'mod');
-  await page.click('summary:has(h2[data-t=assum])');
+  await page.click('#jump [data-go=pRet]');
   await page.click('#rb2');
   ok((await txt('#gm')) === 'This is example data, so nothing is saved.', 'example mode: save buttons save nothing');
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
@@ -172,6 +172,30 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(await page.isVisible('#fbBtn') && fbHref!.startsWith('mailto:feedback@example.com?subject=' + encodeURIComponent('Finance Planner feedback (v')), 'feedback opens an email to the configured address: ' + fbHref!.slice(0, 80));
   ok(decodeURIComponent(fbHref!).includes('Version: ') && !/₪|\d{5,}/.test(decodeURIComponent(fbHref!).replace(/Mozilla.*$/s, '')), 'feedback email has version and device, no amounts');
 
+  // 2d. New layout: groups, jump bar, early retirement panel, 🤔 on every panel.
+  ok((await page.locator('.grp').allTextContents()).join('|') === 'Today|Your plans|Details & settings', 'panels are grouped: Today, Your plans, Details & settings');
+  ok(await page.evaluate(() => getComputedStyle(document.getElementById('jump')!).position === 'sticky'), 'the jump bar stays at the top while scrolling');
+  await page.click('#jump [data-go=pRet]');
+  const retTxt = await txt('#retBody');
+  ok(/Starts.*Jan 2035.*Age 55/.test(retTxt) && /StatusOn track/.test(retTxt) && /Set aside today/.test(retTxt) && /Pension then covers\d+%/.test(retTxt), 'Early retirement panel: start, status, money set aside and pension coverage');
+  ok(/Age 55.*On track/.test(await txt('#retK')), 'the closed retirement panel shows age and status in its header: ' + (await txt('#retK')));
+  await page.locator('#pRet').screenshot({ path: OUT + '/panel-retirement.png' });
+  const keys = await page.$$eval('.hq[data-help]', (bs) => bs.map((b) => (b as HTMLElement).dataset.help!));
+  ok(keys.length === 11, 'every panel has a 🤔 button (' + keys.length + ')');
+  for (const key of keys) {
+    const before = await page.$eval(`.hq[data-help=${key}]`, (b) => (b.closest('details') as HTMLDetailsElement).open);
+    await page.click(`.hq[data-help=${key}]`);
+    const okHelp = (await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)) && (await txt('#dlgB')).length > 40;
+    await page.click('#dlgX');
+    const after = await page.$eval(`.hq[data-help=${key}]`, (b) => (b.closest('details') as HTMLDetailsElement).open);
+    if (!okHelp || before !== after) fail(`🤔 for ${key}: help=${okHelp}, panel toggled=${before !== after}`);
+  }
+  ok(true, '🤔 opens a short explanation for each panel and does not open or close the panel');
+  await page.click('.hq[data-help=ret]');
+  ok((await txt('#dlgB')).includes('Default age: 60'), 'the retirement help mentions the default age of 60');
+  await page.click('#dlgX');
+  await page.screenshot({ path: OUT + '/layout-top.png' });
+
   // 3. What-ifs.
   const before = await txt('#fm');
   await page.selectOption('#sc', 'pes');
@@ -198,6 +222,8 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#rb');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Rainy'));
   ok(writes.some((w) => w.url.includes("'Goals'!C2") && JSON.stringify(w.body).includes('130000')), 'rainy day fund written to Goals!C2');
+  await page.click('#jump [data-go=pRet]');
+  ok(await page.evaluate(() => (document.getElementById('pRet') as HTMLDetailsElement).open), 'the jump bar opens the Early retirement panel');
   await page.fill('#ra', '57');
   await page.click('#rb2');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Retirement'));
@@ -239,7 +265,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   let untranslated = await englishLeft();
   ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
   ok(decodeURIComponent((await page.getAttribute('#fbBtn', 'href'))!).includes('משוב על תכנון פיננסי'), 'feedback email subject follows the language');
-  for (const sel of ['#helpBtn', '#inflHelp', '#hl .g:has-text("Broker C")', '#lnl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
+  for (const sel of ['#helpBtn', '#inflHelp', '.hq[data-help=ret]', '.hq[data-help=free]', '.hq[data-help=goals]', '#hl .g:has-text("Broker C")', '#lnl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
     await page.click(sel);
     untranslated = untranslated.concat(await englishLeft());
     await page.click('#dlgX');

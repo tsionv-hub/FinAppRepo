@@ -148,3 +148,7 @@ Every screen, popup and message is available in English and Hebrew (the build fa
 
 ### 12.4 Model fix
 When every eligible account is empty, monthly saving and yearly cash are split evenly across those accounts instead of being lost (the prototype dropped them from then on).
+
+### 12.5 Early retirement panel and layout (v1.5)
+- `retirement_age` blank = **60**. Early retirement has its own panel: start (January of birth_year + age), last year, pension start, years, monthly allowance, total, status, money set aside today, share covered by the pension, and the age/allowance fields with their Save button (moved from Assumptions).
+- Every panel has a 🤔 button with a short explanation (it never opens or closes the panel). Panels are grouped as Today / Your plans / Details & settings, with a sticky jump bar; closed panels show a key value in their header (status badge, total, next date).
