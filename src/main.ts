@@ -16,6 +16,21 @@ import { t, type Lang } from './ui/i18n';
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 const K_SILENT = 'fp_silent_tried';
+/** Feedback address: set at build time (repo variable FEEDBACK_EMAIL), so it is not in the source. */
+const FEEDBACK = ((import.meta.env.VITE_FEEDBACK_EMAIL as string | undefined) ?? '').trim();
+
+/** Points the feedback links at the phone's mail app, with version and device filled in (never any financial data). */
+function feedbackLinks(): void {
+  const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+  const subject = t('fbSubj', { v: __APP_VERSION__ });
+  const body = t('fbBody', { v: __APP_VERSION__, l: document.documentElement.lang, i: standalone ? t('yes') : t('no'), d: navigator.userAgent });
+  const href = 'mailto:' + FEEDBACK + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+  for (const id of ['fbBtn', 'fbBtn2']) {
+    const a = $<HTMLAnchorElement>(id);
+    a.hidden = !FEEDBACK;
+    a.href = href;
+  }
+}
 /** Exploring the built-in example: in memory only, so reopening the app starts fresh. */
 let demo = new URLSearchParams(location.search).has('example');
 
@@ -173,6 +188,7 @@ function wire(): void {
     const l: Lang = document.documentElement.lang === 'he' ? 'en' : 'he';
     set(KEYS.lang, l);
     applyLang(l);
+    feedbackLinks();
     // Texts built in code (not data-t) need redrawing in the new language.
     if (!$('diag').hidden) diag();
     else if ($('setup').hidden) return; // main screen: applyLang already re-rendered it
@@ -309,6 +325,7 @@ function main(): void {
   });
   applyLang(saved === 'he' ? 'he' : 'en');
   $('ver').textContent = 'v' + __APP_VERSION__;
+  feedbackLinks();
   wire();
   lastRedirect = handleRedirect();
   if (lastRedirect.kind !== 'none' && lastRedirect.returnTo === 'diag') history.replaceState(null, '', location.pathname + '?diag');

@@ -74,6 +74,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForFunction(() => document.getElementById('fm')!.textContent!.includes('₪'));
   ok(await page.isVisible('#demoBar'), 'example mode: banner shown');
+  ok(await page.isVisible('#fbBtn'), 'feedback is available in example mode too');
   ok((await txt('#fn')).includes('Limited by Early retirement'), 'example mode: free money limited by early retirement: ' + (await txt('#fm')));
   await page.selectOption('#sc', 'pes');
   await page.waitForFunction(() => /Saving about/.test(document.getElementById('fn')!.textContent!));
@@ -94,6 +95,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   // 1. First run: sheet link → client ID → sign in → checklist → planner.
   await page.goto(URL0);
   ok(await page.isVisible('#setupSheet'), 'first run asks for the sheet link');
+  ok(await page.isVisible('#fbBtn2'), 'feedback is available on the setup screen');
   await page.fill('#sid', 'https://example.com/nope');
   await page.click('#sidGo');
   ok((await txt('#sidErr')).length > 0, 'rejects a non-Sheets link');
@@ -145,14 +147,24 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(!/\{\w+\}/.test(await txt('#dlgB')), 'no unfilled {placeholders} in the explanation');
   await page.screenshot({ path: OUT + '/popup-inflation.png' });
   await page.click('#dlgX');
+  ok(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn')), 'inflation off: the bar is a yellow warning');
+  ok(/Not adjusted for inflation.*worth only about ₪78,120/.test(await txt('#inflTxt')) && (await txt('#infl')) === 'Adjust for inflation', 'the warning says the real picture is worse, with a button to adjust: ' + (await txt('#inflTxt')));
+  await page.screenshot({ path: OUT + '/infl-off.png' });
   const fmOff = await txt('#fm');
   await page.click('#infl');
+  ok(!(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'))) && (await txt('#inflTxt')).startsWith('Shown in today’s money') && (await txt('#infl')) === 'Turn off', 'inflation on: calm note and a Turn off button');
+  await page.screenshot({ path: OUT + '/infl-on.png' });
   await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOff);
   ok(true, 'turning inflation on recomputes free money: ' + fmOff + ' -> ' + (await txt('#fm')));
   await page.click('#inflHelp');
   ok((await txt('#dlgB')).includes('Now: on'), 'the explanation shows the switch is on');
   await page.click('#dlgX');
   await page.click('#infl');
+
+  // 2c. Feedback link.
+  const fbHref = await page.getAttribute('#fbBtn', 'href');
+  ok(await page.isVisible('#fbBtn') && fbHref!.startsWith('mailto:feedback@example.com?subject=' + encodeURIComponent('Finance Planner feedback (v')), 'feedback opens an email to the configured address: ' + fbHref!.slice(0, 80));
+  ok(decodeURIComponent(fbHref!).includes('Version: ') && !/₪|\d{5,}/.test(decodeURIComponent(fbHref!).replace(/Mozilla.*$/s, '')), 'feedback email has version and device, no amounts');
 
   // 3. What-ifs.
   const before = await txt('#fm');
@@ -220,6 +232,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   };
   let untranslated = await englishLeft();
   ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
+  ok(decodeURIComponent((await page.getAttribute('#fbBtn', 'href'))!).includes('משוב על תכנון פיננסי'), 'feedback email subject follows the language');
   for (const sel of ['#inflHelp', '#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
     await page.click(sel);
     untranslated = untranslated.concat(await englishLeft());
