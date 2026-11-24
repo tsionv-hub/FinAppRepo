@@ -476,7 +476,7 @@ function retView(goals: Goal[], r: SimResult, fm: FreeMoney): void {
 
 /** 🤔 on each panel: a short explanation. */
 const PANEL_HELP: Record<string, [Parameters<typeof t>[0], Parameters<typeof t>[0]]> = {
-  tot: ['post', 'hTot'], free: ['free', 'hFree'], proj: ['proj', 'hProj'], next: ['nxt', 'hNext'], goals: ['goals', 'hGoals'],
+  today: ['todayT', 'hToday'], proj: ['proj', 'hProj'], next: ['nxt', 'hNext'], goals: ['goals', 'hGoals'],
   ret: ['erg', 'hRet'], loans: ['lnPanel', 'hLoans'], pen: ['pen', 'hPen'], hold: ['hold', 'hHold'], bk: ['where', 'hBk'], ass: ['assum', 'hAss'],
 };
 
@@ -803,9 +803,9 @@ function inflationBar(): void {
   const pctTxt = String(Math.round(r * 10) / 10);
   $('inflBar').classList.toggle('warn', !on);
   $('inflIc').textContent = on ? '✓' : '!';
-  $('inflTxt').innerHTML = on
-    ? `<b>${t('inflOnT')}</b>${t('inflOnN', { r: pctTxt })}`
-    : `<b>${t('inflOffT')}</b>${t('inflOffN', { r: pctTxt, y, a: f(100000 / Math.pow(1 + r / 100, 10)) })}`;
+  // Title only: the 🤔 next to it explains the details.
+  $('inflTxt').innerHTML = `<b>${on ? t('inflOnT') : t('inflOffT')}</b>`;
+  $('inflBar').title = on ? t('inflOnN', { r: pctTxt }) : t('inflOffN', { r: pctTxt, y, a: f(100000 / Math.pow(1 + r / 100, 10)) });
   $('infl').textContent = on ? t('inflOffBtn') : t('inflOnBtn');
 }
 

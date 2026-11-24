@@ -139,7 +139,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await txt('#goals .g[data-gd]:has-text("Family vacation")')).includes('every year until 2032'), 'recurring goal shows as one row: ' + (await txt('#goals .g[data-gd]:has-text("Family vacation") .lbl')));
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
   ok((await page.locator('#nx .g').count()) === 3, 'next goals shows three');
-  ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).length) === 2, 'only Free money and Projection start open');
+  ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).map((d) => d.id).join()) === 'pProj', 'only the projection graph starts open');
+  ok(/Post-tax today₪[\d,]+Pre-tax today ₪[\d,]+After debts ₪[\d,]+Free to spend today₪[\d,]+/.test(await txt('#pToday > summary')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')));
+  ok(await page.evaluate(() => !!(document.getElementById('chart')!.compareDocumentPosition(document.getElementById('sc')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'the return scenario is below the graph');
+  const marker = (id: string) => page.evaluate((i) => getComputedStyle(document.querySelector(`#${i} > summary`)!, '::after').content, id);
+  ok((await marker('pGoals')) === '"➕"' && (await marker('pProj')) === '"➖"', 'closed panels show ➕, open ones ➖');
+  ok((await txt('.hint')).includes('Tap ➕ to open a panel and ➖ to close it'), 'the tip mentions ➕ and ➖');
   await page.screenshot({ path: OUT + '/app-en.png', fullPage: true });
 
   // 2b. Inflation switch at the top, with its explanation.
@@ -154,11 +159,11 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.screenshot({ path: OUT + '/popup-inflation.png' });
   await page.click('#dlgX');
   ok(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn')), 'inflation off: the bar is a yellow warning');
-  ok(/Not adjusted for inflation.*worth only about ₪78,120/.test(await txt('#inflTxt')) && (await txt('#infl')) === 'Adjust for inflation', 'the warning says the real picture is worse, with a button to adjust: ' + (await txt('#inflTxt')));
+  ok((await txt('#inflTxt')) === 'Not adjusted for inflation' && (await txt('#infl')) === 'Adjust for inflation', 'the warning is just its title, with the button and 🤔: ' + (await txt('#inflTxt')));
   await page.screenshot({ path: OUT + '/infl-off.png' });
   const fmOff = await txt('#fm');
   await page.click('#infl');
-  ok(!(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'))) && (await txt('#inflTxt')).startsWith('Shown in today’s money') && (await txt('#infl')) === 'Turn off', 'inflation on: calm note and a Turn off button');
+  ok(!(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'))) && (await txt('#inflTxt')) === 'Shown in today’s money' && (await txt('#infl')) === 'Turn off', 'inflation on: calm note and a Turn off button');
   await page.screenshot({ path: OUT + '/infl-on.png' });
   await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOff);
   ok(true, 'turning inflation on recomputes free money: ' + fmOff + ' -> ' + (await txt('#fm')));
@@ -181,7 +186,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(/Age 55.*On track/.test(await txt('#retK')), 'the closed retirement panel shows age and status in its header: ' + (await txt('#retK')));
   await page.locator('#pRet').screenshot({ path: OUT + '/panel-retirement.png' });
   const keys = await page.$$eval('.hq[data-help]', (bs) => bs.map((b) => (b as HTMLElement).dataset.help!));
-  ok(keys.length === 11, 'every panel has a 🤔 button (' + keys.length + ')');
+  ok(keys.length === 10, 'every panel has a 🤔 button (' + keys.length + ')');
   for (const key of keys) {
     const before = await page.$eval(`.hq[data-help=${key}]`, (b) => (b.closest('details') as HTMLDetailsElement).open);
     await page.click(`.hq[data-help=${key}]`);
@@ -274,7 +279,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   let untranslated = await englishLeft();
   ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
   ok(decodeURIComponent((await page.getAttribute('#fbBtn', 'href'))!).includes('משוב על תכנון פיננסי'), 'feedback email subject follows the language');
-  for (const sel of ['#helpBtn', '#inflHelp', '.hq[data-help=ret]', '.hq[data-help=free]', '.hq[data-help=goals]', '#hl .g:has-text("Broker C")', '#lnl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
+  for (const sel of ['#helpBtn', '#inflHelp', '.hq[data-help=ret]', '.hq[data-help=today]', '.hq[data-help=goals]', '#hl .g:has-text("Broker C")', '#lnl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
     await page.click(sel);
     untranslated = untranslated.concat(await englishLeft());
     await page.click('#dlgX');
