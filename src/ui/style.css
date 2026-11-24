@@ -115,3 +115,9 @@ a.fb { display: inline-block; text-decoration: none; background: var(--card); co
 .infl-bar.warn .infl-txt { flex: 1 1 calc(100% - 40px); }
 .infl-bar.warn .infl-act { flex: 1 1 100%; flex-direction: row; justify-content: flex-end; }
 .infl-bar.warn .infl-btn { flex: 1; padding: 9px 12px; font-size: 14px; }
+/* How it works */
+.topb { display: flex; gap: 6px; flex: none; }
+button.hw { background: var(--ac); color: #fff; border-color: var(--ac); font-weight: 600; }
+.hwl { margin: 4px 0 0; padding-inline-start: 18px; font-size: 14px; }
+.hwl li { margin-bottom: 5px; }
+.hwlink { display: block; text-align: center; margin-top: 14px; padding: 10px; border-radius: 8px; background: var(--ac); color: #fff; text-decoration: none; font-weight: 600; }

@@ -10,7 +10,7 @@ import type { Checklist } from './sheets/validate';
 import { forgetAll, get, KEYS, remove, set } from './storage';
 import { templateXlsx } from './template';
 import { exampleXlsx } from './example';
-import { applyLang, clearData, errorText, initApp, load, showApp, showMsg } from './ui/app';
+import { applyLang, clearData, errorText, initApp, load, showApp, showHelp, showMsg } from './ui/app';
 import { t, type Lang } from './ui/i18n';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -326,6 +326,7 @@ function main(): void {
   applyLang(saved === 'he' ? 'he' : 'en');
   $('ver').textContent = 'v' + __APP_VERSION__;
   feedbackLinks();
+  $('helpBtn').addEventListener('click', showHelp);
   wire();
   lastRedirect = handleRedirect();
   if (lastRedirect.kind !== 'none' && lastRedirect.returnTo === 'diag') history.replaceState(null, '', location.pathname + '?diag');

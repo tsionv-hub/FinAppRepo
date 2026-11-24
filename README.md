@@ -11,7 +11,7 @@ Your numbers stay in **your own Google Sheet**. There is no server and no tracki
 | | English | עברית |
 |---|---|---|
 | **First time? Start here** | [Getting started](docs/START.md) | [איך מתחילים](docs/START.he.md) |
-| Full user guide | [User guide](docs/MANUAL.md) | |
+| Full user guide | [User guide](docs/MANUAL.md) | [המדריך המלא](docs/MANUAL.he.md) |
 
 To just look around, open the app and tap **Explore with example data**. No sign-in is needed.
 

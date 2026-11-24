@@ -96,6 +96,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.goto(URL0);
   ok(await page.isVisible('#setupSheet'), 'first run asks for the sheet link');
   ok(await page.isVisible('#fbBtn2'), 'feedback is available on the setup screen');
+  await page.click('#helpBtn');
+  ok((await txt('#dlgT')) === 'How it works' && /Settings:.*save each month and each year/.test(await txt('#dlgB')) && /Holdings:/.test(await txt('#dlgB')) && /Goals:/.test(await txt('#dlgB')) && /Free money:/.test(await txt('#dlgB')), 'How it works explains what to fill in and what you get, on the first screen');
+  ok((await page.locator('#dlgB a.hwlink').count()) === 0, 'guide link is left out off GitHub Pages (it points at the repository the site comes from)');
+  ok(await page.evaluate(() => { const d = document.getElementById('dlg')!.getBoundingClientRect(); return d.bottom <= window.innerHeight && d.right <= window.innerWidth; }), 'How it works fits on a phone screen');
+  await page.screenshot({ path: OUT + '/popup-help.png' });
+  await page.click('#dlgX');
   await page.fill('#sid', 'https://example.com/nope');
   await page.click('#sidGo');
   ok((await txt('#sidErr')).length > 0, 'rejects a non-Sheets link');
@@ -233,7 +239,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   let untranslated = await englishLeft();
   ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
   ok(decodeURIComponent((await page.getAttribute('#fbBtn', 'href'))!).includes('משוב על תכנון פיננסי'), 'feedback email subject follows the language');
-  for (const sel of ['#inflHelp', '#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
+  for (const sel of ['#helpBtn', '#inflHelp', '#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
     await page.click(sel);
     untranslated = untranslated.concat(await englishLeft());
     await page.click('#dlgX');
