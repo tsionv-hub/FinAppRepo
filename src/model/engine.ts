@@ -2,7 +2,7 @@
 // Pure functions: inputs in, results out.
 
 import { lastStep, monthAt, stepOf } from './calendar';
-import type { Goal, Holding, Params, StartMonth } from './types';
+import type { Goal, Holding, Loan, Params, StartMonth } from './types';
 import { PENSION_TYPE, REINVEST_TYPE, UNVESTED, VESTED_STOCK } from './types';
 
 export interface Lot {
@@ -23,6 +23,8 @@ export interface Slot {
 export interface Snapshot {
   k: number;
   S: Slot[];
+  /** Amount still owed on each loan (aligned with Params.loans), nominal. */
+  D: number[];
 }
 export interface GoalResult {
   g: Goal;
@@ -96,7 +98,63 @@ export function goalStep(start: StartMonth, g: Goal): number {
 
 /** Step after which a goal no longer constrains free money (retirement: December of its last year). */
 export function goalHorizon(start: StartMonth, g: Goal): number {
-  return g.retirement ? stepOf(start, g.endYear ?? g.year, 11) : goalStep(start, g);
+  if (g.retirement) return stepOf(start, g.endYear ?? g.year, 11);
+  if (g.everyYears) {
+    if (g.untilYear == null) return Infinity;
+    const n = Math.floor((g.untilYear - g.year) / g.everyYears);
+    return goalStep(start, { ...g, year: g.year + Math.max(0, n) * g.everyYears });
+  }
+  return goalStep(start, g);
+}
+
+/**
+ * Recurring goals become one goal per occurrence (each linked to its series),
+ * from the first year every N years until repeat_until_year or the end year.
+ */
+export function expandGoals(goals: Goal[], endYear: number): Goal[] {
+  const out: Goal[] = [];
+  for (const g of goals) {
+    if (!g.everyYears || g.retirement) {
+      out.push(g);
+      continue;
+    }
+    const last = Math.min(g.untilYear ?? endYear, endYear);
+    for (let y = g.year; y <= last; y += g.everyYears) out.push({ ...g, year: y, series: g });
+  }
+  return out;
+}
+
+// ---------- loans ----------
+
+const loanGoals = new WeakMap<Loan, Goal>();
+
+/** A stable stand-in goal for a loan, so its repayment shows up like a goal (status, chart marker). */
+export function loanGoal(l: Loan): Goal {
+  let g = loanGoals.get(l);
+  if (!g) {
+    g = { name: l.name, amount: l.balance, year: l.year, month: l.month, spend: true, retirement: false, loan: l };
+    loanGoals.set(l, g);
+  }
+  return g;
+}
+
+/** Month count until an installment loan is paid off (null if the payment never covers the interest). */
+export function loanMonths(l: Loan, maxMonths = 1200): number | null {
+  if (l.kind === 'lump_sum') return null;
+  let b = l.balance;
+  const r = Math.pow(1 + l.ratePct / 100, 1 / 12);
+  for (let m = 1; m <= maxMonths; m++) {
+    b = b * r - l.monthlyPayment;
+    if (b <= 0.005) return m;
+  }
+  return null;
+}
+
+/** Last year a loan needs repaying (for the projection horizon). */
+export function loanEndYear(l: Loan, start: StartMonth): number {
+  if (l.kind === 'lump_sum') return l.year;
+  const m = loanMonths(l, 600);
+  return monthAt(start, m ?? 600).year;
 }
 
 export function goalOrder(a: Goal, b: Goal): number {
@@ -148,6 +206,8 @@ export function retirementYear(goals: Goal[]): number | null {
 /** Runs from step k0 (state S, mutated) to December of endYear. */
 export function run(
   S: Slot[],
+  /** Owed per loan (mutated). */
+  D: number[],
   k0: number,
   p: Params,
   extraMonthly: number,
@@ -160,7 +220,14 @@ export function run(
 ): { pts: [number, number, number][]; res: GoalResult[] } {
   const pts: [number, number, number][] = [];
   const res: GoalResult[] = [];
+  goals = expandGoals(goals, endYear);
   const rg = goals.find((g) => g.retirement);
+  const loans = p.loans;
+  const ls: ({ k: number; fail: boolean; short: number; have: number; end: number | null; arrears: number } | null)[] = loans.map(() => null);
+  const loanResult = (i: number): GoalResult => {
+    const st = ls[i]!;
+    return { g: loanGoal(loans[i]), k: st.end ?? st.k, ok: !st.fail, short: st.short, have: st.have };
+  };
   let rs: { k: number; fail: boolean; short: number } | null = null;
   const us = S.find((s) => s.h.type === UNVESTED);
   const vested = S.filter((s) => s.h.type === VESTED_STOCK);
@@ -169,10 +236,19 @@ export function run(
   const stopYear = p.stopYear ?? Infinity;
 
   // Adds money to the matching included holdings, in proportion to their balance.
+  // If they are all empty (everything was spent), it is split evenly instead of
+  // being lost. (Fix over the prototype, where saving vanished from then on.)
   const put = (amt: number, fn: (h: Holding) => boolean) => {
     let w = 0;
     for (const s of S) if (included(s.h, p) && fn(s.h) && !s.lots) w += s.b;
-    if (w <= 0) return;
+    if (w <= 0) {
+      const t = S.filter((s) => included(s.h, p) && fn(s.h) && !s.lots);
+      for (const s of t) {
+        s.b += amt / t.length;
+        s.d += amt / t.length;
+      }
+      return;
+    }
     for (const s of S)
       if (included(s.h, p) && fn(s.h) && !s.lots) {
         const x = (amt * s.b) / w;
@@ -259,6 +335,39 @@ export function run(
       }
     }
 
+    // 5b. Loans: repayments come from liquid post-tax money, never from the rainy day fund.
+    //     A missed installment stays owed and is added to the next month's payment
+    //     (arrears); "short" is the most you fall behind at any point.
+    for (let i = 0; i < loans.length; i++) {
+      const l = loans[i];
+      if (D[i] <= 0.005) continue;
+      D[i] *= Math.pow(1 + l.ratePct / 100, 1 / 12);
+      const isLump = l.kind === 'lump_sum';
+      const st0 = ls[i];
+      const due = isLump ? (k === goalStep(p.start, loanGoal(l)) ? D[i] : 0) : Math.min(l.monthlyPayment + (st0?.arrears ?? 0), D[i]);
+      if (due <= 0) continue;
+      const st = (ls[i] ??= { k, fail: false, short: 0, have: 0, end: null, arrears: 0 });
+      const q = liquidPostTax(S, p);
+      const av = q - p.reserve * infl(k);
+      const paid = av >= due ? due : Math.max(0, av);
+      st.arrears = isLump ? 0 : due - paid;
+      if (paid < due) {
+        st.fail = true;
+        st.short = Math.max(st.short, (due - paid) / infl(k));
+      }
+      st.have += paid / infl(k);
+      takeLiquid(paid > 0 && q > 0 ? Math.min(1, paid / q) : 0);
+      D[i] -= paid;
+      if (D[i] <= 0.005) {
+        D[i] = 0;
+        st.end = k;
+      } else if (isLump) st.end = k;
+      if (stopOnFail && st.fail) {
+        res.push(loanResult(i));
+        return { pts, res };
+      }
+    }
+
     // 6. Goals due now.
     for (const g of goals) {
       if (g.retirement || goalStep(p.start, g) !== k) continue;
@@ -272,14 +381,19 @@ export function run(
 
     const t = totals(S, p);
     pts.push([k, t[0] / infl(k), t[1] / infl(k)]);
-    snaps?.push({ k, S: copySlots(S) });
+    snaps?.push({ k, S: copySlots(S), D: D.slice() });
   }
   if (rg && rs) res.push({ g: rg, k: rs.k, ok: !rs.fail, short: rs.short, have: Math.max(0, rg.amount - rs.short) });
+  ls.forEach((st, i) => st && res.push(loanResult(i)));
   return { pts, res };
 }
 
-export function simEndYear(start: StartMonth, goals: Goal[]): number {
-  return Math.max(start.year + 10, ...goals.map((g) => (g.retirement ? (g.endYear ?? g.year) : g.year)));
+export function simEndYear(start: StartMonth, goals: Goal[], loans: Loan[] = []): number {
+  return Math.max(
+    start.year + 10,
+    ...goals.map((g) => (g.retirement ? (g.endYear ?? g.year) : g.everyYears && g.untilYear != null ? Math.max(g.year, g.untilYear) : g.year)),
+    ...loans.map((l) => loanEndYear(l, start)),
+  );
 }
 
 export function vestTranches(vestYears: number, everyMonths: number): number {
@@ -306,11 +420,12 @@ export function simulate(
   opts: { takeFraction?: number; extraMonthly?: number; snaps?: Snapshot[]; stopOnFail?: boolean } = {},
 ): SimResult {
   const gs = goals.slice().sort(goalOrder);
-  const end = simEndYear(p.start, gs);
+  const end = simEndYear(p.start, gs, p.loans);
   const S = initialSlots(H, p, opts.takeFraction ?? 0);
+  const D = p.loans.map((l) => l.balance);
   const t0 = totals(S, p);
-  opts.snaps?.push({ k: 0, S: copySlots(S) });
-  const r = run(S, 0, p, opts.extraMonthly ?? 0, gs, end, opts.snaps, opts.stopOnFail);
+  opts.snaps?.push({ k: 0, S: copySlots(S), D: D.slice() });
+  const r = run(S, D, 0, p, opts.extraMonthly ?? 0, gs, end, opts.snaps, opts.stopOnFail);
   r.pts.unshift([0, t0[0], t0[1]]);
   return { ...r, end };
 }
@@ -331,7 +446,7 @@ export function freeAt(s: Snapshot, p: Params, goals: Goal[], endYear: number, i
   const infl = p.inflationOn ? Math.pow(1 + p.inflationRate, s.k / 12) : 1;
   const hiX = Math.max(0, L - p.reserve * infl);
   let fm = hiX;
-  if (hiX > 0 && rem.length) {
+  if (hiX > 0 && (rem.length || s.D.some((b) => b > 0))) {
     const good = (X: number) => {
       const S2 = copySlots(s.S);
       const f = X / L;
@@ -340,7 +455,7 @@ export function freeAt(s: Snapshot, p: Params, goals: Goal[], endYear: number, i
           x.b *= 1 - f;
           x.d *= 1 - f;
         }
-      return allOk(run(S2, s.k, p, 0, rem, endYear, undefined, true));
+      return allOk(run(S2, s.D.slice(), s.k, p, 0, rem, endYear, undefined, true));
     };
     if (!good(hiX)) {
       if (!good(0)) fm = 0;
@@ -389,8 +504,11 @@ export interface FreeMoney {
   parts: FreeMoneyPart[];
   retirementSetAside: number;
   otherSetAside: number;
+  /** Number of goals (a recurring goal counts once). */
   otherCount: number;
   hasRetirement: boolean;
+  /** Money set aside today for loan repayments. */
+  loanSetAside: number;
   note: FreeNote;
 }
 
@@ -424,6 +542,13 @@ export function freeMoney(H: Holding[], goals: Goal[], p: Params, iterations = 2
   const parts: FreeMoneyPart[] = [];
   let prev = reserve;
   let fm = hiX;
+  // Loans come first: with no goals at all, what must stay invested to repay them.
+  let loanSetAside = 0;
+  if (p.loans.length) {
+    fm = maxFree([]);
+    loanSetAside = Math.max(0, L - fm - prev);
+    prev = Math.max(prev, L - fm);
+  }
   for (let n = 1; n <= gl.length; n++) {
     fm = maxFree(gl.slice(0, n));
     const R = L - fm;
@@ -474,6 +599,7 @@ export function freeMoney(H: Holding[], goals: Goal[], p: Params, iterations = 2
     otherSetAside: ro,
     otherCount: no,
     hasRetirement: nr > 0,
+    loanSetAside,
     note,
   };
 }

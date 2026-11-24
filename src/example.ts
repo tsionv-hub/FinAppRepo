@@ -22,7 +22,7 @@ export const EXAMPLE_TABS: Tab[] = [
       ['start_date', null],
       ['USD', { f: 'GOOGLEFINANCE("CURRENCY:USDILS")', v: 3.7 }],
       ['EUR', { f: 'GOOGLEFINANCE("CURRENCY:EURILS")', v: 4 }],
-      ['monthly_saving_ILS', 4500],
+      ['monthly_saving_ILS', 5000],
       ['yearly_free_cash_ILS', 30000],
       ['yearly_intel_grant_USD', 15000],
       ['capital_gains_tax_pct', 25],
@@ -30,7 +30,7 @@ export const EXAMPLE_TABS: Tab[] = [
       ['intel_vest_years', 4],
       ['intel_vest_every_months', 6],
       ['birth_year', 1986],
-      ['retirement_age', 53],
+      ['retirement_age', 55],
       ['pre_retirement_allowance_ILS', 20000],
       ['pension_start_age', 67],
       ['pension_deposit_growth_pct', 1],
@@ -73,8 +73,8 @@ export const EXAMPLE_TABS: Tab[] = [
       TEMPLATE_TABS[3].rows[0],
       ['G1', 'Rainy day fund', 100000, null, null, 1, 'Never spent', null, 'reserve'],
       ['G2', 'Early retirement', 0, null, null, 2, 'Year and amount come from Settings', null, 'retirement'],
-      ['G3', 'Family trip', 35000, 2027, 8, 3, null, 1, null],
-      ['G4', 'New car', 140000, 2028, 6, 4, null, 1, null],
+      ['G3', 'Family vacation', 18000, 2027, 8, 3, 'Every summer until retirement', 1, null, 1, 2038],
+      ['G4', 'Replace car', 140000, 2028, 6, 4, 'Every 5 years', 1, null, 5, 2038],
       ['G5', 'Kitchen renovation', 120000, 2030, 3, 5, null, 1, null],
       ['G6', "Noa's bat mitzvah", 60000, 2032, 5, 6, null, 1, null],
       ['G7', 'University', 150000, 2036, 10, 7, 'Kept invested: not paid out', 0, null],
@@ -82,8 +82,16 @@ export const EXAMPLE_TABS: Tab[] = [
     ],
   },
   {
+    name: 'Loans',
+    rows: [
+      TEMPLATE_TABS[4].rows[0],
+      ['L1', 'Car loan', 'Alex', 'installments', 36000, 3.5, 1400, null, null, null],
+      ['L2', 'Loan from parents', 'Sam', 'lump_sum', 60000, 0, null, 2029, 9, 'No interest'],
+    ],
+  },
+  {
     name: 'ToDo',
-    rows: [TEMPLATE_TABS[4].rows[0], ['T1', 'Update balances from the provider sites', 'Holdings', 'open', 'Once a month']],
+    rows: [TEMPLATE_TABS[5].rows[0], ['T1', 'Update balances from the provider sites', 'Holdings', 'open', 'Once a month']],
   },
 ];
 

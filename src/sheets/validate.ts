@@ -38,7 +38,12 @@ export const RULES: Record<string, TabRule> = {
   Goals: {
     required: true,
     columns: ['id', 'name', 'target_amount_ILS', 'target_year', 'type'],
-    optionalColumns: ['target_month', 'priority', 'notes', 'spend_when_due'],
+    optionalColumns: ['target_month', 'priority', 'notes', 'spend_when_due', 'repeat_every_years', 'repeat_until_year'],
+  },
+  Loans: {
+    required: false,
+    columns: ['name', 'kind', 'balance_ILS'],
+    optionalColumns: ['id', 'owner', 'interest_rate_pct', 'monthly_payment_ILS', 'repay_year', 'repay_month', 'notes'],
   },
 };
 

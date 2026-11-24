@@ -121,9 +121,12 @@ describe('Hebrew goal names (SPEC 6.6)', () => {
     setLang('he');
     expect(goalName("Noa's wedding")).toBe('החתונה של נועה');
     expect(goalName("Zork's wedding")).toBe('החתונה של Zork');
-    expect(goalName('New car')).toBe('New רכב');
+    expect(goalName('New car')).toBe('רכב חדש');
+    expect(goalName('Family vacation')).toBe('חופשה משפחתית');
+    expect(goalName("Noa's bat mitzvah")).toBe('בת המצווה של נועה');
+    expect(goalName('טיול שנתי')).toBe('טיול שנתי');
     expect(goalName('Rainy day fund')).toBe('קרן ליום סגריר');
-    expect(goalName('Apartment down payment')).toBe('דירה מקדמה');
+    expect(goalName('Apartment down payment')).toBe('מקדמה לדירה');
     setLang('en');
     expect(goalName('New car')).toBe('New car');
   });

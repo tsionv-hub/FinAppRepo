@@ -16,7 +16,7 @@ function run(scenario: 'mod' | 'pes') {
   const d = data!;
   const w = { ...defaultWhatIf(d.settings, d.goals.reserve), scenario };
   const goals = resolveGoals(d.goals.goals, { birthYear: d.settings.birthYear, retirementAge: w.retirementAge, pensionStartAge: d.settings.pensionStartAge, allowance: w.allowance }, START);
-  const p = buildParams(d.settings, w, START, retirementYear(goals));
+  const p = buildParams(d.settings, w, START, retirementYear(goals), d.loans);
   return { d, sim: simulate(d.holdings, goals, p), fm: freeMoney(d.holdings, goals, p) };
 }
 

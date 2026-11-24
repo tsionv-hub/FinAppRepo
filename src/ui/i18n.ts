@@ -1,4 +1,5 @@
-// English and Hebrew strings (ported from the prototype). Sheet data is English only.
+// English and Hebrew strings. Every key must exist in both languages (the compiler checks).
+// Tab and column names in the sheet stay English; text the user types can be in either language.
 
 export type Lang = 'en' | 'he';
 
@@ -14,8 +15,8 @@ const en = {
   nxt: 'Next goals', ogl: 'Other goals', retS: 'Retirement starts', mo2: 'month', inT: 'in', ral: 'Retirement age', all: 'Monthly allowance until pension ₪', rs2: 'Save retirement settings',
   ri: 'Born {b}; pension starts at age {p}. The allowance is paid monthly from retirement until then. Yearly saving and the Intel grant stop at retirement.', age: 'age', erg: 'Early retirement',
   rsaved2: 'Retirement settings saved to the sheet.', cfs: 'covered by future saving', rdl: 'Rainy day fund ₪', rsv: 'Save to sheet', rsaved: 'Rainy day fund saved to the Goals tab.', rdf: 'Rainy day fund',
-  resv: 'reserved, never spent', cov: 'Covered', allRes: 'Nothing free right now: all liquid money is set aside for the rainy day fund and your goals.', enOnly: 'Adding and saving are available in English only.',
-  enName: 'Goal names must be in English (the sheet is English only).', now: 'Status today', stat: 'Status in {d}', legFree: 'Free money', hold: 'Holdings', sepn: 'not in totals',
+  resv: 'reserved, never spent', cov: 'Covered', allRes: 'Nothing free right now: all liquid money is set aside for the rainy day fund and your goals.',
+  now: 'Status today', stat: 'Status in {d}', legFree: 'Free money', hold: 'Holdings', sepn: 'not in totals',
   pre: 'Pre-tax today', post: 'Post-tax today', est: 'Estimated tax', penl: 'pension', proj: 'Projection', legPre: 'Pre-tax', legPost: 'Post-tax', legGoal: 'Goal date',
   goals: 'Goals', newGoal: 'New goal', name: 'Name', amount: 'Amount ₪', year: 'Year', spend: 'Pay out on due date', add: 'Add goal', save1: 'Save 1 new goal to sheet', saveN: 'Save {n} new goals to sheet',
   ns: '(not saved)', rm: 'Remove', on: 'On track', sh: 'Short', prj: 'Projected balance', nog: 'No goals yet.', assum: 'Assumptions',
@@ -60,13 +61,28 @@ const en = {
   dGoalN: 'A goal is funded if liquid money after tax, minus the rainy day fund, covers it on the 1st of its month.',
   dBal: 'Balance', dMDep: 'Monthly deposit', dAccF: 'Fee on balance', dYRet: 'Yearly return', dCoef: 'Conversion coefficient', dStops: 'Deposits stop at early retirement',
   dAtPen: 'At pension age ({a})', dMPen: 'Monthly pension (pre-tax)', dPenN: 'Pension is never part of totals, goals or free money.',
-  ty: {} as Record<string, string>,
+  needRep: 'For a repeating goal, the "until" year must be after the first year.', repL: 'Repeat every … years (optional)', untilL: 'Until year (optional)',
+  everyY: 'every year', everyN: 'every {n} years', untilY: 'until {y}', fromL: 'from', shortIn: 'Short in {y}:', nRec: '{n} of {m} funded',
+  dRepeat: 'Repeats', dOcc: 'Each time', dNoOcc: 'No dates fall within the projection.', dRecN: 'A repeating goal: each time is checked on its own, on the 1st of its month.',
+  debtL: 'After debts', lnRepL: 'Loan repayments', lnRepay: 'Repay', lnPaidOff: 'Paid off', lnInst: 'monthly installments', lnLump: 'one payment',
+  lnKind: 'Repayment', lnOwed: 'Owed today', lnRate: 'Interest', lnPay: 'Monthly payment', lnDue: 'Repay on', lnAt: 'Owed on {d}',
+  lnNever: 'The monthly payment doesn’t cover the interest, so this loan is never paid off.',
+  lnN: 'Repaid from liquid money, never from the rainy day fund. Not subtracted from your totals; see "After debts" at the top.',
+  eCol: 'To save repeating goals, add the column(s) {c} to the {t} tab, then try again.', chkTab: '{t} tab',
+  dgPopup: '1. Sign in (popup)', dgRedir: '2. Sign in (redirect)', dgRead: 'Test read', dgOut: 'Sign out', dgBack: 'Back to app',
+  dgToRedir: 'App uses popup → switch to redirect', dgToPopup: 'App uses redirect → switch to popup',
+  dgInst: 'Installed (home-screen app)', dgNotInst: 'NO: open it from the home-screen icon', dgDev: 'Device', dgOnline: 'Online', dgCid: 'Client ID', dgNotSet: 'not set',
+  dgOrigin: 'JavaScript origin to register', dgRedirUri: 'Redirect URI to register (method 2)', dgMode: 'Sign-in method used by the app', dgSheet: 'Sheet link saved',
+  dgTok: 'Sign-in (kept in memory only)', dgTokOk: 'valid, {m} min left', dgTokNo: 'none', dgLast: 'Last redirect', dgSw: 'Offline support', dgSwOn: 'active', dgSwOff: 'not active yet',
+  dgPopOk: 'Popup sign-in OK', dgPopFail: 'Popup sign-in FAILED: {e}', dgRedOk: 'Redirect sign-in OK', dgRedFail: 'Redirect sign-in FAILED: {e}',
+  dgSwitched: 'The app now uses: {m}', dgSignedOut: 'Signed out', dgReadOk: 'Test read OK in {ms} ms: "{t}", tabs: {tabs}; Settings rows read: {n}',
+  dgReadFail: 'Test read FAILED: {e}', dgNoSheet: 'Test read: no sheet link saved yet. Enter it on the main screen first.', mPopup: 'popup', mRedirect: 'redirect',
+  ty: { Loan: 'Loan' } as Record<string, string>,
 };
 
 export type Key = Exclude<keyof typeof en, 'ty'>;
 
-// Hebrew strings may lag behind English; missing ones fall back to English.
-const he: Partial<Record<Key, string>> & { ty: Record<string, string> } = {
+const he: Record<Key, string> & { ty: Record<string, string> } = {
   title: 'תכנון פיננסי', reload: 'רענון', loading: 'קורא את הגיליון…', read: 'עודכן', free: 'כסף פנוי היום',
   freeN: 'אחרי מס, מנכסים נזילים בלבד (ללא מניות אינטל שלא הבשילו וללא פנסיה). כל יעד נשאר ממומן במועדו.', lim: 'מוגבל על ידי',
   none1: 'אין כרגע כסף פנוי. חיסכון של כ-{x} נוספים בחודש יממן את כל היעדים.', none2: 'אין כרגע כסף פנוי, וגם ₪1M נוספים בחודש לא יכסו את כל היעדים.',
@@ -78,8 +94,8 @@ const he: Partial<Record<Key, string>> & { ty: Record<string, string> } = {
   nxt: 'היעדים הקרובים', ogl: 'יעדים אחרים', retS: 'תחילת פרישה', mo2: 'חודש', inT: 'בעוד', ral: 'גיל פרישה', all: 'קצבה חודשית עד הפנסיה ₪', rs2: 'שמור הגדרות פרישה',
   ri: 'נולדת ב-{b}; הפנסיה מתחילה בגיל {p}. הקצבה משולמת מדי חודש מהפרישה ועד אז. החיסכון השנתי ומענק אינטל נעצרים בפרישה.', age: 'גיל', erg: 'פרישה מוקדמת',
   rsaved2: 'הגדרות הפרישה נשמרו בגיליון.', cfs: 'מכוסה מחיסכון עתידי', rdl: 'קרן ליום סגריר ₪', rsv: 'שמור בגיליון', rsaved: 'קרן ליום סגריר נשמרה בלשונית היעדים.', rdf: 'קרן ליום סגריר',
-  resv: 'שמור, לא מוצא', cov: 'מכוסה', allRes: 'אין כרגע כסף פנוי: כל הכסף הנזיל שמור לקרן ליום סגריר וליעדים.', enOnly: 'הוספה ושמירה אפשריות באנגלית בלבד.',
-  enName: 'שמות יעדים חייבים להיות באנגלית (הגיליון באנגלית בלבד).', now: 'מצב היום', stat: 'מצב ב{d}', legFree: 'כסף פנוי', hold: 'נכסים', sepn: 'לא בסיכומים',
+  resv: 'שמור, לא מוצא', cov: 'מכוסה', allRes: 'אין כרגע כסף פנוי: כל הכסף הנזיל שמור לקרן ליום סגריר וליעדים.',
+  now: 'מצב היום', stat: 'מצב ב{d}', legFree: 'כסף פנוי', hold: 'נכסים', sepn: 'לא בסיכומים',
   pre: 'לפני מס היום', post: 'אחרי מס היום', est: 'מס משוער', penl: 'פנסיה', proj: 'תחזית', legPre: 'לפני מס', legPost: 'אחרי מס', legGoal: 'מועד יעד',
   goals: 'יעדים', newGoal: 'יעד חדש', name: 'שם', amount: 'סכום ₪', year: 'שנה', spend: 'לשלם במועד היעד', add: 'הוסף יעד', save1: 'שמור יעד חדש אחד בגיליון', saveN: 'שמור {n} יעדים חדשים בגיליון',
   ns: '(לא נשמר)', rm: 'הסר', on: 'במסלול', sh: 'חסר', prj: 'יתרה צפויה', nog: 'אין יעדים עדיין.', assum: 'הנחות',
@@ -106,13 +122,48 @@ const he: Partial<Record<Key, string>> & { ty: Record<string, string> } = {
   eRate: 'Google מגביל כרגע את הבקשות. המתן דקה ולחץ רענון.',
   ePopup: 'ההתחברות לא הושלמה ({c}). לחץ שוב. אם החלון לא נפתח, נסה את שיטת ההפניה בבדיקת ההתחברות.',
   dcur: 'ב-{c}: אחרי מס {a} · לפני מס {b}',
+  demoGo: 'לחקור עם נתוני דוגמה', demoN: 'רק מסתכלים? נסו את האפליקציה עם משק בית מומצא. בלי התחברות, שום דבר לא נשמר.',
+  demoBar: 'נתוני דוגמה (משק בית מומצא). שום דבר לא נשמר.', demoExit: 'יציאה מהדוגמה', demoNoSave: 'אלה נתוני דוגמה, לכן שום דבר לא נשמר.',
+  exDl: 'הורדת גיליון הדוגמה (.xlsx)',
+  eXlsx: 'זה קובץ Excel, לא גיליון Google. פתחו אותו ב-Google Sheets, בחרו קובץ ← שמירה כ-Google Sheets, והשתמשו בקישור החדש.',
+  close: 'סגירה', dRT: 'תשואה ומס', dToday: 'היום', dAt: 'ב-{d}', dVal: 'שווי', dDep: 'הופקד (בסיס)', dGain: 'רווח', dTax: 'מס במכירה', dPost: 'אחרי מס',
+  dSheet: 'בגיליון', dRate: 'בשער {r}', dRet: 'תשואה ממוצעת ל-5 שנים', dEff: 'התשואה בחישוב ({s})', dTaxT: 'סוג מס', dDepF: 'דמי ניהול מהפקדה', dMgmF: 'דמי ניהול',
+  dFeesN: 'דמי הניהול שמורים אבל עדיין לא משמשים בתחזית.', dTrack: 'מסלול', dStyle: 'סגנון', dTicker: 'סימול', dQty: 'כמות', dUpd: 'עודכן לאחרונה',
+  dInTot: 'נכלל בסיכומים', dSpendable: 'ניתן לשימוש', yes: 'כן', no: 'לא', taxNone: 'ללא', taxCg: 'רווח הון', taxInc: 'הכנסה',
+  dSreN: 'נוצר על ידי האפליקציה: מניות שהבשילו נמכרות (אחרי מס הכנסה) והתמורה נטו מושקעת כאן.',
+  dUnvN: 'מניות שלא הבשילו לעולם לא זמינות לשימוש. הן מבשילות כל {m} חודשים ונמכרות כשהן מבשילות.',
+  dDue: 'מועד', dSpendQ: 'משולם במועד', dStatus: 'מצב', dHave: 'זמין אז', dShortBy: 'חסר', dLeft: 'זמן שנותר', dPrio: 'עדיפות',
+  dAmt: 'סכום', dFrom: 'התחלה', dUntil: 'שנה אחרונה', dMonthly: 'קצבה חודשית', dTotal: 'סך עד הפנסיה', dYears: 'שנים',
+  dRetN: 'משולם מדי חודש מכסף נזיל; בקרן ליום סגריר לא נוגעים. המזומן הפנוי השנתי ומענק המניות נעצרים בפרישה.',
+  dResN: 'נכלל בסיכומים אבל לעולם לא מוצא. יעדים וכסף פנוי משתמשים רק בכסף שמעליו.', dLiqNow: 'נזיל אחרי מס היום',
+  dGoalN: 'יעד ממומן אם הכסף הנזיל אחרי מס, פחות הקרן ליום סגריר, מכסה אותו ב-1 בחודש היעד.',
+  dBal: 'יתרה', dMDep: 'הפקדה חודשית', dAccF: 'דמי ניהול מצבירה', dYRet: 'תשואה שנתית', dCoef: 'מקדם המרה', dStops: 'ההפקדות נעצרות בפרישה מוקדמת',
+  dAtPen: 'בגיל הפנסיה ({a})', dMPen: 'קצבה חודשית (לפני מס)', dPenN: 'הפנסיה אף פעם לא חלק מהסיכומים, מהיעדים או מהכסף הפנוי.',
+  needRep: 'ביעד חוזר, שנת הסיום צריכה להיות אחרי השנה הראשונה.', repL: 'חוזר כל … שנים (לא חובה)', untilL: 'עד שנה (לא חובה)',
+  everyY: 'כל שנה', everyN: 'כל {n} שנים', untilY: 'עד {y}', fromL: 'מ-', shortIn: 'חסר ב-{y}:', nRec: '{n} מתוך {m} ממומנים',
+  dRepeat: 'חוזר', dOcc: 'כל פעם', dNoOcc: 'אין מועדים בטווח התחזית.', dRecN: 'יעד חוזר: כל פעם נבדקת בנפרד, ב-1 בחודש שלה.',
+  debtL: 'אחרי חובות', lnRepL: 'החזרי הלוואות', lnRepay: 'החזר', lnPaidOff: 'נפרע', lnInst: 'תשלומים חודשיים', lnLump: 'תשלום אחד',
+  lnKind: 'החזר', lnOwed: 'חוב היום', lnRate: 'ריבית', lnPay: 'תשלום חודשי', lnDue: 'מועד ההחזר', lnAt: 'חוב ב-{d}',
+  lnNever: 'התשלום החודשי לא מכסה את הריבית, ולכן ההלוואה לעולם לא תיפרע.',
+  lnN: 'מוחזר מכסף נזיל, לעולם לא מהקרן ליום סגריר. לא מופחת מהסיכומים; ראו "אחרי חובות" למעלה.',
+  eCol: 'כדי לשמור יעדים חוזרים, הוסיפו את העמודות {c} ללשונית {t} ונסו שוב.', chkTab: 'לשונית {t}',
+  dgPopup: '1. התחברות (חלון קופץ)', dgRedir: '2. התחברות (הפניה)', dgRead: 'בדיקת קריאה', dgOut: 'התנתקות', dgBack: 'חזרה לאפליקציה',
+  dgToRedir: 'האפליקציה משתמשת בחלון קופץ ← מעבר להפניה', dgToPopup: 'האפליקציה משתמשת בהפניה ← מעבר לחלון קופץ',
+  dgInst: 'מותקנת (אפליקציה במסך הבית)', dgNotInst: 'לא: פתחו אותה מהסמל במסך הבית', dgDev: 'מכשיר', dgOnline: 'מחובר לרשת', dgCid: 'מזהה לקוח', dgNotSet: 'לא הוגדר',
+  dgOrigin: 'JavaScript origin לרישום', dgRedirUri: 'Redirect URI לרישום (שיטה 2)', dgMode: 'שיטת ההתחברות באפליקציה', dgSheet: 'קישור לגיליון שמור',
+  dgTok: 'התחברות (נשמרת בזיכרון בלבד)', dgTokOk: 'בתוקף, נותרו {m} דקות', dgTokNo: 'אין', dgLast: 'הפניה אחרונה', dgSw: 'עבודה ללא רשת', dgSwOn: 'פעיל', dgSwOff: 'עדיין לא פעיל',
+  dgPopOk: 'התחברות בחלון קופץ הצליחה', dgPopFail: 'התחברות בחלון קופץ נכשלה: {e}', dgRedOk: 'התחברות בהפניה הצליחה', dgRedFail: 'התחברות בהפניה נכשלה: {e}',
+  dgSwitched: 'האפליקציה משתמשת עכשיו ב: {m}', dgSignedOut: 'התנתקת', dgReadOk: 'בדיקת קריאה הצליחה ב-{ms} אלפיות שנייה: "{t}", לשוניות: {tabs}; שורות Settings שנקראו: {n}',
+  dgReadFail: 'בדיקת קריאה נכשלה: {e}', dgNoSheet: 'בדיקת קריאה: עדיין לא נשמר קישור לגיליון. הזינו אותו קודם במסך הראשי.', mPopup: 'חלון קופץ', mRedirect: 'הפניה',
   ty: {
+    Loan: 'הלוואה',
     Pension: 'פנסיה', 'Study fund': 'קרן השתלמות', 'Investment fund': 'קופת גמל להשקעה', 'Savings plan': 'קופת חיסכון', Brokerage: 'חשבון מסחר',
     Cash: 'מזומן', Stocks: 'מניות', 'Stocks (unvested)': 'מניות שלא הבשילו', 'Stock reinvestment': 'השקעה מחדש ממניות',
   },
 };
 
-const T = { en, he };
+/** Both string tables (exported for the language audit in the end-to-end test). */
+export const T = { en, he };
 
 let lang: Lang = 'en';
 export function getLang(): Lang {
@@ -246,11 +297,26 @@ const WORDS: Record<string, string> = {
   studies: 'לימודים', degree: 'תואר', holiday: 'חופשה', abroad: 'בחו״ל', down: '', payment: 'מקדמה', mortgage: 'משכנתא', boat: 'סירה',
 };
 
+// Whole goal names (checked first, case-insensitive), so word order comes out right in Hebrew.
+const PHRASES: Record<string, string> = {
+  'family vacation': 'חופשה משפחתית', 'family trip': 'טיול משפחתי', 'summer vacation': 'חופשת קיץ', 'new car': 'רכב חדש', 'replace car': 'החלפת רכב',
+  'car replacement': 'החלפת רכב', 'kitchen renovation': 'שיפוץ מטבח', 'home renovation': 'שיפוץ הבית', 'apartment help': 'עזרה בדירה',
+  'down payment': 'מקדמה', 'apartment down payment': 'מקדמה לדירה', 'new laptop': 'מחשב נייד חדש', 'trip abroad': 'טיול לחו״ל',
+};
+
+// "<Name>'s <event>" → "<event> של <Name>".
+const EVENTS: Record<string, string> = {
+  wedding: 'החתונה של', 'bat mitzvah': 'בת המצווה של', 'bar mitzvah': 'בר המצווה של', birthday: 'יום ההולדת של', graduation: 'טקס הסיום של',
+  studies: 'הלימודים של', university: 'הלימודים של',
+};
+
 export function goalName(n: string): string {
   if (lang !== 'he') return n;
   const s = n.trim();
-  const m = /^(.+?)['’]s wedding$/i.exec(s);
-  if (m) return 'החתונה של ' + (NAMES[m[1].toLowerCase()] ?? m[1]);
+  const low = s.toLowerCase().replace(/\s+/g, ' ');
+  if (PHRASES[low]) return PHRASES[low];
+  const m = /^(.+?)['’]s (.+)$/i.exec(s);
+  if (m && EVENTS[m[2].toLowerCase()]) return EVENTS[m[2].toLowerCase()] + ' ' + (NAMES[m[1].toLowerCase()] ?? m[1]);
   if (/^rainy day fund$/i.test(s)) return t('rdf');
   if (/^early retirement$/i.test(s)) return t('erg');
   return s.replace(/[A-Za-z]+/g, (x) => WORDS[x.toLowerCase()] ?? NAMES[x.toLowerCase()] ?? x).replace(/\s{2,}/g, ' ').trim();

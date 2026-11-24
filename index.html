@@ -66,14 +66,14 @@
   <div class="card">
     <h2 data-t="diag"></h2>
     <pre id="diagOut" class="pre"></pre>
-    <div class="row" style="margin-top:8px"><button id="dPopup">1. Sign in (popup)</button><button id="dRedir">2. Sign in (redirect)</button></div>
-    <div class="row" style="margin-top:8px"><button id="dRead">Test read</button><button class="s" id="dMode"></button></div>
-    <div class="row" style="margin-top:8px"><button class="s" id="dOut">Sign out</button><button class="s" id="dBack">Back to app</button></div>
+    <div class="row" style="margin-top:8px"><button id="dPopup" data-t="dgPopup"></button><button id="dRedir" data-t="dgRedir"></button></div>
+    <div class="row" style="margin-top:8px"><button id="dRead" data-t="dgRead"></button><button class="s" id="dMode"></button></div>
+    <div class="row" style="margin-top:8px"><button class="s" id="dOut" data-t="dgOut"></button><button class="s" id="dBack" data-t="dgBack"></button></div>
   </div>
 </section>
 
 <div id="app" hidden>
-<details class="card" style="padding:16px"><summary><span><span class="lbl" data-t="post" style="display:block;font-size:13px"></span><span class="big" id="post" style="font-size:34px"></span><span style="display:block;margin-top:6px;font-weight:500;font-size:14px;color:var(--mu)"><span data-t="pre"></span> <span id="pre"></span></span></span></summary><div class="lbl" id="tax"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
+<details class="card" style="padding:16px"><summary><span><span class="lbl" data-t="post" style="display:block;font-size:13px"></span><span class="big" id="post" style="font-size:34px"></span><span style="display:block;margin-top:6px;font-weight:500;font-size:14px;color:var(--mu)"><span data-t="pre"></span> <span id="pre"></span></span><span id="debt" hidden style="display:block;margin-top:2px;font-weight:500;font-size:14px;color:var(--mu)"></span></span></summary><div class="lbl" id="tax"></div><div class="lbl" id="dcur" style="margin-top:4px"></div></details>
 
 <details class="card" open><summary><span class="lbl" data-t="free"></span><span class="big" id="fm"></span></summary><div class="lbl" id="fn"></div>
 <div class="cm" id="cm"></div><div id="cl" style="margin-top:8px"></div></details>
@@ -92,6 +92,7 @@
 <div><label for="ga" data-t="amount"></label><input type="number" id="ga" inputmode="numeric"></div>
 <div><label for="gy" data-t="year"></label><input type="number" id="gy" inputmode="numeric"></div></div>
 <div class="row" style="margin-top:8px;align-items:end"><div><label for="gmo" data-t="month"></label><select id="gmo"></select></div><div></div></div>
+<div class="row" style="margin-top:8px;align-items:end"><div><label for="grp" data-t="repL"></label><input type="number" id="grp" inputmode="numeric" min="0"></div><div><label for="gru" data-t="untilL"></label><input type="number" id="gru" inputmode="numeric"></div></div>
 <label class="chk"><input type="checkbox" id="gsp" checked><span data-t="spend"></span></label>
 <button style="margin-top:8px;width:100%" id="gb" data-t="add"></button>
 <button id="sv" hidden style="margin-top:8px;width:100%"></button>
@@ -124,6 +125,7 @@
 
 <details class="card"><summary><h2 data-t="where"></h2></summary><div id="bk"></div></details>
 
+<div class="lbl" id="ver" style="text-align:center;margin:4px 0 -4px"></div>
 <div class="foot" id="foot"><button class="s" id="chgSheet" data-t="chg"></button><button class="s" id="tplBtn2" data-t="tpl"></button><button class="s" id="signOut" data-t="out"></button><button class="s" id="forget" data-t="forget"></button><button class="s" id="toDiag" data-t="diag"></button></div>
 </div>
 <dialog id="dlg" aria-labelledby="dlgT"><div class="dh"><h2 id="dlgT"></h2><button class="s" id="dlgX" data-t="close"></button></div><div id="dlgB"></div></dialog>

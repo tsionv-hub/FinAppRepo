@@ -1,8 +1,8 @@
 // Reads the whole sheet into model objects, and the three explicit writes:
 // new goals, rainy day fund amount, retirement age and allowance.
 
-import { parseGoals, parseHoldings, parsePension, parseSettings, type GoalsTab } from '../model/parse';
-import type { Goal, Holding, PensionFund, Settings, StartMonth } from '../model/types';
+import { parseGoals, parseHoldings, parseLoans, parsePension, parseSettings, type GoalsTab } from '../model/parse';
+import type { Goal, Holding, Loan, PensionFund, Settings, StartMonth } from '../model/types';
 import type { Cell, Rows } from '../model/parse';
 import { a1, columnLetter, SheetsClient, SheetsError } from './api';
 import { RULES, validate, type Checklist } from './validate';
@@ -13,6 +13,7 @@ export interface SheetData {
   holdings: Holding[];
   pension: PensionFund[];
   goals: GoalsTab;
+  loans: Loan[];
   fetchedAt: number;
 }
 
@@ -47,6 +48,7 @@ export function fromRows(title: string, tabs: string[], rows: Record<string, Row
       holdings: parseHoldings(rows.Holdings, settings.fx),
       pension: rows.Pension ? parsePension(rows.Pension) : [],
       goals: parseGoals(rows.Goals, start.year),
+      loans: rows.Loans ? parseLoans(rows.Loans) : [],
       fetchedAt: Date.now(),
     },
   };
@@ -97,12 +99,23 @@ export function goalRows(gt: GoalsTab, goals: Goal[]): Rows {
       notes: 'Added in app',
       spend_when_due: g.spend ? 1 : 0,
       type: '',
+      repeat_every_years: g.everyYears ?? '',
+      repeat_until_year: g.everyYears ? (g.untilYear ?? '') : '',
     };
     return gt.header.map((h) => (h in v ? v[h] : ''));
   });
 }
 
+export class MissingColumnError extends Error {
+  constructor(public tab: string, public columns: string[]) {
+    super(`${tab} is missing ${columns.join(', ')}`);
+  }
+}
+
 export async function appendGoals(c: SheetsClient, gt: GoalsTab, goals: Goal[]): Promise<void> {
   if (!goals.length) return;
+  // A recurring goal needs its repeat columns, or it would be saved as a one-off.
+  const need = goals.some((g) => g.everyYears) ? ['repeat_every_years', 'repeat_until_year'].filter((h) => !gt.header.includes(h)) : [];
+  if (need.length) throw new MissingColumnError('Goals', need);
   await c.append(a1('Goals', 'A1'), goalRows(gt, goals));
 }

@@ -1,5 +1,7 @@
 # Finance Planner: user guide
 
+**[עברית: איך מתחילים](START.he.md)** · First time? The short version is [Getting started](START.md).
+
 Finance Planner shows where your money stands today and whether your plans are funded in the future. It reads your numbers from **your own Google Sheet**; nothing is sent anywhere else, and nothing is stored on any server.
 
 ---
@@ -44,12 +46,14 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 | **Post-tax today** | Everything you have, minus the tax you'd pay if you sold it all now. Pension is not included. |
 | **Free money today** | How much you could spend **now** and still pay for every goal on time and keep the rainy day fund. The colored bar shows how your money is set aside: rainy day fund, early retirement, other goals, free. |
 | **Projection** | Your money over time. Move the slider to see any month. Dots mark goals: green = funded, red = short. The shaded band is early retirement. Pick a return scenario (Optimistic, Moderate, Pessimistic). |
-| **Next goals / Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom. |
+| **Next goals / Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
 | **Assumptions** | Saving per month, yearly extra cash, inflation, tax rates, retirement age and allowance. Changes are "what if" only. |
-| **Holdings / Breakdown** | Every account, and your money by type. |
+| **Holdings / Breakdown** | Every account, and your money by type. Loans show here as minus amounts. |
 
-**Tap any holding or goal** for details.
+**Tap any holding, loan or goal** for details.
+
+**Language:** tap **עברית / English** at the top. Everything works in both, including adding goals.
 
 ---
 
@@ -60,6 +64,8 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 - **"What if" changes** in Assumptions only change the screen. To keep them, change the sheet.
 - **Returns** use each account's 5-year average return, scaled by the scenario (Moderate = 75% of it).
 - **Rainy day fund** counts in your totals but is never spent.
+- **Repeating goals** (Goals tab: `repeat_every_years`, `repeat_until_year`): each time is checked on its own, so you'll see if, say, the 2031 vacation is short.
+- **Loans** (optional Loans tab): money you owe, paid in monthly installments or in one payment on a date. Repayments come out of your money like goals do. Your totals don't subtract loans; the **After debts** line does.
 - **Liquid money** means accounts you can actually use: not pension, not shares that haven't vested.
 - It's a planning tool with simplified tax rules, not financial advice.
 
