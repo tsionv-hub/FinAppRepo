@@ -71,7 +71,10 @@ function showStep(step: Step, err?: string | null): void {
   showMsg(err ?? null);
 }
 
+let lastCheck: [Checklist, boolean] | null = null;
+
 function showCheck(c: Checklist, canOpen: boolean): void {
+  lastCheck = [c, canOpen];
   showStep('check');
   $('chkSum').textContent = canOpen ? t('chkOk') : t('chkBad');
   $<HTMLButtonElement>('openApp').disabled = !canOpen;
@@ -80,7 +83,7 @@ function showCheck(c: Checklist, canOpen: boolean): void {
   $('chkList').innerHTML = c.items
     .filter((i) => i.kind === 'tab' || !i.found)
     .map((i) => {
-      const where = i.kind === 'tab' ? `${esc(i.name)} ${kindL.tab}` : `${esc(i.tab)}: ${kindL[i.kind]} <b dir="ltr">${esc(i.name)}</b>`;
+      const where = i.kind === 'tab' ? t('chkTab', { t: esc(i.name) }) : `${esc(i.tab)}: ${kindL[i.kind]} <b dir="ltr">${esc(i.name)}</b>`;
       const st = i.found ? '<span class="ok">✓</span>' : `<span class="${i.required ? 'bad' : 'lbl'}">✗ ${t('missL')}${i.required ? '' : ' (' + t('optL') + ')'}</span>`;
       return `<div class="ck"><span>${where}</span>${st}</div>`;
     })
@@ -129,35 +132,36 @@ async function diag(extra?: string): Promise<void> {
   const tok = getToken();
   const id = sheetId();
   const cid = clientId();
+  const mode = authMode() === 'popup' ? t('mPopup') : t('mRedirect');
   const lines = [
-    'Installed (standalone): ' + (standalone ? 'yes' : 'NO - open it from the home-screen icon'),
-    'Device: ' + navigator.userAgent,
-    'Online: ' + navigator.onLine,
-    'Client ID: ' + (cid ? cid.slice(0, 8) + '…' : 'not set'),
-    'JavaScript origin to register: ' + location.origin,
-    'Redirect URI to register (method 2): ' + redirectUri(),
-    'Method used by the app: ' + authMode(),
-    'Sheet ID saved: ' + (id ? id.slice(0, 4) + '…' + id.slice(-4) : 'no'),
-    'Token (memory only): ' + (tok ? 'valid, ' + Math.round((tok.expiresAt - Date.now()) / 60000) + ' min left' : 'none'),
-    'Last redirect: ' + JSON.stringify(lastRedirect),
-    'Service worker: ' + (navigator.serviceWorker?.controller ? 'active' : 'not controlling'),
+    t('dgInst') + ': ' + (standalone ? t('yes') : t('dgNotInst')),
+    t('dgDev') + ': ' + navigator.userAgent,
+    t('dgOnline') + ': ' + (navigator.onLine ? t('yes') : t('no')),
+    t('dgCid') + ': ' + (cid ? cid.slice(0, 8) + '…' : t('dgNotSet')),
+    t('dgOrigin') + ': ' + location.origin,
+    t('dgRedirUri') + ': ' + redirectUri(),
+    t('dgMode') + ': ' + mode,
+    t('dgSheet') + ': ' + (id ? id.slice(0, 4) + '…' + id.slice(-4) : t('no')),
+    t('dgTok') + ': ' + (tok ? t('dgTokOk', { m: Math.round((tok.expiresAt - Date.now()) / 60000) }) : t('dgTokNo')),
+    t('dgLast') + ': ' + JSON.stringify(lastRedirect),
+    t('dgSw') + ': ' + (navigator.serviceWorker?.controller ? t('dgSwOn') : t('dgSwOff')),
     '',
     ...diagLog,
   ];
   $('diagOut').textContent = lines.join('\n');
-  $('dMode').textContent = authMode() === 'popup' ? 'App uses popup → switch to redirect' : 'App uses redirect → switch to popup';
+  $('dMode').textContent = authMode() === 'popup' ? t('dgToRedir') : t('dgToPopup');
 }
 
 async function diagRead(): Promise<void> {
   const c = client();
-  if (!c) return diag('Test read: no sheet ID saved yet. Enter it on the main screen first.');
+  if (!c) return diag(t('dgNoSheet'));
   const t0 = performance.now();
   try {
     const m = await c.meta();
     const [rows] = await c.batchGet(["'Settings'!A1:B3"]);
-    diag(`Test read OK in ${Math.round(performance.now() - t0)} ms: "${m.title}", tabs: ${m.tabs.join(', ')}; Settings rows read: ${rows.length}`);
+    diag(t('dgReadOk', { ms: Math.round(performance.now() - t0), t: m.title, tabs: m.tabs.join(', '), n: rows.length }));
   } catch (e) {
-    diag('Test read FAILED: ' + errorText(e) + ' ' + String((e as Error).message ?? ''));
+    diag(t('dgReadFail', { e: errorText(e) + ' ' + String((e as Error).message ?? '') }));
   }
 }
 
@@ -168,6 +172,12 @@ function wire(): void {
     const l: Lang = document.documentElement.lang === 'he' ? 'en' : 'he';
     set(KEYS.lang, l);
     applyLang(l);
+    // Texts built in code (not data-t) need redrawing in the new language.
+    if (!$('diag').hidden) diag();
+    else if ($('setup').hidden) return; // main screen: applyLang already re-rendered it
+    else if (!$('setupCheck').hidden && lastCheck) showCheck(...lastCheck);
+    else if (!$('setupSign').hidden) showStep('sign');
+    else if (!$('setupClient').hidden) showStep('client');
   });
   $('sidGo').addEventListener('click', () => {
     const id = parseSheetId($<HTMLInputElement>('sid').value);
@@ -230,26 +240,26 @@ function wire(): void {
   $('dPopup').addEventListener('click', async () => {
     try {
       await signInPopup();
-      diag('Popup sign-in OK');
+      diag(t('dgPopOk'));
     } catch (e) {
-      diag('Popup sign-in FAILED: ' + String((e as Error).message));
+      diag(t('dgPopFail', { e: String((e as Error).message) }));
     }
   });
   $('dRedir').addEventListener('click', () => {
     try {
       signInRedirect({ returnTo: 'diag' });
     } catch (e) {
-      diag('Redirect sign-in FAILED: ' + String((e as Error).message));
+      diag(t('dgRedFail', { e: String((e as Error).message) }));
     }
   });
   $('dMode').addEventListener('click', () => {
     setAuthMode(authMode() === 'popup' ? 'redirect' : 'popup');
-    diag('Switched the app to ' + authMode());
+    diag(t('dgSwitched', { m: authMode() === 'popup' ? t('mPopup') : t('mRedirect') }));
   });
   $('dRead').addEventListener('click', diagRead);
   $('dOut').addEventListener('click', async () => {
     await signOut();
-    diag('Signed out');
+    diag(t('dgSignedOut'));
   });
   $('dBack').addEventListener('click', () => {
     history.replaceState(null, '', location.pathname);
@@ -300,7 +310,7 @@ function main(): void {
   wire();
   lastRedirect = handleRedirect();
   if (lastRedirect.kind !== 'none' && lastRedirect.returnTo === 'diag') history.replaceState(null, '', location.pathname + '?diag');
-  if (lastRedirect.kind === 'ok') diagLog.push('Redirect sign-in OK');
+  if (lastRedirect.kind === 'ok') diagLog.push(t('dgRedOk'));
   route();
   if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
 }

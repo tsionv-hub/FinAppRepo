@@ -77,10 +77,19 @@ export const TEMPLATE_TABS: Tab[] = [
   {
     name: 'Goals',
     rows: [
-      ['id', 'name', 'target_amount_ILS', 'target_year', 'target_month', 'priority', 'notes', 'spend_when_due', 'type'],
+      ['id', 'name', 'target_amount_ILS', 'target_year', 'target_month', 'priority', 'notes', 'spend_when_due', 'type', 'repeat_every_years', 'repeat_until_year'],
       ['G1', 'Rainy day fund', 0, null, null, 1, 'type reserve: never spent; only the amount is used', null, 'reserve'],
       ['G2', 'Early retirement', 0, null, null, 2, 'type retirement: amount and date come from Settings', null, 'retirement'],
       ['G3', 'Car', 100000, 2030, 6, 3, EX + 'Due on the 1st of target_month (blank = January). spend_when_due: 1 = paid out.', 1, null],
+      ['G4', 'Family vacation', 20000, 2027, 8, 4, EX + 'Recurring: repeats every repeat_every_years from target_year, until repeat_until_year (blank = to the end of the projection). The amount is per time.', 1, null, 1, null],
+    ],
+  },
+  {
+    name: 'Loans',
+    rows: [
+      ['id', 'name', 'owner', 'kind', 'balance_ILS', 'interest_rate_pct', 'monthly_payment_ILS', 'repay_year', 'repay_month', 'notes'],
+      ['L1', 'Car loan', 'Person 1', 'installments', 40000, 4, 1200, null, null, EX + 'Optional tab. kind installments: balance_ILS = still owed today, paid monthly_payment_ILS each month until paid off.'],
+      ['L2', 'Loan from family', 'Person 2', 'lump_sum', 50000, 0, null, 2029, 1, EX + 'kind lump_sum: the whole balance (plus interest) is repaid on the 1st of repay_month of repay_year.'],
     ],
   },
   {

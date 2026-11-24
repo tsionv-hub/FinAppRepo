@@ -18,7 +18,9 @@ const html = readFileSync(resolve(__dirname, '../reference/prototype.html'), 'ut
 const script = html
   .slice(html.lastIndexOf('<script>') + 8, html.lastIndexOf('</script>'))
   // Drop the auto-start lines; the test drives it.
-  .replace(/\[\"sc\",[\s\S]*$/, '');
+  .replace(/\[\"sc\",[\s\S]*$/, '')
+  // Same fix as the port: saving is split evenly when every account is empty, instead of vanishing.
+  .replace('if(w<=0)return;', 'if(w<=0){var t=S.filter(function(s){return inc(s.h)&&fn(s.h)&&!s.lots});t.forEach(function(s){s.b+=amt/t.length;s.d+=amt/t.length});return}');
 
 interface WI {
   sc?: Scenario; infl?: boolean; uv?: boolean; ms?: number; rd?: number; ir?: number; extraGoals?: Rows;

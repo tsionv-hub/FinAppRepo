@@ -130,3 +130,21 @@ Pension modelling beyond section 5.10; dynamic withdrawals beyond the fixed allo
 4. Whether the scenario factor applies to pension (default: no).
 5. Stock tax and selling model (ToDo T1, default as in 5.5).
 6. Option to start pension at age 60 (default: pension starts at 67).
+
+## 12. Additions after v1
+
+### 12.1 Recurring goals
+Goals tab, two optional columns: `repeat_every_years` (blank = once) and `repeat_until_year` (blank = until the end of the projection). The amount is per occurrence, in today's money. Each occurrence is due on the 1st of `target_month` and is checked like a normal goal (funded, spend, free money). The list shows one row per recurring goal ("N of M funded"); the chart marks every occurrence; the popup lists them. The add-goal form has "Repeat every … years" and "Until year".
+
+### 12.2 Loans (optional Loans tab)
+Columns: id, name, owner, kind (`installments` or `lump_sum`), balance_ILS (owed today), interest_rate_pct (blank = 0), monthly_payment_ILS (installments), repay_year and repay_month (lump sum; month blank = January), notes.
+- Interest is added monthly. Installments are paid each month until the balance is 0; a lump sum is paid in full on the 1st of its month.
+- Repayments come from liquid post-tax money, never from the rainy day fund. A missed installment stays owed and is added to the next payment; "short" is the most the user falls behind.
+- Repayments are checked like goals: they count for free money (with a "Loan repayments" line in the colored bar) and appear in Next goals and on the chart.
+- A loan is an "anti-holding": listed in Holdings as a negative balance at the selected date. Headline totals are not reduced; an "After debts" line shows post-tax minus the amount owed today.
+
+### 12.3 Languages
+Every screen, popup and message is available in English and Hebrew (the build fails if a Hebrew string is missing). Adding and saving work in both languages; text the user types (such as goal names) is saved as typed. Tab and column names stay English.
+
+### 12.4 Model fix
+When every eligible account is empty, monthly saving and yearly cash are split evenly across those accounts instead of being lost (the prototype dropped them from then on).

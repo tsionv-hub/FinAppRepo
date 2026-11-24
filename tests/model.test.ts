@@ -14,7 +14,7 @@ function holding(o: Partial<Holding>): Holding {
 function params(o: Partial<Params> = {}): Params {
   return {
     start: START, returnFactor: 1, cgTax: 0.25, incomeTax: 0.5, monthlySaving: 0, yearlyFreeCash: 0, yearlyGrant: 0,
-    inflationOn: false, inflationRate: 0, reserve: 0, stopYear: null, vestEveryMonths: 6, vestTranches: 8, countUnvested: true, ...o,
+    inflationOn: false, inflationRate: 0, reserve: 0, stopYear: null, vestEveryMonths: 6, vestTranches: 8, countUnvested: true, loans: [], ...o,
   };
 }
 const reinvest = () => holding({ name: 'Stock reinvestment', type: 'Stock reinvestment', synthetic: true, tax: 'capital_gain' });
@@ -116,7 +116,7 @@ describe('Intel stock', () => {
     const H = [holding({ type: 'Stocks', tax: 'income', value: 1000, deposited: 0 }), reinvest()];
     const p = params();
     const S = initialSlots(H, p);
-    run(S, 0, p, 0, [], 2026);
+    run(S, [], 0, p, 0, [], 2026);
     expect(S[0].b).toBe(0);
     expect(S[1].b).toBeCloseTo(500);
     expect(S[1].d).toBeCloseTo(500);
@@ -127,7 +127,7 @@ describe('Intel stock', () => {
     const p = params({ vestEveryMonths: 6, vestTranches: 4 });
     const S = initialSlots(H, p);
     expect(liquidPostTax(S, p)).toBe(0);
-    run(S, 0, p, 0, [], 2027); // to Dec 2027 = step 13: tranches at 6 and 12
+    run(S, [], 0, p, 0, [], 2027); // to Dec 2027 = step 13: tranches at 6 and 12
     expect(S[0].b).toBeCloseTo(400);
     expect(S[1].b).toBeCloseTo(200);
   });
@@ -136,7 +136,7 @@ describe('Intel stock', () => {
     const H = [holding({ type: 'Stocks (unvested)', tax: 'income', value: 0 }), reinvest()];
     const p = params({ yearlyGrant: 1000, stopYear: 2028 });
     const S = initialSlots(H, p);
-    run(S, 0, p, 0, [], 2029);
+    run(S, [], 0, p, 0, [], 2029);
     expect(S[0].lots!.length).toBe(2); // the initial lot plus Jan 2027; none from the retirement year (2028)
   });
 });

@@ -1,7 +1,7 @@
 // Turns raw sheet values (arrays of rows) into model objects.
 // Tabs are read by column name, so column order in the sheet is free.
 
-import type { Goal, Holding, PensionFund, Scenario, Settings, TaxType } from './types';
+import type { Goal, Holding, Loan, PensionFund, Scenario, Settings, TaxType } from './types';
 import { INVEST_TYPES, REINVEST_TYPE } from './types';
 
 export type Cell = string | number | boolean | null | undefined;
@@ -197,6 +197,8 @@ export function parseGoals(rows: Rows, startYear: number): GoalsTab {
       retirement: String(x.type ?? '').trim() === 'retirement',
       notes: String(x.notes ?? '').trim(),
       priority: blank(x.priority) ? undefined : num(x.priority),
+      everyYears: num(x.repeat_every_years) >= 1 ? Math.round(num(x.repeat_every_years)) : undefined,
+      untilYear: blank(x.repeat_until_year) ? undefined : Math.round(num(x.repeat_until_year)),
     }))
     // The retirement row's year is derived from birth year + retirement age, so keep it regardless.
     .filter((g) => g.retirement || g.year >= startYear);
@@ -207,4 +209,24 @@ export function parseGoals(rows: Rows, startYear: number): GoalsTab {
     header: (rows[0] ?? []).map((h) => String(h ?? '').trim()),
     ids: t.map((x) => String(x.id ?? '')).filter(Boolean),
   };
+}
+
+export function parseLoans(rows: Rows): Loan[] {
+  return table(rows)
+    .filter((x) => !blank(x.name) && num(x.balance_ILS) > 0)
+    .map((x) => {
+      const kind = String(x.kind ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+      return {
+        id: blank(x.id) ? undefined : String(x.id),
+        name: String(x.name),
+        owner: String(x.owner ?? ''),
+        kind: kind === 'lump_sum' || kind === 'lump' ? 'lump_sum' : 'installments',
+        balance: num(x.balance_ILS),
+        ratePct: num(x.interest_rate_pct),
+        monthlyPayment: num(x.monthly_payment_ILS),
+        year: parseInt(String(x.repay_year), 10) || 0,
+        month: Math.min(12, Math.max(1, parseInt(String(x.repay_month ?? ''), 10) || 1)),
+        notes: String(x.notes ?? '').trim(),
+      } as Loan;
+    });
 }

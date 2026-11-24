@@ -4,6 +4,7 @@
 // the fictional fixture. Run: npx tsx tests/e2e/smoke.ts [url] [outDir]
 import { createRequire } from 'node:module';
 import { goalsRows, holdingsRows, pensionRows, settingsRows } from '../fixture';
+import { T } from '../../src/ui/i18n';
 // Resolved with require so a globally installed Playwright works too (set NODE_PATH).
 const { chromium, devices } = createRequire(import.meta.url)('playwright') as typeof import('playwright');
 
@@ -13,7 +14,14 @@ const SHEET = 'TESTSHEET_abcdefghijklmnopqrstuvwxyz0123';
 const CLIENT = 'test-client-123.apps.googleusercontent.com';
 const SCOPE = 'https://www.googleapis.com/auth/spreadsheets';
 const settings = settingsRows.map((r) => (r[0] === 'display_currency' ? ['display_currency', 'USD'] : r));
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsRows, Pension: pensionRows };
+// The fixture plus the newer features: a recurring goal (repeat columns) and a Loans tab.
+const goalsX = [[...goalsRows[0], 'repeat_every_years', 'repeat_until_year'], ...goalsRows.slice(1), ['G7', 'Family vacation', 15000, 2027, 8, 7, '', 1, '', 1, 2032]];
+const loansX = [
+  ['id', 'name', 'owner', 'kind', 'balance_ILS', 'interest_rate_pct', 'monthly_payment_ILS', 'repay_year', 'repay_month', 'notes'],
+  ['L1', 'Car loan', 'P1', 'installments', 36000, 4, 1500, '', '', ''],
+  ['L2', 'Loan from parents', 'P2', 'lump_sum', 50000, 0, '', 2029, 9, ''],
+];
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -103,7 +111,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 4, 'checklist lists the four tabs');
+  ok((await page.locator('#chkList .ck').count()) === 5, 'checklist lists the five tabs (Loans included)');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -114,8 +122,13 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   // 2. Panels.
   console.log('     post-tax', await txt('#post'), '| pre-tax', await txt('#pre'), '| free', await txt('#fm'));
   ok(/In USD: post-tax \$[\d,]+ · pre-tax \$[\d,]+/.test(await txt('#dcur')), 'display_currency USD shows bottom-line totals: ' + (await txt('#dcur')));
-  ok((await page.locator('#cl .lg').count()) === 4, 'colored money legend has 4 lines');
-  ok((await page.locator('#chart circle').count()) === 4, 'chart has one marker per goal (3 goals + retirement)');
+  ok((await page.locator('#cl .lg').count()) === 5, 'colored money legend has 5 lines (loan repayments added)');
+  ok((await txt('#cl')).includes('Loan repayments'), 'legend shows loan repayments');
+  ok((await page.locator('#chart circle').count()) >= 4 + 6 + 2, 'chart marks every goal, every vacation year and both loans: ' + (await page.locator('#chart circle').count()));
+  ok(/After debts ₪[\d,]+/.test(await txt('#debt')), 'totals show the "after debts" line: ' + (await txt('#debt')));
+  const postN = Number((await txt('#post')).replace(/\D/g, ''));
+  ok(Number((await txt('#debt')).replace(/\D/g, '')) === postN - 86000, 'after debts = post-tax − ₪86,000 owed');
+  ok((await txt('#goals .g[data-gd]:has-text("Family vacation")')).includes('every year until 2032'), 'recurring goal shows as one row: ' + (await txt('#goals .g[data-gd]:has-text("Family vacation") .lbl')));
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
   ok((await page.locator('#nx .g').count()) === 3, 'next goals shows three');
   ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).length) === 2, 'only Free money and Projection start open');
@@ -141,7 +154,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#sv');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Saved'));
   const ap = writes.find((w) => w.url.endsWith(':append'));
-  ok(ap && JSON.stringify((ap.body as { values: unknown[][] }).values[0]) === JSON.stringify(['G7', 'Boat', 50000, 2030, 4, 7, 'Added in app', 1, '']), 'goal appended in the Goals column order');
+  ok(ap && JSON.stringify((ap.body as { values: unknown[][] }).values[0]) === JSON.stringify(['G8', 'Boat', 50000, 2030, 4, 8, 'Added in app', 1, '', '', '']), 'goal appended in the Goals column order');
   await page.click('summary:has(h2[data-t=assum])');
   await page.fill('#rd', '130000');
   await page.click('#rb');
@@ -151,20 +164,55 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#rb2');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Retirement'));
   ok(writes.some((w) => w.url.includes("'Settings'!B17") && JSON.stringify(w.body).includes('57')), 'retirement age written to Settings!B17');
-  ok(writes.length === 4, 'exactly 4 writes (' + writes.length + ')');
+  ok(writes.length === 4, 'exactly 4 writes so far (' + writes.length + ')');
 
-  // 5. Hebrew.
+  // 5. Hebrew: everything works, including adding a (recurring) goal and saving it.
   await page.click('#lb');
   ok((await page.getAttribute('html', 'dir')) === 'rtl', 'Hebrew switches to right-to-left');
-  ok((await page.isDisabled('#gb')) && (await page.isDisabled('#rb')) && (await page.isDisabled('#rb2')), 'adding and saving disabled in Hebrew');
+  ok(await page.isVisible('#app'), 'switching language keeps you on the main screen');
+  ok(!(await page.isDisabled('#gb')) && !(await page.isDisabled('#rb')) && !(await page.isDisabled('#rb2')), 'adding and saving work in Hebrew');
   ok((await txt('#goals')).includes('החתונה של Alex'), 'goal names translated (unknown name kept)');
+  await page.fill('#gn', 'טיול שנתי');
+  await page.fill('#ga', '10000');
+  await page.fill('#gy', '2028');
+  await page.fill('#grp', '2');
+  await page.fill('#gru', '2034');
+  await page.click('#gb');
+  await page.click('#sv');
+  await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('נשמר'));
+  const ap2 = writes.filter((w) => w.url.endsWith(':append'))[1];
+  ok(ap2 && JSON.stringify((ap2.body as { values: unknown[][] }).values[0]) === JSON.stringify(['G8', 'טיול שנתי', 10000, 2028, 1, 8, 'Added in app', 1, '', 2, 2034]), 'Hebrew recurring goal saved with its repeat columns: ' + JSON.stringify((ap2?.body as { values: unknown })?.values));
+  // Language audit: open everything, including popups, and look for any English string that has a Hebrew version.
+  const englishLeft = async () => {
+    const shown = await page.evaluate(() => {
+      document.querySelectorAll('details').forEach((d) => (d.open = true));
+      return document.body.innerText;
+    });
+    const out: string[] = [];
+    for (const [k, en] of Object.entries(T.en)) {
+      if (k === 'ty' || typeof en !== 'string') continue;
+      const he = (T.he as Record<string, unknown>)[k];
+      if (he === en) continue;
+      for (const frag of en.split(/\{\w+\}/)) if (frag.trim().length >= 12 && shown.includes(frag.trim())) out.push(`${k}: "${frag.trim()}"`);
+    }
+    return out;
+  };
+  let untranslated = await englishLeft();
+  ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
+  for (const sel of ['#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
+    await page.click(sel);
+    untranslated = untranslated.concat(await englishLeft());
+    await page.click('#dlgX');
+  }
+  ok(untranslated.length === 0, 'Hebrew audit: no English text left on screen or in popups' + (untranslated.length ? ': ' + [...new Set(untranslated)].join(' | ') : ''));
+  await page.screenshot({ path: OUT + '/app-he.png', fullPage: true });
   await page.click('#lb');
   ok(/On track|Short/.test(await txt('#goals .g[data-gd]:has-text("Early retirement")')), 'retirement row keeps its status after a cached re-render');
 
   // 5b. Detail popups.
   const dlgOpen = () => page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open);
   await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '0'; e.dispatchEvent(new Event('input')); });
-  await page.click('summary#hs');
+  await page.evaluate(() => ((document.getElementById('hs')!.parentElement as HTMLDetailsElement).open = true));
   await page.click('#hl .g:has-text("Broker C")');
   ok(await dlgOpen(), 'tapping a holding opens its details');
   ok((await txt('#dlgT')) === 'Broker C' && /USD.*60,000 at 3\.700/.test(await txt('#dlgB')), 'holding popup shows the sheet amount in USD and the rate');
@@ -180,7 +228,16 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.screenshot({ path: OUT + '/popup-goal.png' });
   await page.click('#dlgX');
   await page.click('#goals .g:has-text("Early retirement")');
-  ok(/Starts.*Jan.*2037/.test(await txt('#dlgB')) && (await txt('#dlgB')).includes('Monthly allowance'), 'retirement popup shows start and allowance');
+  // The Hebrew save reloaded the sheet (the mock keeps no writes), so retirement age is the sheet's 55 again.
+  ok(/Starts.*Jan.*2035/.test(await txt('#dlgB')) && (await txt('#dlgB')).includes('Monthly allowance'), 'retirement popup shows start and allowance');
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Car loan")');
+  ok((await txt('#dlgT')) === 'Car loan' && /Owed today₪36,000/.test(await txt('#dlgB')) && /Paid off.*20\d\d/.test(await txt('#dlgB')), 'loan popup: owed today and payoff date');
+  await page.click('#dlgX');
+  ok(/−₪[\d,]+/.test(await txt('#hl .g:has-text("Loan from parents")')), 'loans are listed in Holdings as negative balances');
+  await page.click('#goals .g:has-text("Family vacation")');
+  ok((await page.locator('#dlgB .dr').count()) >= 3 + 6 && (await txt('#dlgB')).includes('Aug 2032'), 'recurring goal popup lists each year');
+  await page.screenshot({ path: OUT + '/popup-recurring.png' });
   await page.click('#dlgX');
   await page.click('#goals .g[data-res]');
   ok((await txt('#dlgT')) === 'Rainy day fund', 'rainy day fund row opens its popup');

@@ -1,5 +1,5 @@
 import { vestTranches } from './engine';
-import type { Params, Scenario, Settings, StartMonth } from './types';
+import type { Loan, Params, Scenario, Settings, StartMonth } from './types';
 
 /** What-if values the user can change in the app (not written to the sheet). */
 export interface WhatIf {
@@ -40,7 +40,7 @@ export function defaultWhatIf(s: Settings, reserve: number): WhatIf {
   };
 }
 
-export function buildParams(s: Settings, w: WhatIf, start: StartMonth, stopYear: number | null): Params {
+export function buildParams(s: Settings, w: WhatIf, start: StartMonth, stopYear: number | null, loans: Loan[] = []): Params {
   return {
     start,
     returnFactor: s.returnFactors[w.scenario] ?? 1,
@@ -56,5 +56,6 @@ export function buildParams(s: Settings, w: WhatIf, start: StartMonth, stopYear:
     vestEveryMonths: s.vestEveryMonths,
     vestTranches: vestTranches(s.vestYears, s.vestEveryMonths),
     countUnvested: w.countUnvested,
+    loans,
   };
 }

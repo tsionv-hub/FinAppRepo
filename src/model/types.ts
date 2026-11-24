@@ -74,9 +74,36 @@ export interface Goal {
   pending?: boolean;
   notes?: string;
   priority?: number;
+  /** Recurring goal: repeats every N years from `year` (blank = once). */
+  everyYears?: number;
+  /** Recurring goal: last year an occurrence may fall in (blank = end of the projection). */
+  untilYear?: number;
+  /** Set on each occurrence of a recurring goal: the goal it came from. */
+  series?: Goal;
+  /** Set on the stand-in goal that reports a loan's repayment. */
+  loan?: Loan;
   /** Retirement goal only: last year of the allowance (inclusive) and monthly allowance. */
   endYear?: number;
   monthly?: number;
+}
+
+/** Money you owe (SPEC addition: Loans tab). Shown as a negative holding; repayments are checked like goals. */
+export interface Loan {
+  id?: string;
+  name: string;
+  owner: string;
+  /** installments: a monthly payment until paid off. lump_sum: everything on one date. */
+  kind: 'installments' | 'lump_sum';
+  /** Amount owed today (ILS). */
+  balance: number;
+  /** Yearly interest on the balance, in percent (blank = 0). */
+  ratePct: number;
+  /** installments only. */
+  monthlyPayment: number;
+  /** lump_sum only: due on the 1st of this month (month blank = January). */
+  year: number;
+  month: number;
+  notes: string;
 }
 
 /** Month 0 of the simulation: the 1st of the current month. month0 is 0-11. */
@@ -136,4 +163,6 @@ export interface Params {
   vestEveryMonths: number;
   vestTranches: number;
   countUnvested: boolean;
+  /** Money owed; repaid from liquid money (never the rainy day fund). */
+  loans: Loan[];
 }

@@ -5,10 +5,10 @@
 import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
-  type Holding, type Slot, type Snapshot, type StartMonth, type WhatIf,
+  type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
-import { appendGoals, fromRows, loadSheet, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
+import { appendGoals, fromRows, loadSheet, MissingColumnError, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleRows } from '../example';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
@@ -56,6 +56,7 @@ export function showMsg(text: string | null): void {
 
 export function errorText(e: unknown): string {
   if (e instanceof AuthError) return t('ePopup', { c: e.code });
+  if (e instanceof MissingColumnError) return t('eCol', { c: e.columns.join(', '), t: e.tab });
   if (e instanceof SheetsError) {
     if (e.code === 'ratelimit') return t('eRate');
     if (/not supported for this document/i.test(e.message)) return t('eXlsx');
@@ -89,9 +90,7 @@ export function applyLang(l?: Lang): void {
     ms.appendChild(o);
   }
   ms.value = cur;
-  const he = lang === 'he';
-  ['gn', 'ga', 'gy', 'gmo', 'gsp', 'gb', 'sv', 'rb', 'rb2'].forEach((i) => (inp(i).disabled = he));
-  $('gm').textContent = he ? t('enOnly') : '';
+  $('gm').textContent = '';
   updatedLine();
   if (data) render();
 }
@@ -203,7 +202,7 @@ function model() {
   const d = data!;
   const w = whatIf();
   const goals = resolveGoals(allGoals(), { birthYear: d.settings.birthYear, retirementAge: w.retirementAge, pensionStartAge: d.settings.pensionStartAge, allowance: w.allowance }, start);
-  const p = buildParams(d.settings, w, start, retirementYear(goals));
+  const p = buildParams(d.settings, w, start, retirementYear(goals), d.loans);
   return { w, goals, p };
 }
 
@@ -223,6 +222,10 @@ export function render(): void {
   $('post').textContent = f(td.postTax);
   const pe = d.pension.reduce((a, x) => a + x.balance, 0);
   $('tax').textContent = t('est') + ' ' + f(td.tax) + ' · ' + t('penl') + ' (' + f(pe) + ')';
+  // Loans are not subtracted from the headline; "after debts" shows the net figure.
+  const owed = d.loans.reduce((a, l) => a + l.balance, 0);
+  $('debt').hidden = owed <= 0;
+  $('debt').textContent = owed > 0 ? t('debtL') + ' ' + f(td.postTax - owed) : '';
   // display_currency: bottom-line totals only (SPEC 3.1).
   const dc = String(S.raw.display_currency ?? '').trim().toUpperCase();
   const rate = S.fx[dc];
@@ -231,7 +234,7 @@ export function render(): void {
     ? t('dcur', { c: dc, a: '\u2066' + (sym[dc] ?? '') + Math.round(td.postTax / rate).toLocaleString('en-US') + '\u2069', b: '\u2066' + (sym[dc] ?? '') + Math.round(td.preTax / rate).toLocaleString('en-US') + '\u2069' })
     : '';
 
-  const key = JSON.stringify([p, goals.map((g) => [g.name, g.amount, g.year, g.month, g.spend, g.retirement, g.endYear, g.monthly]), d.fetchedAt]);
+  const key = JSON.stringify([p, goals.map((g) => [g.name, g.amount, g.year, g.month, g.spend, g.retirement, g.endYear, g.monthly, g.everyYears, g.untilYear]), d.fetchedAt]);
   if (!cache || cache.key !== key) {
     const snaps: Snapshot[] = [];
     const r = simulate(d.holdings, goals, p, { snaps });
@@ -280,6 +283,10 @@ function freeView(fm: FreeMoney): void {
     seg('var(--c-res)', fm.reserve);
     lg += row('var(--c-res)', esc(t('rdf')), fm.reserve);
   }
+  if (data?.loans.length) {
+    seg('var(--c-loan)', fm.loanSetAside);
+    lg += row('var(--c-loan)', esc(t('lnRepL')), fm.loanSetAside, fm.loanSetAside > 0.5 ? '' : esc(t('cfs')));
+  }
   if (fm.hasRetirement) {
     seg('var(--c-ret)', fm.retirementSetAside);
     lg += row('var(--c-ret)', esc(t('erg')), fm.retirementSetAside, fm.retirementSetAside > 0.5 ? '' : esc(t('cfs')));
@@ -310,9 +317,12 @@ function nextView(r: SimResult): void {
     it
       .map((z) => {
         const g = z.g;
-        // Normal goals are paid the step before their due month; show the due month.
-        const o2 = g.retirement ? 0 : 1;
-        return `<div class="g"><div class="gh"><div><b>${esc(goalName(g.name))}</b><div class="lbl">${g.retirement ? t('retS') + ' ' : ''}${dateAt(z.k + o2)} · ${t('inT')} ${dur(z.k + o2)}</div></div><div>${g.retirement ? f(g.monthly ?? 0) + '/' + t('mo2') : f(g.amount)}<div class="lbl ${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh') + ' ' + f(z.short)}</div></div></div></div>`;
+        const l = g.loan;
+        // Normal goals (and lump-sum loans) are paid the step before their due month; show the due month.
+        const o2 = g.retirement || (l && l.kind === 'installments') ? 0 : 1;
+        const what = g.retirement ? t('retS') + ' ' : l ? (l.kind === 'installments' ? t('lnPaidOff') : t('lnRepay')) + ' ' : '';
+        const amt = g.retirement ? f(g.monthly ?? 0) + '/' + t('mo2') : l?.kind === 'installments' ? f(l.monthlyPayment) + '/' + t('mo2') : f(g.amount);
+        return `<div class="g"><div class="gh"><div><b>${esc(goalName(g.name))}</b><div class="lbl">${what}${dateAt(z.k + o2)} · ${t('inT')} ${dur(z.k + o2)}</div></div><div>${amt}<div class="lbl ${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh') + ' ' + f(z.short)}</div></div></div></div>`;
       })
       .join('') || `<div class="lbl">${t('nog')}</div>`;
 }
@@ -392,8 +402,13 @@ export function tmView(): void {
     const v = bs ? bs[Math.min(k, bs.length - 1)] : fd.balance;
     return `<div class="g" data-pf="${i}"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
   });
-  $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
-  $('hl').innerHTML = rows.join('') + pens.join('');
+  const debts = data.loans.map((l, i) => {
+    const owed = s.D[i] ?? 0;
+    const meta = esc(ty('Loan')) + ' · ' + (l.kind === 'installments' ? t('lnInst') : t('lnLump')) + (l.ratePct ? ' · ' + l.ratePct + '%' : '') + (l.owner ? ' · ' + esc(l.owner) : '');
+    return `<div class="g" data-ln="${i}"><div class="gh"><div><b>${esc(l.name)}</b><div class="lbl">${meta}</div></div><div><div class="${owed > 0 ? 'bad' : 'ok'}">${owed > 0 ? '−' + f(owed / infl) : t('lnPaidOff')}</div></div></div></div>`;
+  });
+  $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length + debts.length) + ')';
+  $('hl').innerHTML = rows.join('') + pens.join('') + debts.join('');
 }
 
 function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: number): void {
@@ -405,8 +420,12 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
   const raw = allGoals();
   listed = [];
   goalRows = [];
-  const he = getLang() === 'he';
   goals.slice().sort(goalOrder).forEach((x) => {
+    if (x.everyYears) {
+      o += recurringRow(x, r.res.filter((z) => z.g.series === x), listed.push(x) - 1);
+      goalRows.push(x);
+      return;
+    }
     const y = r.res.find((z) => z.g === x);
     const pc = y && x.amount > 0 ? Math.min(100, (y.have / x.amount) * 100) : y?.ok ? 100 : 0;
     // The retirement goal is re-derived each render; map it back to its sheet row.
@@ -415,7 +434,7 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
     goalRows.push(x);
     const date = new Date(x.year, (x.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
     o += `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
-      + (orig.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}"${he ? ' disabled' : ''}>${t('rm')}</button>` : '')
+      + (orig.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}">${t('rm')}</button>` : '')
       + `<div class="lbl">${f(x.amount)} · ${date}${x.retirement ? ' · ' + t('age') + ' ' + inp('ra').value : ''}</div></div><div>`
       + (y ? `<span class="${y.ok ? 'ok' : 'bad'}">${y.ok ? t('on') : t('sh') + ' ' + f(y.short)}</span>` + (x.retirement ? '' : `<div class="lbl">${t('prj')} ${f(y.have)}</div>`) : '')
       + '</div></div>'
@@ -429,24 +448,51 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
   $('sv').textContent = np === 1 ? t('save1') : t('saveN', { n: np });
 }
 
+function everyText(g: Goal): string {
+  return (g.everyYears === 1 ? t('everyY') : t('everyN', { n: g.everyYears! })) + (g.untilYear ? ' ' + t('untilY', { y: g.untilYear }) : '');
+}
+
+/** One row for a recurring goal: next date, and whether every occurrence is funded. */
+function recurringRow(x: Goal, zs: GoalResult[], i: number): string {
+  const nOk = zs.filter((z) => z.ok).length;
+  const bad = zs.find((z) => !z.ok);
+  const next = zs[0];
+  const first = new Date(x.year, (x.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
+  const status = !zs.length ? '' : bad
+    ? `<span class="bad">${t('shortIn', { y: bad.g.year })} ${f(bad.short)}</span>`
+    : `<span class="ok">${t('on')}</span>`;
+  const pc = zs.length ? (nOk / zs.length) * 100 : 0;
+  return `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
+    + (x.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}">${t('rm')}</button>` : '')
+    + `<div class="lbl">${f(x.amount)} ${everyText(x)} · ${t('fromL')} ${first}</div></div><div>${status}`
+    + (zs.length ? `<div class="lbl">${t('nRec', { n: nOk, m: zs.length })}${next ? '' : ''}</div>` : '')
+    + '</div></div>'
+    + `<label class="chk"><input type="checkbox" data-sp="${i}"${x.spend ? ' checked' : ''}>${t('spend')}</label>`
+    + `<div class="bar"><i style="width:${pc}%"></i></div></div>`;
+}
+
 // ---------- actions ----------
 
 function addGoal(): void {
-  if (getLang() === 'he') return;
   const n = inp('gn').value.trim();
   const a = N('ga');
   const y = parseInt(inp('gy').value, 10);
-  if (/[֐-׿]/.test(n)) {
-    $('gm').textContent = t('enName');
-    return;
-  }
   if (!n || a <= 0 || !(y >= start.year && y <= start.year + 60)) {
     $('gm').textContent = t('need', { y: start.year });
     return;
   }
-  pending.push({ name: n, amount: a, year: y, month: parseInt($<HTMLSelectElement>('gmo').value, 10) || 1, spend: inp('gsp').checked, retirement: false, pending: true });
+  const every = Math.round(N('grp'));
+  const until = parseInt(inp('gru').value, 10);
+  if (every < 0 || (every > 0 && until && until < y)) {
+    $('gm').textContent = t('needRep');
+    return;
+  }
+  pending.push({
+    name: n, amount: a, year: y, month: parseInt($<HTMLSelectElement>('gmo').value, 10) || 1, spend: inp('gsp').checked, retirement: false, pending: true,
+    everyYears: every > 0 ? every : undefined, untilYear: every > 0 && until ? until : undefined,
+  });
   $<HTMLSelectElement>('gmo').value = '1';
-  inp('gn').value = inp('ga').value = inp('gy').value = '';
+  inp('gn').value = inp('ga').value = inp('gy').value = inp('grp').value = inp('gru').value = '';
   $('gm').textContent = t('addedH');
   render();
 }
@@ -457,7 +503,7 @@ async function withSave(btn: string, fn: (c: SheetsClient) => Promise<void>, okT
     return;
   }
   const c = deps.client();
-  if (!c || !data || getLang() === 'he') return;
+  if (!c || !data) return;
   inp(btn).disabled = true;
   $('gm').textContent = t('wr');
   try {
@@ -570,8 +616,48 @@ function pensionDetails(idx: number): void {
   openDialog(fd.name, [ty('Pension'), fd.owner].filter(Boolean).map(esc).join(' · '), body);
 }
 
+function recurringDetails(g: Goal): void {
+  if (!cache) return;
+  const zs = cache.r.res.filter((z) => z.g.series === g);
+  let body = row(t('dAmt'), f(g.amount)) + row(t('dRepeat'), everyText(g)) + row(t('dSpendQ'), yn(g.spend))
+    + row(t('dStatus'), t('nRec', { n: zs.filter((z) => z.ok).length, m: zs.length }));
+  body += sec(t('dOcc'));
+  for (const z of zs) {
+    const d = new Date(z.g.year, (z.g.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
+    body += row(d, z.ok ? `<span class="ok">${t('on')}</span>` : `<span class="bad">${t('sh')} ${f(z.short)}</span>`);
+  }
+  if (!zs.length) body += `<div class="dnote">${t('dNoOcc')}</div>`;
+  body += `<div class="dnote">${t('dRecN')}</div>`;
+  if (g.notes) body += `<div class="dnote">${esc(g.notes)}</div>`;
+  openDialog(goalName(g.name), g.pending ? t('ns') : '', body);
+}
+
+function loanDetails(i: number): void {
+  if (!data || !cache) return;
+  const l: Loan = data.loans[i];
+  const z = cache.r.res.find((x) => x.g.loan === l);
+  const p = cache.p;
+  const inst = l.kind === 'installments';
+  let body = row(t('lnKind'), inst ? t('lnInst') : t('lnLump')) + row(t('lnOwed'), f(l.balance)) + row(t('lnRate'), pct(l.ratePct));
+  if (inst) {
+    body += row(t('lnPay'), f(l.monthlyPayment));
+    const m = loanMonths(l);
+    if (m != null) body += row(t('lnPaidOff'), dateAt(m) + ' · ' + t('inT') + ' ' + dur(m));
+  } else body += row(t('lnDue'), new Date(l.year, l.month - 1, 1).toLocaleDateString(locale(), { day: 'numeric', month: 'long', year: 'numeric' }));
+  if (curK > 0) {
+    const infl = p.inflationOn ? Math.pow(1 + p.inflationRate, curK / 12) : 1;
+    body += row(t('lnAt', { d: dateAt(curK, 'long') }), f((cache.snaps[curK].D[i] ?? 0) / infl));
+  }
+  if (z) body += row(t('dStatus'), z.ok ? `<span class="ok">${t('on')}</span>` : `<span class="bad">${t('sh')} ${f(z.short)}</span>`);
+  if (inst && loanMonths(l) == null) body += `<div class="dnote bad">${t('lnNever')}</div>`;
+  body += `<div class="dnote">${t('lnN')}</div>`;
+  if (l.notes) body += `<div class="dnote">${esc(l.notes)}</div>`;
+  openDialog(l.name, [ty('Loan'), l.owner].filter(Boolean).map(esc).join(' · '), body);
+}
+
 function goalDetails(g: Goal): void {
   if (!cache) return;
+  if (g.everyYears) return recurringDetails(g);
   const z = cache.r.res.find((x) => x.g === g);
   const status = z ? `<span class="${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh')}</span>` : '–';
   let body = '';
@@ -632,6 +718,7 @@ export function initApp(d: AppDeps): void {
     const r = rowTap(e);
     if (r?.dataset.h) holdingDetails(holdRows[parseInt(r.dataset.h, 10)]);
     else if (r?.dataset.pf) pensionDetails(parseInt(r.dataset.pf, 10));
+    else if (r?.dataset.ln) loanDetails(parseInt(r.dataset.ln, 10));
   });
   $('goals').addEventListener('click', (e) => {
     const r = rowTap(e);
