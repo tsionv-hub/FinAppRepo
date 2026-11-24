@@ -100,6 +100,8 @@ const en = {
   hw8: 'Changes in the app are “what if” only. It writes to your sheet only when you tap a Save button.',
   hw9: 'Just looking? “Explore with example data” shows a made-up household.',
   hwGuide: 'Full user guide', hwDoc: 'MANUAL.md',
+  lnPanel: 'Loans', lnPanelN: 'From the Loans tab of your sheet. Repaid from liquid money, never the rainy day fund. Tap a loan for details.',
+  lnPerMo: '{a}/month', lnUntil: 'paid off {d}', lnOn: 'repay {d}',
   fb: 'Send feedback', fbSubj: 'Finance Planner feedback (v{v})', fbBody: 'Write your feedback here:\n\n\n---\nVersion: {v}\nLanguage: {l}\nInstalled app: {i}\nDevice: {d}',
   ty: { Loan: 'Loan' } as Record<string, string>,
 };
@@ -202,6 +204,8 @@ const he: Record<Key, string> & { ty: Record<string, string> } = {
   hw8: 'שינויים באפליקציה הם רק "מה אם". היא כותבת לגיליון רק כשלוחצים על כפתור שמירה.',
   hw9: 'רק מסתכלים? "לחקור עם נתוני דוגמה" מציג משק בית מומצא.',
   hwGuide: 'המדריך המלא', hwDoc: 'MANUAL.he.md',
+  lnPanel: 'הלוואות', lnPanelN: 'מלשונית Loans בגיליון. מוחזרות מכסף נזיל, לעולם לא מהקרן ליום סגריר. לחצו על הלוואה לפרטים.',
+  lnPerMo: '{a} לחודש', lnUntil: 'נפרעת {d}', lnOn: 'החזר ב-{d}',
   fb: 'שליחת משוב', fbSubj: 'משוב על תכנון פיננסי (v{v})', fbBody: 'כתבו כאן את המשוב:\n\n\n---\nגרסה: {v}\nשפה: {l}\nאפליקציה מותקנת: {i}\nמכשיר: {d}',
   ty: {
     Loan: 'הלוואה',

@@ -141,7 +141,7 @@ Columns: id, name, owner, kind (`installments` or `lump_sum`), balance_ILS (owed
 - Interest is added monthly. Installments are paid each month until the balance is 0; a lump sum is paid in full on the 1st of its month.
 - Repayments come from liquid post-tax money, never from the rainy day fund. A missed installment stays owed and is added to the next payment; "short" is the most the user falls behind.
 - Repayments are checked like goals: they count for free money (with a "Loan repayments" line in the colored bar) and appear in Next goals and on the chart.
-- A loan is an "anti-holding": listed in Holdings as a negative balance at the selected date. Headline totals are not reduced; an "After debts" line shows post-tax minus the amount owed today.
+- A loan is an "anti-holding" with its own **Loans** panel (after Goals, only when there are loans): each loan's balance at the selected date as a negative amount, its plan (monthly payment and payoff date, or repayment date) and status; the header shows the total owed. Headline totals are not reduced; an "After debts" line shows post-tax minus the amount owed today.
 
 ### 12.3 Languages
 Every screen, popup and message is available in English and Hebrew (the build fails if a Hebrew string is missing). Adding and saving work in both languages; text the user types (such as goal names) is saved as typed. Tab and column names stay English.
