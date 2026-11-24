@@ -413,7 +413,7 @@ export function tmView(): void {
     return `<div class="g" data-pf="${i}"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
   });
   $('hsT').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
-  $('hsK').textContent = k === 0 ? t('now') : dateAt(k, 'short');
+  $('hsK').textContent = k === 0 ? t('atToday') : dateAt(k, 'short');
   $('hl').innerHTML = rows.join('') + pens.join('');
   loansView(s, infl);
 }
@@ -816,7 +816,7 @@ export function showHelp(): void {
   const body = `<p class="dsub" style="font-size:14px;color:var(--tx)">${t('hwIntro')}</p>`
     + sec(t('hwFill')) + li('hw1', 'hw2', 'hw3', 'hw4')
     + sec(t('hwCalc')) + li('hw5', 'hw6', 'hw7')
-    + sec(t('hwTip')) + li('hw8', 'hw9')
+    + sec(t('hwTip')) + li('hw10', 'hw8', 'hw9')
     + (url ? `<a class="hwlink" href="${url}" target="_blank" rel="noopener">${t('hwGuide')} ›</a>` : '');
   openDialog(t('hwT'), '', body);
 }
@@ -884,6 +884,14 @@ export function initApp(d: AppDeps): void {
   });
   const dlg = $<HTMLDialogElement>('dlg');
   $('dlgX').addEventListener('click', () => dlg.close());
+  // When a popup closes, the browser puts focus back on what opened it, and iOS
+  // outlines it in blue. After a tap (not the keyboard), drop that focus instead.
+  let byPointer = false;
+  document.addEventListener('pointerdown', () => (byPointer = true), true);
+  document.addEventListener('keydown', () => (byPointer = false), true);
+  dlg.addEventListener('close', () => {
+    if (byPointer) (document.activeElement as HTMLElement | null)?.blur?.();
+  });
   // Tap outside the box (on the backdrop) closes it.
   dlg.addEventListener('click', (e) => {
     const b = dlg.getBoundingClientRect();

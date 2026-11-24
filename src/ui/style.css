@@ -173,3 +173,12 @@ details.card { scroll-margin-top: 64px; }
 
 /* Help popup text */
 .dhelp { font-size: 15px; line-height: 1.5; }
+
+/* Tapping a header or 🤔 must not leave a blue focus frame (iOS draws one when the
+   help popup closes and focus returns). Keyboard users still get a visible outline. */
+details.card > summary, .hq, .jump button, .infl-btn { -webkit-tap-highlight-color: transparent; }
+details.card > summary:focus, .hq:focus, .jump button:focus { outline: none; }
+details.card > summary:focus-visible, .hq:focus-visible, .jump button:focus-visible { outline: 2px solid var(--ac); outline-offset: 2px; border-radius: 8px; }
+
+/* One-line tip under the inflation bar */
+.hint { font-size: 13px; color: var(--mu); margin: -2px 4px 0; }
