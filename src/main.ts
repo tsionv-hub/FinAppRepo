@@ -134,6 +134,7 @@ async function diag(extra?: string): Promise<void> {
   const cid = clientId();
   const mode = authMode() === 'popup' ? t('mPopup') : t('mRedirect');
   const lines = [
+    'Finance Planner v' + __APP_VERSION__,
     t('dgInst') + ': ' + (standalone ? t('yes') : t('dgNotInst')),
     t('dgDev') + ': ' + navigator.userAgent,
     t('dgOnline') + ': ' + (navigator.onLine ? t('yes') : t('no')),
@@ -307,6 +308,7 @@ function main(): void {
     demo: () => demo,
   });
   applyLang(saved === 'he' ? 'he' : 'en');
+  $('ver').textContent = 'v' + __APP_VERSION__;
   wire();
   lastRedirect = handleRedirect();
   if (lastRedirect.kind !== 'none' && lastRedirect.returnTo === 'diag') history.replaceState(null, '', location.pathname + '?diag');

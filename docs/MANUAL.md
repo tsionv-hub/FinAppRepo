@@ -1,5 +1,7 @@
 # Finance Planner: user guide
 
+**[עברית: איך מתחילים](START.he.md)** · First time? The short version is [Getting started](START.md).
+
 Finance Planner shows where your money stands today and whether your plans are funded in the future. It reads your numbers from **your own Google Sheet**; nothing is sent anywhere else, and nothing is stored on any server.
 
 ---

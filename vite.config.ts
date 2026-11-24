@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 
 // Content Security Policy for production builds (SPEC 7): scripts only from this
@@ -58,8 +59,12 @@ self.addEventListener('fetch', (e) => {
   };
 }
 
+const version = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version;
+
 export default defineConfig({
   base: './',
+  // Shown at the bottom of the app and in the sign-in test, to check which version a phone runs.
+  define: { __APP_VERSION__: JSON.stringify(version) },
   plugins: [csp(), serviceWorker()],
   build: { target: 'es2020' },
   test: { include: ['tests/**/*.test.ts'] },
