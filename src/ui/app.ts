@@ -404,13 +404,32 @@ export function tmView(): void {
     const v = bs ? bs[Math.min(k, bs.length - 1)] : fd.balance;
     return `<div class="g" data-pf="${i}"><div class="gh"><div><b>${esc(fd.name)}</b><div class="lbl">${esc(ty('Pension'))}${fd.owner ? ' · ' + esc(fd.owner) : ''}</div></div><div><div>${t('legPre')} ${f(v / infl)}</div></div></div></div>`;
   });
-  const debts = data.loans.map((l, i) => {
+  $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
+  $('hl').innerHTML = rows.join('') + pens.join('');
+  loansView(s, infl);
+}
+
+/** Loans panel: what is owed at the selected month, the repayment plan and whether it is funded. */
+function loansView(s: Snapshot, infl: number): void {
+  const L = data!.loans;
+  $('lnCard').hidden = !L.length;
+  if (!L.length) return;
+  let total = 0;
+  $('lnl').innerHTML = L.map((l, i) => {
     const owed = s.D[i] ?? 0;
-    const meta = esc(ty('Loan')) + ' · ' + (l.kind === 'installments' ? t('lnInst') : t('lnLump')) + (l.ratePct ? ' · ' + l.ratePct + '%' : '') + (l.owner ? ' · ' + esc(l.owner) : '');
-    return `<div class="g" data-ln="${i}"><div class="gh"><div><b>${esc(l.name)}</b><div class="lbl">${meta}</div></div><div><div class="${owed > 0 ? 'bad' : 'ok'}">${owed > 0 ? '−' + f(owed / infl) : t('lnPaidOff')}</div></div></div></div>`;
-  });
-  $('hs').textContent = t('hold') + ' (' + (rows.length + pens.length + debts.length) + ')';
-  $('hl').innerHTML = rows.join('') + pens.join('') + debts.join('');
+    total += owed / infl;
+    const z = cache?.r.res.find((x) => x.g.loan === l);
+    const months = loanMonths(l);
+    const plan = l.kind === 'installments'
+      ? t('lnPerMo', { a: f(l.monthlyPayment) }) + (months != null ? ' · ' + t('lnUntil', { d: dateAt(months) }) : '')
+      : t('lnOn', { d: new Date(l.year, l.month - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' }) });
+    const meta = (l.kind === 'installments' ? t('lnInst') : t('lnLump')) + (l.ratePct ? ' · ' + l.ratePct + '%' : '') + (l.owner ? ' · ' + esc(l.owner) : '');
+    const status = z ? `<div class="lbl ${z.ok ? 'ok' : 'bad'}">${z.ok ? t('on') : t('sh') + ' ' + f(z.short)}</div>` : '';
+    return `<div class="g" data-ln="${i}"><div class="gh"><div><b>${esc(l.name)}</b><div class="lbl">${meta}</div><div class="lbl">${plan}</div></div>`
+      + `<div><div class="${owed > 0 ? 'bad' : 'ok'}">${owed > 0 ? '−' + f(owed / infl) : t('lnPaidOff')}</div>${status}</div></div></div>`;
+  }).join('');
+  $('lnS').textContent = t('lnPanel') + ' (' + L.length + ')';
+  $('lnTot').textContent = total > 0 ? '−' + f(total) : t('lnPaidOff');
 }
 
 function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: number): void {
@@ -777,7 +796,10 @@ export function initApp(d: AppDeps): void {
     const r = rowTap(e);
     if (r?.dataset.h) holdingDetails(holdRows[parseInt(r.dataset.h, 10)]);
     else if (r?.dataset.pf) pensionDetails(parseInt(r.dataset.pf, 10));
-    else if (r?.dataset.ln) loanDetails(parseInt(r.dataset.ln, 10));
+  });
+  $('lnl').addEventListener('click', (e) => {
+    const r = rowTap(e);
+    if (r?.dataset.ln) loanDetails(parseInt(r.dataset.ln, 10));
   });
   $('goals').addEventListener('click', (e) => {
     const r = rowTap(e);

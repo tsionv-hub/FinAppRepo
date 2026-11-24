@@ -50,7 +50,8 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 | **Next goals / Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
 | **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates, retirement age and allowance. Changes are "what if" only. |
-| **Holdings / Breakdown** | Every account, and your money by type. Loans show here as minus amounts. |
+| **Loans** | Each loan: what you still owe (at the date on the slider), the payment plan and whether it's on track. Only shown if your sheet has a Loans tab with loans. |
+| **Holdings / Breakdown** | Every account, and your money by type. |
 
 **Tap any holding, loan or goal** for details.
 

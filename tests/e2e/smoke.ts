@@ -239,7 +239,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   let untranslated = await englishLeft();
   ok((await txt('#goals')).includes('חופשה משפחתית'), 'goal phrases translated in the right word order');
   ok(decodeURIComponent((await page.getAttribute('#fbBtn', 'href'))!).includes('משוב על תכנון פיננסי'), 'feedback email subject follows the language');
-  for (const sel of ['#helpBtn', '#inflHelp', '#hl .g:has-text("Broker C")', '#hl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
+  for (const sel of ['#helpBtn', '#inflHelp', '#hl .g:has-text("Broker C")', '#lnl .g:has-text("Car loan")', '#goals .g:has-text("חופשה משפחתית")', '#goals .g:has-text("פרישה מוקדמת")', '#hl .g:has-text("Pension 1")']) {
     await page.click(sel);
     untranslated = untranslated.concat(await englishLeft());
     await page.click('#dlgX');
@@ -271,10 +271,16 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   // The Hebrew save reloaded the sheet (the mock keeps no writes), so retirement age is the sheet's 55 again.
   ok(/Starts.*Jan.*2035/.test(await txt('#dlgB')) && (await txt('#dlgB')).includes('Monthly allowance'), 'retirement popup shows start and allowance');
   await page.click('#dlgX');
-  await page.click('#hl .g:has-text("Car loan")');
+  ok(await page.isVisible('#lnCard') && (await txt('#lnS')) === 'Loans (2)', 'loans have their own panel');
+  ok(await page.evaluate(() => !document.querySelector('#hl [data-ln]')), 'loans are no longer mixed into Holdings');
+  await page.evaluate(() => ((document.getElementById('lnCard') as HTMLDetailsElement).open = true));
+  ok(/1,500\/month · paid off/.test(await txt('#lnl .g:has-text("Car loan")')) && /repay Sept? 2029/.test(await txt('#lnl .g:has-text("Loan from parents")')), 'loan rows show the plan: ' + (await txt('#lnl .g:has-text("Car loan") .lbl:nth-of-type(2)')));
+  ok(/^−₪[\d,]+$/.test(await txt('#lnTot')), 'the Loans header shows the total owed: ' + (await txt('#lnTot')));
+  await page.locator('#lnCard').screenshot({ path: OUT + '/loans-panel.png' });
+  await page.click('#lnl .g:has-text("Car loan")');
   ok((await txt('#dlgT')) === 'Car loan' && /Owed today₪36,000/.test(await txt('#dlgB')) && /Paid off.*20\d\d/.test(await txt('#dlgB')), 'loan popup: owed today and payoff date');
   await page.click('#dlgX');
-  ok(/−₪[\d,]+/.test(await txt('#hl .g:has-text("Loan from parents")')), 'loans are listed in Holdings as negative balances');
+  ok(/−₪[\d,]+/.test(await txt('#lnl .g:has-text("Loan from parents")')), 'loans show what is owed as a negative balance');
   await page.click('#goals .g:has-text("Family vacation")');
   ok((await page.locator('#dlgB .dr').count()) >= 3 + 6 && (await txt('#dlgB')).includes('Aug 2032'), 'recurring goal popup lists each year');
   await page.screenshot({ path: OUT + '/popup-recurring.png' });

@@ -80,8 +80,8 @@ details.card > summary h2 { margin: 0; }
 .ck { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; padding: 3px 0; border-top: 1px solid var(--ln); }
 .ck:first-child { border-top: 0; }
 /* Detail popup */
-#hl .g[data-h], #hl .g[data-pf], #hl .g[data-ln], #goals .g[data-gd], #goals .g[data-res] { cursor: pointer; }
-#hl .g[data-h]:active, #hl .g[data-pf]:active, #hl .g[data-ln]:active, #goals .g[data-gd]:active, #goals .g[data-res]:active { opacity: .6; }
+#hl .g[data-h], #hl .g[data-pf], #lnl .g[data-ln], #goals .g[data-gd], #goals .g[data-res] { cursor: pointer; }
+#hl .g[data-h]:active, #hl .g[data-pf]:active, #lnl .g[data-ln]:active, #goals .g[data-gd]:active, #goals .g[data-res]:active { opacity: .6; }
 dialog#dlg {
   width: min(92vw, 440px); max-height: 80vh; overflow: auto; padding: 14px 16px 16px;
   border: 1px solid var(--ln); border-radius: 14px; background: var(--card); color: var(--tx);
