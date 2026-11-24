@@ -187,3 +187,20 @@ details.card > summary:focus-visible, .hq:focus-visible, .jump button:focus-visi
 .freeline { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed var(--ln); }
 .freeline .lbl { font-size: 14px; font-weight: 600; color: var(--tx); }
 .freeline .big { font-size: 24px; }
+
+/* "Your money today" card (v1.7): header, main figure, two side figures,
+   green free-money strip, and ➕/➖ centred at the bottom. (Selectors are as
+   specific as the generic panel-header rules, so they win.) */
+details.card.tot > summary { flex-direction: column; align-items: stretch; justify-content: flex-start; gap: 0; }
+.today-h .ttl h2 { font-size: 16px; }
+details.card.tot > summary::after { order: 9; align-self: center; margin-top: 10px; width: 36px; height: 24px; line-height: 24px; border-radius: 12px; background: var(--bg); border: 1px solid var(--ln); font-size: 13px; }
+.today-h { display: flex; align-items: center; gap: 8px; }
+.today-main { display: flex; flex-direction: column; margin-top: 10px; }
+.today-main .big { font-size: 34px; line-height: 1.15; }
+.today-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.today-stats .stat { display: flex; flex-direction: column; padding: 8px 10px; border-radius: 10px; background: var(--bg); }
+.today-stats .stat[hidden] { display: none; }
+.today-stats b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.tot .freeline { margin-top: 10px; padding: 10px 12px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--free) 12%, transparent); align-items: center; }
+.tot .freeline .lbl { white-space: nowrap; }
+.tot .freeline .big { font-size: 24px; }
