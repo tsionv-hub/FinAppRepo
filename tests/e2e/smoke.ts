@@ -191,9 +191,18 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     if (!okHelp || before !== after) fail(`🤔 for ${key}: help=${okHelp}, panel toggled=${before !== after}`);
   }
   ok(true, '🤔 opens a short explanation for each panel and does not open or close the panel');
+  const ring = await page.evaluate(() => {
+    const a = document.activeElement as HTMLElement;
+    const sum = a.closest('summary') ?? a;
+    return { outline: getComputedStyle(a).outlineStyle, sumOutline: getComputedStyle(sum).outlineStyle, fv: a.matches(':focus-visible') };
+  });
+  ok((ring.outline === 'none' && ring.sumOutline === 'none') || ring.fv, 'no blue focus frame around the panel after closing a 🤔 explanation: ' + JSON.stringify(ring));
+  ok((await txt('.hint')).includes('Tap 🤔 for a short explanation'), 'a tip line explains the 🤔 buttons');
+  ok((await txt('#hsK')) === 'Today', 'Holdings header says "Today"');
   await page.click('.hq[data-help=ret]');
   ok((await txt('#dlgB')).includes('Default age: 60'), 'the retirement help mentions the default age of 60');
   await page.click('#dlgX');
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.screenshot({ path: OUT + '/layout-top.png' });
 
   // 3. What-ifs.
