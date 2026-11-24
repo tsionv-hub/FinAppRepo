@@ -2,6 +2,7 @@
 # One-time: Settings → Pages → Source: "GitHub Actions".
 # Optional: Settings → Secrets and variables → Actions → Variables → GOOGLE_CLIENT_ID
 # bakes your OAuth client ID into the build so you don't have to paste it on the phone.
+# Optional: variable FEEDBACK_EMAIL shows a 'Send feedback' button that emails that address.
 name: Deploy to GitHub Pages
 
 on:
@@ -32,6 +33,7 @@ jobs:
       - run: npm run build
         env:
           VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

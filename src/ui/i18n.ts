@@ -21,7 +21,7 @@ const en = {
   goals: 'Goals', newGoal: 'New goal', name: 'Name', amount: 'Amount ₪', year: 'Year', spend: 'Pay out on due date', add: 'Add goal', save1: 'Save 1 new goal to sheet', saveN: 'Save {n} new goals to sheet',
   ns: '(not saved)', rm: 'Remove', on: 'On track', sh: 'Short', prj: 'Projected balance', nog: 'No goals yet.', assum: 'Assumptions',
   ms: 'Monthly saving ₪', fc: 'Yearly free cash ₪ (Jan)', gr: 'Yearly Intel grant $ (Jan)', ir: 'Inflation %', cg: 'Capital gains tax %', it: 'Income tax %',
-  inflc: 'Today’s money (adjust for inflation)', uvc: 'Count unvested Intel shares in totals', whatif: 'Changes here only affect this view. To keep them, use a Save button or edit your sheet.',
+  uvc: 'Count unvested Intel shares in totals', whatif: 'Changes here only affect this view. To keep them, use a Save button or edit your sheet.',
   where: 'Your money today by type (pre-tax)', need: 'Enter a name, an amount and a year ({y} or later).', addedH: 'Added to this view only. Tap Save to write it to your sheet.',
   wr: 'Saving to your sheet…', saved: 'Saved to the Goals tab.', chk: 'Check the Goals tab before trying again.',
   // standalone app
@@ -84,6 +84,9 @@ const en = {
   ihEx: 'At {r}% a year, ₪100,000 in {y} buys what about {a} buys today, and a ₪100,000 goal in {y} will cost about {b} then.',
   ihRate: 'The rate ({r}%) is in Assumptions. The switch starts from inflation_enabled in your sheet and is never saved: it only changes this view.',
   ihNow: 'Now: {s}', ihStOn: 'on (today’s money)', ihStOff: 'off (future shekels)',
+  inflOffT: 'Not adjusted for inflation', inflOffN: 'The real picture is worse: at {r}% a year, ₪100,000 in {y} is worth only about {a} in today’s money.',
+  inflOnT: 'Shown in today’s money', inflOnN: 'Adjusted for {r}% inflation a year.', inflOnBtn: 'Adjust for inflation', inflOffBtn: 'Turn off',
+  fb: 'Send feedback', fbSubj: 'Finance Planner feedback (v{v})', fbBody: 'Write your feedback here:\n\n\n---\nVersion: {v}\nLanguage: {l}\nInstalled app: {i}\nDevice: {d}',
   ty: { Loan: 'Loan' } as Record<string, string>,
 };
 
@@ -107,7 +110,7 @@ const he: Record<Key, string> & { ty: Record<string, string> } = {
   goals: 'יעדים', newGoal: 'יעד חדש', name: 'שם', amount: 'סכום ₪', year: 'שנה', spend: 'לשלם במועד היעד', add: 'הוסף יעד', save1: 'שמור יעד חדש אחד בגיליון', saveN: 'שמור {n} יעדים חדשים בגיליון',
   ns: '(לא נשמר)', rm: 'הסר', on: 'במסלול', sh: 'חסר', prj: 'יתרה צפויה', nog: 'אין יעדים עדיין.', assum: 'הנחות',
   ms: 'חיסכון חודשי ₪', fc: 'מזומן פנוי שנתי ₪ (ינואר)', gr: 'מענק אינטל שנתי $ (ינואר)', ir: 'אינפלציה %', cg: 'מס רווח הון %', it: 'מס הכנסה %',
-  inflc: 'כסף של היום (התאמה לאינפלציה)', uvc: 'כלול מניות אינטל שלא הבשילו בסיכומים', whatif: 'שינויים כאן משפיעים רק על התצוגה. כדי לשמור, השתמש בכפתור שמירה או ערוך את הגיליון.',
+  uvc: 'כלול מניות אינטל שלא הבשילו בסיכומים', whatif: 'שינויים כאן משפיעים רק על התצוגה. כדי לשמור, השתמש בכפתור שמירה או ערוך את הגיליון.',
   where: 'הכסף שלך היום לפי סוג (לפני מס)', need: 'הזן שם, סכום ושנה ({y} ואילך).', addedH: 'נוסף לתצוגה בלבד. לחץ שמור כדי לכתוב לגיליון.',
   wr: 'שומר בגיליון…', saved: 'נשמר בלשונית היעדים.', chk: 'בדוק את לשונית היעדים לפני ניסיון נוסף.',
   setupT: 'חיבור לגיליון Google', setupN: 'הדבק את הקישור לגיליון הכספים שלך (או את המזהה שלו). הוא נשמר בטלפון הזה בלבד.', sheetL: 'קישור או מזהה גיליון', cont: 'המשך',
@@ -169,6 +172,9 @@ const he: Record<Key, string> & { ty: Record<string, string> } = {
   ihEx: 'באינפלציה של {r}% בשנה, ₪100,000 ב-{y} יקנו בערך מה ש-{a} קונים היום, ויעד של ₪100,000 ב-{y} יעלה אז בערך {b}.',
   ihRate: 'השיעור ({r}%) נמצא בהנחות. המתג מתחיל מ-inflation_enabled בגיליון ולעולם לא נשמר: הוא משנה רק את התצוגה.',
   ihNow: 'עכשיו: {s}', ihStOn: 'פועל (כסף של היום)', ihStOff: 'כבוי (שקלים עתידיים)',
+  inflOffT: 'לא מותאם לאינפלציה', inflOffN: 'המצב האמיתי פחות טוב: באינפלציה של {r}% בשנה, ₪100,000 ב-{y} שווים רק כ-{a} בכסף של היום.',
+  inflOnT: 'מוצג בכסף של היום', inflOnN: 'מותאם לאינפלציה של {r}% בשנה.', inflOnBtn: 'התאמה לאינפלציה', inflOffBtn: 'ביטול',
+  fb: 'שליחת משוב', fbSubj: 'משוב על תכנון פיננסי (v{v})', fbBody: 'כתבו כאן את המשוב:\n\n\n---\nגרסה: {v}\nשפה: {l}\nאפליקציה מותקנת: {i}\nמכשיר: {d}',
   ty: {
     Loan: 'הלוואה',
     Pension: 'פנסיה', 'Study fund': 'קרן השתלמות', 'Investment fund': 'קופת גמל להשקעה', 'Savings plan': 'קופת חיסכון', Brokerage: 'חשבון מסחר',

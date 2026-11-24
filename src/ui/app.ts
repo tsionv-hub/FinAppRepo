@@ -112,7 +112,7 @@ function fillInputs(d: SheetData): void {
   set('ir', s.inflationRatePct);
   set('cg', s.capitalGainsTaxPct);
   set('it', s.incomeTaxPct);
-  inp('infl').checked = s.inflationEnabled;
+  setInflation(s.inflationEnabled, false);
   set('ra', s.retirementAge);
   set('al', s.retirementAllowance);
   set('rd', d.goals.reserve);
@@ -180,7 +180,7 @@ function whatIf(): WhatIf {
     monthlySaving: N('ms'),
     yearlyFreeCash: N('fc'),
     yearlyGrantUSD: N('gr'),
-    inflationOn: inp('infl').checked,
+    inflationOn: inflationOn(),
     inflationRatePct: N('ir'),
     capitalGainsTaxPct: N('cg'),
     incomeTaxPct: N('it'),
@@ -210,6 +210,7 @@ function model() {
 
 export function render(): void {
   if (!data) return;
+  inflationBar();
   const d = data;
   const { w, goals, p } = model();
   const S = d.settings;
@@ -697,6 +698,33 @@ function rowTap(e: Event): HTMLElement | null {
   return el.closest<HTMLElement>('.g');
 }
 
+// ---------- inflation bar ----------
+
+function inflationOn(): boolean {
+  return $('infl').getAttribute('aria-pressed') === 'true';
+}
+
+/** Switches inflation on or off (a what-if: never saved) and redraws. */
+function setInflation(on: boolean, redraw = true): void {
+  $('infl').setAttribute('aria-pressed', String(on));
+  inflationBar();
+  if (redraw) render();
+}
+
+/** Off: a yellow warning that the real picture is worse. On: a calm note. */
+function inflationBar(): void {
+  const on = inflationOn();
+  const r = N('ir');
+  const y = (start?.year ?? new Date().getFullYear()) + 10;
+  const pctTxt = String(Math.round(r * 10) / 10);
+  $('inflBar').classList.toggle('warn', !on);
+  $('inflIc').textContent = on ? '✓' : '!';
+  $('inflTxt').innerHTML = on
+    ? `<b>${t('inflOnT')}</b>${t('inflOnN', { r: pctTxt })}`
+    : `<b>${t('inflOffT')}</b>${t('inflOffN', { r: pctTxt, y, a: f(100000 / Math.pow(1 + r / 100, 10)) })}`;
+  $('infl').textContent = on ? t('inflOffBtn') : t('inflOnBtn');
+}
+
 /** The "?" next to the inflation switch: what it does, with examples at the current rate. */
 function inflationHelp(): void {
   const w = whatIf();
@@ -715,7 +743,8 @@ function inflationHelp(): void {
 
 export function initApp(d: AppDeps): void {
   deps = d;
-  ['sc', 'infl', 'uv'].forEach((i) => $(i).addEventListener('change', render));
+  ['sc', 'uv'].forEach((i) => $(i).addEventListener('change', render));
+  $('infl').addEventListener('click', () => setInflation(!inflationOn()));
   ['ms', 'fc', 'gr', 'ir', 'cg', 'it', 'rd', 'ra', 'al', 'pg', 'pt', 'po'].forEach((i) => $(i).addEventListener('input', renderSoon));
   $('tm').addEventListener('input', tmView);
   $('inflHelp').addEventListener('click', inflationHelp);
