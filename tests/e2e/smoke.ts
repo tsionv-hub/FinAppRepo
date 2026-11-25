@@ -394,8 +394,11 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '0'; e.dispatchEvent(new Event('input')); });
   await page.click(bankG + ' > summary');
   ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
-  const ofc = await page.$$eval('#ofc .ofr', (rs) => rs.map((r) => r.textContent));
-  ok(ofc.length === 2 && ofc[0] === 'Savings D11.0%11.0%6.5%' && ofc[1] === 'Invest B9.4%11.0%6.5%', 'official returns chart at the bottom of Holdings, best 5-year first: ' + JSON.stringify(ofc));
+  const cols = () => page.$$eval('#ofc svg', (s) => [...s[0].querySelectorAll('text')].map((x) => x.textContent!.replace(/^(.+?)\1$/, '$1')).join('|'));
+  ok((await page.locator('#ofc svg rect.s-avg5').count()) === 2 && (await cols()) === '11.0|Savings D|9.4|Invest B', 'official returns: one column chart, 5 years first, best first: ' + (await cols()));
+  await page.click('#ofc [data-ofp=ytd]');
+  ok((await page.locator('#ofc svg rect.s-ytd').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
+  await page.click('#ofc [data-ofp=avg5]');
   ok(/to Oct 2026/.test(await txt('#ofc')), 'the chart says which month the data is from');
   await page.locator('#pHold').screenshot({ path: OUT + '/holdings-official.png' });
   await page.click('#hl .g:has-text("Invest B")');

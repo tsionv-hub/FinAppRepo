@@ -255,11 +255,12 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s5: #6ea0ff; --s3: #a78bfa; --sy: #fbbf24; } }
 :root[data-theme="dark"] { --s5: #6ea0ff; --s3: #a78bfa; --sy: #fbbf24; }
 .s-avg5 { background: var(--s5); } .s-avg3 { background: var(--s3); } .s-ytd { background: var(--sy); }
-.leg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline-end: 5px; vertical-align: -1px; }
-.ofr { padding: 8px 0; border-top: 1px solid var(--ln); }
-.ofr:first-of-type { border-top: 0; }
-.ofn { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-.ofb { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
-.ofbt { flex: 1; height: 8px; background: var(--ln); border-radius: 4px; overflow: hidden; }
-.ofbt i { display: block; height: 100%; border-radius: 4px; }
-.ofv { width: 3.6em; text-align: end; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--mu); }
+.seg { display: flex; gap: 4px; background: var(--bg); border: 1px solid var(--ln); border-radius: 10px; padding: 3px; margin: 8px 0 4px; }
+.seg button { flex: 1; background: transparent; color: var(--mu); border-radius: 7px; padding: 6px 4px; font-size: 12px; }
+.seg button.on { background: var(--card); color: var(--tx); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.ofsvg { width: 100%; height: auto; display: block; overflow: visible; }
+.ofsvg rect.s-avg5 { fill: var(--s5); } .ofsvg rect.s-avg3 { fill: var(--s3); } .ofsvg rect.s-ytd { fill: var(--sy); }
+.ofax { stroke: var(--mu); stroke-width: 1; }
+.ofvl { font-size: 10px; fill: var(--tx); text-anchor: middle; font-variant-numeric: tabular-nums; }
+.ofvl.neg { fill: var(--bad); } .ofvl.na { fill: var(--mu); }
+.ofnm { font-size: 10px; fill: var(--mu); text-anchor: end; }
