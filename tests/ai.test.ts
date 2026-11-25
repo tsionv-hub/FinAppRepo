@@ -76,5 +76,6 @@ describe('Gemini client', () => {
     expect(await run(err(429, 'quota'))).toBe('limit');
     expect(await run(err(400, 'API key not valid. Please pass a valid API key.'))).toBe('badkey');
     expect(await run(err(403, 'permission denied'))).toBe('denied');
+    expect(await run(err(402, 'Your prepayment credits are depleted. Please go to AI Studio'))).toBe('billing');
   });
 });
