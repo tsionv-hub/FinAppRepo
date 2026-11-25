@@ -1,6 +1,6 @@
 // Main screen: loads the sheet, keeps what-if values from the inputs, renders
 // every panel. Ported from the prototype's render(), freeMoney(), tmView(),
-// nextView(), pensionView() and the save functions.
+// pensionView() and the save functions.
 
 import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
@@ -254,7 +254,6 @@ export function render(): void {
     }, 0);
   }
   freeView(cache.fm);
-  nextView(cache.r);
   pensionView(w, cache.goals);
   retView(cache.goals, cache.r, cache.fm);
   tmView();
@@ -316,23 +315,6 @@ function dateAt(k: number, month: 'short' | 'long' = 'short'): string {
 function dur(k: number): string {
   const y = Math.floor(k / 12), m = k % 12, he = getLang() === 'he';
   return (y ? y + (he ? ' שנ׳ ' : 'y ') : '') + (m ? m + (he ? ' חו׳' : 'm') : '') || (he ? 'עכשיו' : 'now');
-}
-
-function nextView(r: SimResult): void {
-  const it = r.res.slice().sort((a, b) => a.k - b.k).slice(0, 3);
-  $('nxK').textContent = it.length ? goalName(it[0].g.name) + ' · ' + dur(it[0].k + (it[0].g.retirement || it[0].g.loan?.kind === 'installments' ? 0 : 1)) : '';
-  $('nx').innerHTML =
-    it
-      .map((z) => {
-        const g = z.g;
-        const l = g.loan;
-        // Normal goals (and lump-sum loans) are paid the step before their due month; show the due month.
-        const o2 = g.retirement || (l && l.kind === 'installments') ? 0 : 1;
-        const what = g.retirement ? t('retS') + ' ' : l ? (l.kind === 'installments' ? t('lnPaidOff') : t('lnRepay')) + ' ' : '';
-        const amt = g.retirement ? f(g.monthly ?? 0) + '/' + t('mo2') : l?.kind === 'installments' ? f(l.monthlyPayment) + '/' + t('mo2') : f(g.amount);
-        return `<div class="g"><div class="gh"><div><b>${esc(goalName(g.name))}</b><div class="lbl">${what}${dateAt(z.k + o2)} · ${t('inT')} ${dur(z.k + o2)}</div></div><div>${amt}<div>${pill(z.ok, z.ok ? t('on') : t('sh') + ' ' + f(z.short))}</div></div></div></div>`;
-      })
-      .join('') || `<div class="lbl">${t('nog')}</div>`;
 }
 
 function pensionView(w: WhatIf, goals: Goal[]): void {
@@ -476,8 +458,8 @@ function retView(goals: Goal[], r: SimResult, fm: FreeMoney): void {
 
 /** 🤔 on each panel: a short explanation. */
 const PANEL_HELP: Record<string, [Parameters<typeof t>[0], Parameters<typeof t>[0]]> = {
-  today: ['todayT', 'hToday'], proj: ['proj', 'hProj'], next: ['nxt', 'hNext'], goals: ['goals', 'hGoals'],
-  ret: ['erg', 'hRet'], loans: ['lnPanel', 'hLoans'], pen: ['pen', 'hPen'], hold: ['hold', 'hHold'], bk: ['where', 'hBk'], ass: ['assum', 'hAss'],
+  today: ['todayT', 'hToday'], proj: ['proj', 'hProj'], goals: ['goals', 'hGoals'],
+  ret: ['erg', 'hRet'], loans: ['lnPanel', 'hLoans'], pen: ['pen', 'hPen'], hold: ['hold', 'hHold'], ass: ['assum', 'hAss'],
 };
 
 function panelHelp(key: string): void {

@@ -41,19 +41,19 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 ## 3. What you see
 
-The screen has three groups: **Today**, **Your plans** and **Details & settings**. The bar at the top jumps straight to any panel. Tap **➕** to open a panel and **➖** to close it; only the projection graph starts open. Every panel has a **🤔** button with a short explanation.
+The screen has four sections: **Quick look** (your money today, projection), **Your money & goals** (holdings, goals, loans), **Retirement & pension** and **Settings**. The bar at the top jumps straight to any panel. Tap **➕** to open a panel and **➖** to close it; only the projection graph starts open. Every panel has a **🤔** button with a short explanation.
 
 | Panel | What it tells you |
 |---|---|
 | **Inflation bar** (top) | Yellow ⚠ while amounts are in future shekels; tap **Adjust for inflation** for today's money. **🤔** explains it. |
 | **Your money today** | Everything you have after tax (what you'd keep if you sold it all now), before tax, and after debts. Pension is not included. **Free to spend today**: how much you could spend now and still pay every goal, loan and early retirement on time and keep the rainy day fund. Tap **➕** at the bottom of the card for the colored bar showing where the rest is set aside. |
 | **Projection** | Your money over time. Move the slider to see any month. Dots mark goals: green = funded, red = short. The shaded band is early retirement. Below the graph, pick a return scenario (Optimistic, Moderate, Pessimistic). |
-| **Next goals / Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
+| **Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
 | **Early retirement** | When you stop working, the monthly allowance until your pension, and whether your money lasts. Change the age and allowance here. See section 4. |
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
 | **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates and the rainy day fund. Changes are "what if" only. |
 | **Loans** | Each loan: what you still owe (at the date on the slider), the payment plan and whether it's on track. Only shown if your sheet has a Loans tab with loans. |
-| **Holdings / Breakdown** | Every account, and your money by type. |
+| **Holdings** | Your money today by type (before tax), then every account at the date on the slider. |
 
 **Tap any holding, loan or goal** for details.
 
