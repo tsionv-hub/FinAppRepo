@@ -2,7 +2,7 @@
 // Tabs are read by column name, so column order in the sheet is free.
 
 import type { Goal, Holding, Loan, PensionFund, Scenario, Settings, TaxType } from './types';
-import { INVEST_TYPES, REINVEST_TYPE } from './types';
+import { GROUPS, INVEST_TYPES, REINVEST_TYPE, type HoldingGroup } from './types';
 
 export type Cell = string | number | boolean | null | undefined;
 export type Rows = Cell[][];
@@ -99,6 +99,7 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
       return {
         id: String(x.id).trim(),
         row: x._row,
+        group: groupOf(x.group, String(x.type).trim()),
         name: String(x.name ?? ''),
         vendor: String(x.vendor ?? ''),
         owner: String(x.owner ?? ''),
@@ -120,11 +121,23 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
           quantity: numOrNull(x.quantity),
           lastUpdated: String(x.last_updated ?? '').trim(),
           notes: String(x.notes ?? '').trim(),
+          fundNumber: String(x.fund_number ?? '').trim(),
         },
       };
     });
   H.push(reinvestmentHolding(H));
   return H;
+}
+
+/** The holding's group: the `group` column if it names one, else from the type. */
+export function groupOf(col: Cell, type: string): HoldingGroup {
+  const g = String(col ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if ((GROUPS as string[]).includes(g)) return g as HoldingGroup;
+  if (type === 'Study fund') return 'study_fund';
+  if (type === 'Cash') return 'bank';
+  if (type === 'Stocks' || type === 'Stocks (unvested)') return 'stocks';
+  if (type === 'Brokerage') return 'trading';
+  return 'fund';
 }
 
 /** Liquid, capital-gain taxed, return = value-weighted average of the investment-type holdings. */
@@ -139,6 +152,7 @@ export function reinvestmentHolding(H: Holding[]): Holding {
   }
   return {
     name: REINVEST_TYPE,
+    group: 'fund',
     synthetic: true,
     vendor: '',
     owner: '',

@@ -169,3 +169,16 @@ A `beta` branch is built with `VITE_CHANNEL=beta` and published under `/beta/` a
 
 ### 12.10 Deposits (v1.13)
 Optional `Deposits` tab, one row per deposit: `holding_id` (Holdings `id`), `date`, `amount` (holding's currency) required; `deposit_id`, `currency`, `notes` optional; other columns (e.g. a `holding_name` formula) are kept. Dates may be ISO, day-first d/m/y or d.m.y, or a sheet serial. The holding popup lists the holding's deposits, the total, first and last date, and the return so far: the yearly rate r that solves Σ amount·(1+r)^(years since deposit) = current_amount (shown only with a span of two months or more). An add form appends a row in the tab's own column order (`deposit_id` = next `D<n>`) and, if ticked (default), adds the amount to the holding's `current_amount`. The projection still uses `deposited_amount` as the cost basis. Deposits go to Ask AI with the sheet data (holding name, date, amount; no row numbers).
+
+### 12.11 Holding groups, bank balance, share grants (v1.14)
+Holdings gets two optional columns. `group` is one of `study_fund`, `fund`, `trading`, `bank` or `stocks`; when it is blank or unknown, the group comes from `type`: Study fund → study_fund, Cash → bank, Stocks and Stocks (unvested) → stocks, Brokerage → trading, anything else → fund. `fund_number` is free text.
+
+The Holdings panel shows one sub-section per group in that order, then Pension, each with a count and a pre-tax subtotal at the selected month.
+
+The holding popup by group:
+- **study_fund:** details only; the fund number is shown.
+- **fund and trading:** deposits (12.10); the fund number is shown for funds.
+- **bank:** a balance form that writes `current_amount`, in the row's own currency.
+- **stocks:** share grants. A grant goes to the `Stocks (unvested)` holding with the same ticker, or else to the holding tapped. Saving appends a row to the optional Grants tab (`holding_id`, `date` and `shares` required; `grant_id` = next `GR<n>`; `notes`) and adds the shares to that holding's `quantity`. Its value is usually `quantity × GOOGLEFINANCE`.
+
+The projection is unchanged: vesting still uses the Settings vesting values. Groups, fund numbers and grants go to Ask AI.

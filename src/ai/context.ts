@@ -3,7 +3,7 @@
 // Account numbers are never included (the parsers never read them).
 
 import type { Goal, Holding, Loan, PensionFund } from '../model/types';
-import type { Deposit } from '../model/deposits';
+import type { Deposit, Grant } from '../model/deposits';
 
 export interface AiResults {
   postTax: number;
@@ -31,6 +31,7 @@ export interface AiSnapshot {
   loans: Loan[];
   /** Deposits tab rows; null when the sheet has none. */
   deposits?: Deposit[] | null;
+  grants?: Grant[] | null;
   results: AiResults;
   guide: string;
 }
@@ -42,7 +43,7 @@ export function sheetJson(s: AiSnapshot): string {
   const holdings = s.holdings
     .filter((h) => !h.synthetic || h.value > 0)
     .map((h) => ({
-      name: h.name, vendor: h.vendor || undefined, owner: h.owner || undefined, type: h.type,
+      name: h.name, vendor: h.vendor || undefined, owner: h.owner || undefined, type: h.type, group: h.group, fund_number: h.info?.fundNumber || undefined,
       currency: h.info?.currency, amount_in_currency: h.info?.amount, value_ILS: round(h.value), deposited_ILS: round(h.deposited),
       return_5y_avg_pct: h.ret, tax_type: h.tax, included_in_totals: h.include,
       track: h.info?.track || undefined, style: h.info?.style || undefined, ticker: h.info?.ticker || undefined, quantity: h.info?.quantity ?? undefined,
@@ -61,7 +62,8 @@ export function sheetJson(s: AiSnapshot): string {
   }));
   const names = new Map(s.holdings.filter((h) => h.id).map((h) => [h.id!, h.name]));
   const deposits = s.deposits?.map((d) => ({ holding: names.get(d.holdingId) ?? d.holdingId, date: d.date, amount: d.amount, currency: d.currency || undefined, notes: d.notes || undefined }));
-  return JSON.stringify({ settings: s.settings, holdings, pension_funds: s.pension, goals, rainy_day_fund_ILS: s.rainyDayFund, loans, deposits });
+  const grants = s.grants?.map((g) => ({ holding: names.get(g.holdingId) ?? g.holdingId, date: g.date, shares: g.shares, notes: g.notes || undefined }));
+  return JSON.stringify({ settings: s.settings, holdings, pension_funds: s.pension, goals, rainy_day_fund_ILS: s.rainyDayFund, loans, deposits, share_grants: grants });
 }
 
 export function systemPrompt(s: AiSnapshot): string {

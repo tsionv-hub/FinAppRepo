@@ -80,10 +80,39 @@ export function impliedReturn(deposits: { date: string; amount: number }[], valu
 
 /** Next free "D<n>" id. */
 export function nextDepositId(existing: string[]): string {
+  return nextId('D', existing);
+}
+
+/** An Intel (employer) share grant (optional Grants tab). */
+export interface Grant {
+  id: string;
+  holdingId: string;
+  /** YYYY-MM-DD */
+  date: string;
+  shares: number;
+  notes: string;
+}
+
+export function parseGrants(rows: Rows): Grant[] {
+  return table(rows)
+    .filter((x) => parseDate(x.date) && num(x.shares) !== 0)
+    .map((x) => ({
+      id: String(x.grant_id ?? '').trim(),
+      holdingId: String(x.holding_id ?? '').trim(),
+      date: parseDate(x.date)!,
+      shares: num(x.shares),
+      notes: String(x.notes ?? '').trim(),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/** Next free id with this prefix, e.g. D7 or GR3. */
+export function nextId(prefix: string, existing: string[]): string {
   let max = 0;
+  const re = new RegExp('^' + prefix + '(\\d+)$');
   for (const id of existing) {
-    const m = /^D(\d+)$/.exec(id);
+    const m = re.exec(id);
     if (m) max = Math.max(max, +m[1]);
   }
-  return 'D' + (max + 1);
+  return prefix + (max + 1);
 }
