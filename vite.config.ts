@@ -11,7 +11,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://accounts.google.com/gsi/style",
   "img-src 'self' data: blob:",
   "frame-src https://accounts.google.com/gsi/",
-  "connect-src 'self' https://sheets.googleapis.com https://accounts.google.com/gsi/ https://oauth2.googleapis.com",
+  "connect-src 'self' https://sheets.googleapis.com https://accounts.google.com/gsi/ https://oauth2.googleapis.com https://generativelanguage.googleapis.com",
   "form-action 'none'",
   "base-uri 'none'",
   "object-src 'none'",

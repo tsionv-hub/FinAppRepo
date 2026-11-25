@@ -12,6 +12,7 @@ import { templateXlsx } from './template';
 import { exampleXlsx } from './example';
 import { applyLang, clearData, errorText, initApp, load, showApp, showHelp, showMsg } from './ui/app';
 import { t, type Lang } from './ui/i18n';
+import { initAi } from './ui/ai';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -63,6 +64,7 @@ function screen(name: 'setup' | 'diag' | 'app'): void {
   $('setup').hidden = name !== 'setup';
   $('diag').hidden = name !== 'diag';
   $('app').hidden = name !== 'app';
+  $('aiBtn').hidden = name !== 'app';
 }
 
 function showStep(step: Step, err?: string | null): void {
@@ -326,6 +328,7 @@ function main(): void {
   applyLang(saved === 'he' ? 'he' : 'en');
   $('ver').textContent = 'v' + __APP_VERSION__;
   feedbackLinks();
+  initAi(() => demo);
   $('helpBtn').addEventListener('click', showHelp);
   wire();
   lastRedirect = handleRedirect();

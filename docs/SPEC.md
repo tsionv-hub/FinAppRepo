@@ -155,3 +155,6 @@ When every eligible account is empty, monthly saving and yearly cash are split e
 
 ### 12.6 Sections (v1.8)
 Quick look (your money today, projection) · Your money & goals (holdings with money by type on top, goals, loans) · Retirement & pension (early retirement, pension) · Settings (assumptions). The Next goals panel was removed. Only the projection starts open.
+
+### 12.7 Ask AI (v1.9, optional, opt-in)
+A floating 💬 Ask AI button opens a chat with Google Gemini, using each user's own free Gemini API key (stored on the phone only; Remove AI key and Forget this sheet delete it). First use: a red privacy warning that must be accepted (question and sheet numbers go to Google; free-tier data may be used to improve Google's AI; the developer sees nothing; account numbers are never sent), then step-by-step key setup with a test call. Later: a short 🥱🧑‍⚖️ reminder once per app opening, with "Don't show again" from the 4th time. Each question sends the sheet data, the app's own results and the user guide; the conversation lives in memory only while the chat is open and nothing is stored. This is the one exception to section 1's "data only travels between the phone and the sheet", made at the user's explicit choice.
