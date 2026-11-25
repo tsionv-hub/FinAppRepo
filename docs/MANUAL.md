@@ -89,7 +89,7 @@ Early retirement means you stop working **before** your pension starts, and live
 Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebrew or English: *"How many holdings do I have with Migdal?"*, *"Is my early retirement on track?"*, *"How do I add a loan?"*
 
 - **Privacy first:** each question sends your question **and your sheet's numbers** to Google Gemini, like pasting your sheet into Gemini yourself. With a free key, Google may use it to improve its AI. Account numbers are never sent, the app saves no questions or answers, and the person who shared the app never sees any of it. The first time, you must confirm you understand this.
-- **One-time setup:** create a free Gemini key at **aistudio.google.com/apikey** (sign in → **Create API key** → copy it; it starts with `AIza`), paste it into the app and tap **Save and test**. The key stays on your phone; **Remove AI key** in the chat deletes it.
+- **One-time setup:** create a free Gemini key at **aistudio.google.com/apikey** (sign in → **Create API key** → copy it → on iPhone tap **Done** to come back), paste it into the app and tap **Save and test**. The setup screen waits for you when you return. The key stays on your phone; **Remove AI key** in the chat deletes it.
 - **What it knows:** your sheet, the app's own results (totals, free money, goal status, retirement, pension) and this guide. It can't know what isn't in the sheet; for example, the sheet keeps no history of individual deposits.
 - **Limits:** the free key has a daily limit; AI can make mistakes, so the app's numbers are the reference. It's not financial advice.
 - A short reminder appears once each time you open the app; from the 4th time you can choose **Don't show this again**.

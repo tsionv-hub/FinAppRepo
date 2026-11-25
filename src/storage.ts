@@ -15,6 +15,8 @@ export const KEYS = {
   aiOk: 'fp_ai_ok',
   aiSeen: 'fp_ai_seen',
   aiQuiet: 'fp_ai_quiet',
+  /** Key setup in progress (the user went to AI Studio to create a key). */
+  aiSetup: 'fp_ai_setup',
 } as const;
 
 function ls(): Storage | null {

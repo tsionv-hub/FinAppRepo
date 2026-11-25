@@ -12,7 +12,7 @@ import { templateXlsx } from './template';
 import { exampleXlsx } from './example';
 import { applyLang, clearData, errorText, initApp, load, showApp, showHelp, showMsg } from './ui/app';
 import { t, type Lang } from './ui/i18n';
-import { initAi } from './ui/ai';
+import { initAi, resumeKeySetup } from './ui/ai';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
@@ -322,6 +322,7 @@ function main(): void {
     onReady: () => {
       screen('app');
       showMsg(null);
+      resumeKeySetup();
     },
     demo: () => demo,
   });
