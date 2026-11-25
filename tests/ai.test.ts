@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { systemPrompt, type AiSnapshot } from '../src/ai/context';
+import { appOnlyPrompt, systemPrompt, type AiSnapshot } from '../src/ai/context';
 import { ask, AiError, cleanKey, looksLikeKey, resetModel } from '../src/ai/gemini';
 import { parseGoals, parseHoldings, parseLoans, parsePension, parseSettings } from '../src/model';
 import { goalsRows, holdingsRows, pensionRows, settingsRows } from './fixture';
@@ -32,6 +32,14 @@ describe('what the AI is told', () => {
 
   it('never includes account numbers', () => {
     expect(systemPrompt(snapshot())).not.toContain(ACCOUNT);
+  });
+
+  it('"Don\'t send my data": only the guide, nothing from the sheet or results', () => {
+    const p = appOnlyPrompt('en', '2026-11-25', 'GUIDE TEXT');
+    expect(p).toContain('GUIDE TEXT');
+    expect(p).toContain('do NOT have the user');
+    for (const s of ['SHEET DATA', 'APP RESULTS', 'Vendor 2', 'Car loan', '"freeToday"']) expect(p).not.toContain(s);
+    expect(appOnlyPrompt('he', '2026-11-25', 'G')).toContain('Answer in Hebrew');
   });
 
   it('asks for Hebrew answers in Hebrew mode and flags example data', () => {
