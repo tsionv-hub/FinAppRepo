@@ -210,3 +210,12 @@ Tapping a column picks it:
 - its row in the list is highlighted, and its group opens.
 
 Tapping the column again clears the pick. Redraws take the groups' open state from the screen, so a fast redraw doesn't undo a close.
+
+### 12.14 Several sheets on one phone (v1.18)
+The phone keeps a list of sheets in `sheets`: `[{id, nick}]`, holding only the sheet ID taken from the link and the user's nickname. It is meant for one person per phone. Access is still Google's: the signed-in account must be able to open the sheet.
+- **Adding a sheet:** a new link needs a nickname, up to 40 characters.
+- **Main screen:** the open sheet's nickname is shown at the top as a dropdown. It switches sheets, renames the current one (`prompt`) or adds one (setup screen).
+- **Setup screen:** lists the saved sheets to open.
+- **Sheet check:** shown once per sheet. `checked` is a list of sheet IDs; the older value `"1"` means the sheet that was current.
+- **Sheets from before v1.18:** a sheet already set up gets its sheet title as its nickname on the first load.
+- **Remove this sheet** (main screen) removes only the current one; removing the last sheet clears everything as before. **Forget everything** (setup screen) clears all.

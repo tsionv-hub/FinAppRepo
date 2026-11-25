@@ -283,3 +283,5 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .ofsel button { flex: none; }
 #hl .g.hsel { background: var(--hsel); border-radius: 8px; padding-inline: 6px; margin-inline: -6px; transition: background .3s; }
 .leg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline-end: 5px; vertical-align: -1px; }
+.sheetbar { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; }
+.sheetbar select { width: auto; max-width: 100%; font-weight: 600; padding: 5px 8px; border-radius: 8px; }

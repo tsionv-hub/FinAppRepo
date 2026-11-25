@@ -17,6 +17,7 @@
 </head>
 <body>
 <div class="top"><h1><span data-t="title"></span> <span class="ver-top" id="verTop"></span></h1><div class="topb"><button class="s hw" id="helpBtn" data-t="hwBtn"></button><button class="s" id="lb"></button></div></div>
+<div class="sheetbar" id="sheetBar" hidden><span aria-hidden="true">📄</span><select id="sheetSel"></select></div>
 <div class="sub"><span id="upd"></span><button class="s" id="reload" data-t="reload" hidden></button></div>
 <div class="card demo" id="demoBar" hidden><span data-t="demoBar"></span><button class="s" id="demoExit" data-t="demoExit"></button></div>
 <div class="card" id="msg" hidden></div>
@@ -25,9 +26,17 @@
 <section id="setup" hidden>
   <div class="card" id="setupSheet" hidden>
     <h2 data-t="setupT"></h2>
+    <div id="savedBox" hidden>
+      <label for="savedSel" data-t="savedL"></label>
+      <select id="savedSel"></select>
+      <button id="savedGo" style="margin-top:8px;width:100%" data-t="savedGo"></button>
+      <div class="dsec" style="margin-top:16px" data-t="orNew"></div>
+    </div>
     <p class="lbl" data-t="setupN"></p>
     <label for="sid" data-t="sheetL"></label>
     <input type="text" id="sid" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="url">
+    <label for="snick" style="margin-top:8px" data-t="nickL"></label>
+    <input type="text" id="snick" maxlength="40" autocomplete="off" data-p="nickP">
     <div class="lbl bad" id="sidErr"></div>
     <button id="sidGo" style="margin-top:8px;width:100%" data-t="cont"></button>
   </div>
@@ -57,7 +66,7 @@
   </div>
   <div class="card">
     <p class="lbl" data-t="tplN"></p>
-    <div class="foot" style="justify-content:flex-start;margin:0"><button class="s" id="tplBtn" data-t="tpl"></button><button class="s" id="exBtn" data-t="exDl"></button><button class="s" id="setupForget" data-t="forget"></button><button class="s" id="setupDiag" data-t="diag"></button><a class="fb" id="fbBtn2" data-t="fb" hidden></a></div>
+    <div class="foot" style="justify-content:flex-start;margin:0"><button class="s" id="tplBtn" data-t="tpl"></button><button class="s" id="exBtn" data-t="exDl"></button><button class="s" id="setupForget" data-t="forgetAll"></button><button class="s" id="setupDiag" data-t="diag"></button><a class="fb" id="fbBtn2" data-t="fb" hidden></a></div>
   </div>
 </section>
 

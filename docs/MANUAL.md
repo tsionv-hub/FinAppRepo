@@ -30,12 +30,14 @@ You'll see a made-up household. Change things, tap rows, move the slider; nothin
 Always open the app from its icon.
 
 ### c. Connect
-1. Paste your sheet's link (in Google Sheets: **Share** → **Copy link**) → **Continue**.
+1. Paste your sheet's link (in Google Sheets: **Share** → **Copy link**), give it a short **nickname** (e.g. *Home*) → **Continue**.
 2. Tap **Continue with Google** → choose your account.
 3. Google shows **"Google hasn't verified this app"**. That's normal for a private app: tap **Advanced** → **Go to Finance Planner** → **Continue**.
 4. The **Sheet check** shows what was found. When everything has a ✓, tap **Open the planner**.
 
 Next time: open the icon → **Continue with Google**. You sign in again each time on purpose; the app keeps no login on the phone.
+
+**Several sheets** (for example your own and your parents'): the nickname of the open sheet is shown at the top. Tap it to switch sheets, **Add a sheet** (link + nickname) or **Rename this sheet**. Each sheet is checked once the first time you open it. You need to be signed in with a Google account that can open the sheet. **Remove this sheet** (bottom) takes it off the list; the sheet itself isn't touched.
 
 ---
 
@@ -123,7 +125,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 - Your numbers go only between your phone and your Google Sheet.
 - The person who sent you the app **cannot** see your sheet or your numbers.
 - If you fill in `fund_number`, only those fund numbers are sent to data.gov.il (the government's public data site) to fetch public fund data. No amounts, names or account numbers.
-- The phone keeps only your sheet link, language and (if you add one) your Gemini key. **Forget this sheet** (bottom of the app) removes them.
+- The phone keeps only your sheets' IDs and nicknames, your language, a few display choices and (if you add one) your Gemini key. **Remove this sheet** (bottom of the app) takes one sheet off; removing the last one, or **Forget everything** on the first screen, clears it all.
 - Two optional exceptions to "only between your phone and your sheet": **fund numbers** go to data.gov.il as above, and **Ask AI** (see section 5).
 
 ---
