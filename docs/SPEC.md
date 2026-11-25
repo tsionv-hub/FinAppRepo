@@ -152,3 +152,6 @@ When every eligible account is empty, monthly saving and yearly cash are split e
 ### 12.5 Early retirement panel and layout (v1.5)
 - `retirement_age` blank = **60**. Early retirement has its own panel: start (January of birth_year + age), last year, pension start, years, monthly allowance, total, status, money set aside today, share covered by the pension, and the age/allowance fields with their Save button (moved from Assumptions).
 - Every panel has a 🤔 button with a short explanation (it never opens or closes the panel). Panels are grouped as Today / Your plans / Details & settings, with a sticky jump bar; closed panels show a key value in their header (status badge, total, next date).
+
+### 12.6 Sections (v1.8)
+Quick look (your money today, projection) · Your money & goals (holdings with money by type on top, goals, loans) · Retirement & pension (early retirement, pension) · Settings (assumptions). The Next goals panel was removed. Only the projection starts open.

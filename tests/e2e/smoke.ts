@@ -138,7 +138,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(Number((await txt('#debt')).replace(/\D/g, '')) === postN - 86000, 'after debts = post-tax − ₪86,000 owed');
   ok((await txt('#goals .g[data-gd]:has-text("Family vacation")')).includes('every year until 2032'), 'recurring goal shows as one row: ' + (await txt('#goals .g[data-gd]:has-text("Family vacation") .lbl')));
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
-  ok((await page.locator('#nx .g').count()) === 3, 'next goals shows three');
+  ok(!(await page.$('#pNext')) && !(await page.$('#pBk')), 'no separate Next goals or by-type panels');
   ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).map((d) => d.id).join()) === 'pProj', 'only the projection graph starts open');
   ok(/Yourmoneytoday🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Afterdebts₪[\d,]+Freetospendtoday₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
   ok(await page.evaluate(() => {
@@ -186,7 +186,15 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(decodeURIComponent(fbHref!).includes('Version: ') && !/₪|\d{5,}/.test(decodeURIComponent(fbHref!).replace(/Mozilla.*$/s, '')), 'feedback email has version and device, no amounts');
 
   // 2d. New layout: groups, jump bar, early retirement panel, 🤔 on every panel.
-  ok((await page.locator('.grp').allTextContents()).join('|') === 'Today|Your plans|Details & settings', 'panels are grouped: Today, Your plans, Details & settings');
+  ok((await page.locator('.grp').allTextContents()).join('|') === 'Quick look|Your money & goals|Retirement & pension|Settings', 'sections: Quick look, Your money & goals, Retirement & pension, Settings');
+  ok((await page.$$eval('#app details.card', (ds) => ds.map((d) => d.id).join())) === 'pToday,pProj,pHold,pGoals,lnCard,pRet,pPen,pAss', 'panel order: today, projection, holdings, goals, loans, retirement, pension, assumptions');
+  ok(await page.evaluate(() => !!document.querySelector('#pHold #bk .bk') && document.querySelector('#pHold #bk')!.compareDocumentPosition(document.querySelector('#pHold #hl')!) === Node.DOCUMENT_POSITION_FOLLOWING), 'Holdings shows money by type above the account list');
+  ok(!(await txt('.hint')).includes('💡'), 'no light bulb in the tip line');
+  await page.evaluate(() => { document.querySelectorAll('details.card').forEach((d) => ((d as HTMLDetailsElement).open = false)); window.scrollTo(0, 0); });
+  await page.screenshot({ path: OUT + '/sections.png', fullPage: true });
+  await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
+  await page.locator('#pHold').screenshot({ path: OUT + '/holdings.png' });
+  await page.evaluate(() => ((document.getElementById('pProj') as HTMLDetailsElement).open = true));
   ok(await page.evaluate(() => getComputedStyle(document.getElementById('jump')!).position === 'sticky'), 'the jump bar stays at the top while scrolling');
   await page.click('#jump [data-go=pRet]');
   const retTxt = await txt('#retBody');
@@ -194,7 +202,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(/Age 55.*On track/.test(await txt('#retK')), 'the closed retirement panel shows age and status in its header: ' + (await txt('#retK')));
   await page.locator('#pRet').screenshot({ path: OUT + '/panel-retirement.png' });
   const keys = await page.$$eval('.hq[data-help]', (bs) => bs.map((b) => (b as HTMLElement).dataset.help!));
-  ok(keys.length === 10, 'every panel has a 🤔 button (' + keys.length + ')');
+  ok(keys.length === 8, 'every panel has a 🤔 button (' + keys.length + ')');
   for (const key of keys) {
     const before = await page.$eval(`.hq[data-help=${key}]`, (b) => (b.closest('details') as HTMLDetailsElement).open);
     await page.click(`.hq[data-help=${key}]`);
