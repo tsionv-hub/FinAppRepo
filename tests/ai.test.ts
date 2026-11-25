@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { systemPrompt, type AiSnapshot } from '../src/ai/context';
-import { ask, AiError, looksLikeKey, resetModel } from '../src/ai/gemini';
+import { ask, AiError, cleanKey, looksLikeKey, resetModel } from '../src/ai/gemini';
 import { parseGoals, parseHoldings, parseLoans, parsePension, parseSettings } from '../src/model';
 import { goalsRows, holdingsRows, pensionRows, settingsRows } from './fixture';
 
@@ -45,9 +45,11 @@ describe('Gemini client', () => {
   const ok = (text: string) => new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }), { status: 200 });
   const err = (status: number, message: string) => new Response(JSON.stringify({ error: { message } }), { status });
 
-  it('recognises key format', () => {
+  it('accepts any key format (the test call decides), only rejects what is clearly too short', () => {
     expect(looksLikeKey('AIza' + 'x'.repeat(35))).toBe(true);
+    expect(looksLikeKey('AQ.' + 'Ab3_-'.repeat(8))).toBe(true);
     expect(looksLikeKey('sk-123')).toBe(false);
+    expect(cleanKey('  AQ.abc\n def" ')).toBe('AQ.abcdef');
   });
 
   it('sends the key in a header, not the URL, and returns the answer', async () => {

@@ -18,8 +18,14 @@ export interface ChatTurn {
   text: string;
 }
 
+/** Cleans a pasted key (spaces, line breaks, quotes). */
+export function cleanKey(k: string): string {
+  return k.replace(/[\s"'“”]/g, '');
+}
+
+/** Only rejects what clearly isn't a key (too short); the test call decides the rest. */
 export function looksLikeKey(k: string): boolean {
-  return /^AIza[0-9A-Za-z_-]{30,}$/.test(k.trim());
+  return cleanKey(k).length >= 20;
 }
 
 let workingModel: string | null = null;

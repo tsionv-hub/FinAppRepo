@@ -5,7 +5,7 @@
 // while the chat is open and is gone when it closes.
 
 import { systemPrompt } from '../ai/context';
-import { AiError, ask, looksLikeKey, type ChatTurn } from '../ai/gemini';
+import { AiError, ask, cleanKey, looksLikeKey, type ChatTurn } from '../ai/gemini';
 import { get, KEYS, remove, set } from '../storage';
 import { aiSnapshot, openDialog } from './app';
 import { t } from './i18n';
@@ -22,6 +22,10 @@ let isDemo: () => boolean = () => false;
 let remindedThisOpening = false;
 let history: ChatTurn[] = [];
 let busy = false;
+/** Set while the key setup popup is the one showing. */
+let keySetupShown = false;
+/** True between tapping the AI Studio link and coming back. */
+let awayToStudio = false;
 
 function closeDlg(): void {
   const d = $<HTMLDialogElement>('dlg');
@@ -51,14 +55,27 @@ function reminder(): void {
 
 function keySetup(msg = ''): void {
   openDialog(t('aiKT'), '', `<ol class="steps"><li>${t('aiK1')}</li><li>${t('aiK2')}</li><li>${t('aiK3')}</li><li>${t('aiK4')}</li></ol>`
-    + `<a class="hwlink" href="${AI_STUDIO}" target="_blank" rel="noopener">${t('aiKLink')}</a>`
+    + `<a class="hwlink" id="aiStudio" href="${AI_STUDIO}" target="_blank" rel="noopener">${t('aiKLink')}</a>`
     + `<label for="aiKey" style="margin-top:12px">${t('aiKL')}</label><input type="text" id="aiKey" autocomplete="off" autocapitalize="off" spellcheck="false">`
     + `<div class="lbl" id="aiKMsg" style="margin-top:6px">${msg}</div>`
     + `<div class="ai-btns"><button data-ai="savekey">${t('aiKSave')}</button></div><p class="lbl">${t('aiKN')}</p>`);
+  keySetupShown = true;
+}
+
+/**
+ * Coming back from AI Studio: on iPhone the page opens on top of the app and can
+ * even reload it, so the steps and the paste box come back by themselves.
+ */
+export function resumeKeySetup(): void {
+  if (!get(KEYS.aiSetup) || get(KEYS.aiKey) || !get(KEYS.aiOk)) return;
+  if ($<HTMLDialogElement>('dlg').open && keySetupShown) return;
+  if ($('app').hidden) return;
+  remindedThisOpening = true; // they just accepted the privacy note
+  keySetup(t('aiKBack'));
 }
 
 async function saveKey(): Promise<void> {
-  const key = $<HTMLInputElement>('aiKey').value.trim();
+  const key = cleanKey($<HTMLInputElement>('aiKey').value);
   const m = $('aiKMsg');
   if (!looksLikeKey(key)) {
     m.textContent = t('aiKBad');
@@ -70,10 +87,12 @@ async function saveKey(): Promise<void> {
   try {
     await ask(key, 'Reply with the single word OK.', [{ role: 'user', text: 'ping' }]);
     set(KEYS.aiKey, key);
+    remove(KEYS.aiSetup);
     closeDlg();
     openChat();
   } catch (e) {
-    m.textContent = t('aiKFail', { c: (e as AiError).code ?? 'error' });
+    // Show Google's own reason, so a wrong key, a key without Gemini access, etc. are clear.
+    m.textContent = t('aiKFail', { c: String((e as Error).message ?? e).slice(0, 160) });
     m.className = 'lbl bad';
   }
 }
@@ -151,6 +170,23 @@ export function initAi(demo: () => boolean): void {
       startAi();
     }
     if (a === 'savekey') saveKey();
+  });
+  // Leaving for AI Studio: remember we're mid-setup.
+  $('dlgB').addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('#aiStudio')) {
+      set(KEYS.aiSetup, '1');
+      awayToStudio = true;
+    }
+  });
+  // Closing the key setup on purpose ends it; the popup closing for any other reason doesn't.
+  $('dlg').addEventListener('close', () => {
+    if (keySetupShown && !awayToStudio && !get(KEYS.aiKey)) remove(KEYS.aiSetup);
+    keySetupShown = false;
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    awayToStudio = false;
+    resumeKeySetup();
   });
   $('aiSend').addEventListener('click', () => send($<HTMLTextAreaElement>('aiIn').value));
   $<HTMLTextAreaElement>('aiIn').addEventListener('keydown', (e) => {

@@ -52,6 +52,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     await route.fulfill({ status: 302, headers: { location: back } });
   });
   await ctx.route('https://oauth2.googleapis.com/revoke**', (r) => r.fulfill({ json: {} }));
+  await ctx.route('https://aistudio.google.com/**', (r) => r.fulfill({ contentType: 'text/html', body: '<p>AI Studio (mock)</p>' }));
   await ctx.route('https://generativelanguage.googleapis.com/**', async (route) => {
     const r = route.request();
     const body = r.postDataJSON() as { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: { text: string }[] }[] };
@@ -373,14 +374,25 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('[data-ai=agree]');
   ok((await txt('#dlgT')).includes('Connect your free Gemini key') && (await page.locator('#dlgB ol.steps li').count()) === 4 && (await page.getAttribute('#dlgB a.hwlink', 'href')) === 'https://aistudio.google.com/apikey', 'then step-by-step key setup with a link to AI Studio');
   await page.screenshot({ path: OUT + '/ai-key.png' });
-  await page.fill('#aiKey', 'sk-not-a-gemini-key');
+  ok((await txt('#dlgB ol.steps')).includes('tap Done at the top') && !(await txt('#dlgB')).includes('AIza'), 'the steps say how to come back, and assume no key format');
+  // Going to AI Studio: even if the phone reloads the app, the setup comes back.
+  const [studio] = await Promise.all([ctx.waitForEvent('page'), page.click('#aiStudio')]);
+  await studio.close();
+  ok((await page.evaluate(() => localStorage.getItem('fp_ai_setup'))) === '1', 'tapping the AI Studio link remembers the setup is in progress');
+  await page.reload();
+  await page.click('#signIn');
+  await page.waitForSelector('#app:not([hidden])');
+  await page.waitForFunction(() => (document.getElementById('dlg') as HTMLDialogElement).open);
+  ok((await txt('#dlgT')).includes('Connect your free Gemini key') && (await txt('#aiKMsg')).startsWith('Welcome back'), 'coming back (even after a reload) reopens the key setup: ' + (await txt('#aiKMsg')));
+  await page.fill('#aiKey', 'sk-too-short');
   await page.click('[data-ai=savekey]');
-  ok((await txt('#aiKMsg')).includes('starts with “AIza”'), 'a wrong key is caught before saving');
-  const KEY = 'AIza' + 'x'.repeat(35);
-  await page.fill('#aiKey', KEY);
+  ok((await txt('#aiKMsg')).includes('too short'), 'only an obviously wrong key is caught before testing');
+  const KEY = 'AQ.' + 'Ab3_-'.repeat(8);
+  await page.fill('#aiKey', '  ' + KEY + '\n');
   await page.click('[data-ai=savekey]');
   await page.waitForFunction(() => (document.getElementById('aiChat') as HTMLDialogElement).open);
-  ok(aiCalls.length === 1 && aiCalls[0].key === KEY && !aiCalls[0].url.includes(KEY), 'the key is tested once (sent in a header, not the URL), then the chat opens');
+  ok(aiCalls.length === 1 && aiCalls[0].key === KEY && !aiCalls[0].url.includes(KEY), 'a key in another format is tested for real (spaces removed, sent in a header), then the chat opens');
+  ok(!(await page.evaluate(() => localStorage.getItem('fp_ai_setup'))), 'once the key works, the setup is no longer pending');
   ok((await page.locator('#aiLog .ai-ex button').count()) === 3, 'the chat suggests example questions');
   await page.fill('#aiIn', 'How many holdings with Vendor 2?');
   await page.click('#aiSend');
