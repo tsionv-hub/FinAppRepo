@@ -2,7 +2,7 @@
 // Tabs are read by column name, so column order in the sheet is free.
 
 import type { Goal, Holding, Loan, PensionFund, Scenario, Settings, TaxType } from './types';
-import { INVEST_TYPES, REINVEST_TYPE } from './types';
+import { GROUPS, INVEST_TYPES, REINVEST_TYPE, type HoldingGroup } from './types';
 
 export type Cell = string | number | boolean | null | undefined;
 export type Rows = Cell[][];
@@ -97,6 +97,9 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
       const rate = fx[String(x.currency ?? 'ILS').trim()] ?? 1;
       const value = num(x.current_amount) * rate;
       return {
+        id: String(x.id).trim(),
+        row: x._row,
+        group: groupOf(x.group, String(x.type).trim()),
         name: String(x.name ?? ''),
         vendor: String(x.vendor ?? ''),
         owner: String(x.owner ?? ''),
@@ -118,11 +121,45 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
           quantity: numOrNull(x.quantity),
           lastUpdated: String(x.last_updated ?? '').trim(),
           notes: String(x.notes ?? '').trim(),
+          fundNumber: String(x.fund_number ?? '').trim(),
+          short: String(x.short_name ?? '').trim(),
         },
       };
     });
   H.push(reinvestmentHolding(H));
   return H;
+}
+
+/** Common Israeli fund and insurance companies → short labels. Public company names only. */
+const VENDOR_SHORT: [RegExp, string][] = [
+  [/migdal|מגדל/i, 'MG'], [/hachshara|הכשרה/i, 'HAC'], [/phoenix|פניקס/i, 'PHX'], [/analyst|אנליסט/i, 'ANL'],
+  [/\bmor\b|^מור/i, 'MOR'], [/yelin|ילין/i, 'YL'], [/meitav|מיטב/i, 'MTV'], [/altshuler|אלטשולר/i, 'ALT'],
+  [/psagot|פסגות/i, 'PSG'], [/harel|הראל/i, 'HRL'], [/clal|כלל/i, 'CLL'], [/menora|מנורה/i, 'MNR'],
+  [/more|מור/i, 'MOR'], [/infinity|אינפיניטי/i, 'INF'], [/ibi|אי בי אי/i, 'IBI'], [/excellence|אקסלנס/i, 'EXL'],
+];
+
+/**
+ * A short chart label: the short_name column, else the vendor's short form plus
+ * the last digits shown in the name (e.g. "Fund ...6256" → "PHX 6256"), else the owner's initial.
+ */
+export function shortName(h: Holding): string {
+  if (h.info?.short) return h.info.short;
+  const v = h.vendor.trim();
+  const ab = VENDOR_SHORT.find(([re]) => re.test(v))?.[1] ?? (v ? v.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 3).toUpperCase() : '');
+  const digits = /(\d{3,})\s*$/.exec(h.name)?.[1]?.slice(-4) ?? '';
+  const tail = digits || (h.owner ? h.owner.trim().charAt(0).toUpperCase() : '');
+  return [ab || h.name.slice(0, 6), tail].filter(Boolean).join(' ');
+}
+
+/** The holding's group: the `group` column if it names one, else from the type. */
+export function groupOf(col: Cell, type: string): HoldingGroup {
+  const g = String(col ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
+  if ((GROUPS as string[]).includes(g)) return g as HoldingGroup;
+  if (type === 'Study fund') return 'study_fund';
+  if (type === 'Cash') return 'bank';
+  if (type === 'Stocks' || type === 'Stocks (unvested)') return 'stocks';
+  if (type === 'Brokerage') return 'trading';
+  return 'fund';
 }
 
 /** Liquid, capital-gain taxed, return = value-weighted average of the investment-type holdings. */
@@ -137,6 +174,7 @@ export function reinvestmentHolding(H: Holding[]): Holding {
   }
   return {
     name: REINVEST_TYPE,
+    group: 'fund',
     synthetic: true,
     vendor: '',
     owner: '',

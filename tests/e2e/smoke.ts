@@ -21,7 +21,15 @@ const loansX = [
   ['L1', 'Car loan', 'P1', 'installments', 36000, 4, 1500, '', '', ''],
   ['L2', 'Loan from parents', 'P2', 'lump_sum', 50000, 0, '', 2029, 9, ''],
 ];
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX };
+const depositsX = [
+  ['deposit_id', 'holding_id', 'date', 'amount', 'currency', 'notes', 'holding_name'],
+  ['D1', 'H3', 30000, 25000, 'USD', 'first', 'Broker C'],
+  ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
+];
+// fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
+const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '22, 33' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
+let govCalls = 0;
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -38,6 +46,10 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  // Holding groups start closed; open them all so the checks can tap rows (closing is checked below).
+  await ctx.addInitScript(() => {
+    if (!localStorage.getItem('fp_hold_open')) localStorage.setItem('fp_hold_open', JSON.stringify(['study_fund', 'fund', 'trading', 'bank', 'stocks', 'pension']));
+  });
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -63,6 +75,18 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     const q = body.contents[body.contents.length - 1].parts[0].text;
     return route.fulfill({ json: { candidates: [{ content: { parts: [{ text: q === 'ping' ? 'OK' : `**Answer** to: ${q}` }] } }] } });
   });
+  await ctx.route('https://data.gov.il/**', async (route) => {
+    govCalls++;
+    const q = new URL(route.request().url()).searchParams;
+    const ids = JSON.parse(q.get('filters')!).FUND_ID as number[];
+    const db = q.get('resource_id')!.startsWith('c6c6') ? 'bituach' : 'gemel';
+    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12, 'gemel:33': 10 };
+    const records = ids.filter((id) => known[db + ':' + id] != null).map((id) => ({
+      FUND_ID: id, FUND_NAME: 'Mock fund ' + id, REPORT_PERIOD: 202610, AVG_ANNUAL_YIELD_TRAILING_5YRS: known[db + ':' + id], AVG_ANNUAL_YIELD_TRAILING_3YRS: 11,
+      YEAR_TO_DATE_YIELD: 6.5, AVG_ANNUAL_MANAGEMENT_FEE: 0.66, TOTAL_ASSETS: 1000, STOCK_MARKET_EXPOSURE: 480, FOREIGN_EXPOSURE: 520,
+    }));
+    return route.fulfill({ json: { success: true, result: { records } } });
+  });
   await ctx.route('https://sheets.googleapis.com/**', async (route) => {
     const r = route.request();
     const u = new URL(r.url());
@@ -74,6 +98,13 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     if (r.method() !== 'GET') {
       writes.push({ method: r.method(), url: decodeURIComponent(u.pathname), body: r.postDataJSON() });
       return route.fulfill({ json: {} });
+    }
+    // Single-cell formula read (deposited_amount before a deposit): the mock sheet has no formulas.
+    const one = /\/values\/'([^']+)'!([A-Z]+)(\d+)$/.exec(decodeURIComponent(u.pathname));
+    if (one && u.searchParams.get('valueRenderOption') === 'FORMULA') {
+      const t = tabs[one[1]] ?? [];
+      const ci = one[2].charCodeAt(0) - 65;
+      return route.fulfill({ json: { values: [[t[+one[3] - 1]?.[ci] ?? '']] } });
     }
     if (u.searchParams.get('fields')) return route.fulfill({ json: { properties: { title: 'Test sheet' }, sheets: Object.keys(tabs).map((title) => ({ properties: { title } })) } });
     const ranges = u.searchParams.getAll('ranges');
@@ -96,6 +127,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.evaluate(() => ((document.getElementById('pRet') as HTMLDetailsElement).open = true));
   await page.click('#rb2');
   ok((await txt('#gm')) === 'This is example data, so nothing is saved.', 'example mode: save buttons save nothing');
+  await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 4 && (await txt('#ofc')).includes('Example: these official figures are made up.'), 'example mode shows the official returns chart with made-up figures (no network): ' + (await page.locator('#ofc svg .ofc-col').count()));
+  ok(govCalls === 0, 'example mode does not call data.gov.il');
+  ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'KIDS,PRO 4821,PRO A,PRO S', 'example chart labels: short_name and vendor short forms');
+  ok((await page.locator('#hl details.hgd').count()) === 6, 'example shows all six holding groups');
+  await page.locator('#pHold').screenshot({ path: OUT + '/example-holdings.png' });
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
   await page.click('#demoExit');
   await page.waitForSelector('#setupSheet:not([hidden])');
@@ -133,7 +170,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 5, 'checklist lists the five tabs (Loans included)');
+  ok((await page.locator('#chkList .ck').count()) === 8, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the missing optional group column');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -328,7 +365,87 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(await dlgOpen(), 'tapping a holding opens its details');
   ok((await txt('#dlgT')) === 'Broker C' && /USD.*60,000 at 3\.700/.test(await txt('#dlgB')), 'holding popup shows the sheet amount in USD and the rate');
   ok((await txt('#dlgB')).includes('Return used (Moderate)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
+  const dB = await txt('#dlgB');
+  ok(dB.includes('Total deposited (2)') && /40,000 USD/.test(dB) && dB.includes('Yearly return so far'), 'holding popup lists its deposits (serial and ISO dates), the total and the return so far');
   await page.screenshot({ path: OUT + '/popup-holding.png' });
+  await page.click('#dpS');
+  ok((await txt('#dpM')) === 'Enter a date and an amount.', 'add deposit needs an amount');
+  const nw = writes.length;
+  await page.fill('#dpA', '1000');
+  await page.fill('#dpN', 'test');
+  await page.click('#dpS');
+  await page.waitForFunction(() => document.getElementById('dpM')?.textContent === 'Deposit saved to the Deposits tab.');
+  const dw = writes.slice(nw);
+  const dRow = (dw.find((w) => w.url.includes("'Deposits'") && w.url.endsWith(':append'))?.body as { values: unknown[][] } | undefined)?.values[0];
+  ok(dRow && /^\["D3","H3","\d{4}-\d{2}-\d{2}",1000,"USD","test","Broker C"\]$/.test(JSON.stringify(dRow)), 'deposit appended in the Deposits column order: ' + JSON.stringify(dRow));
+  const hcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('current_amount'));
+  const dcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('deposited_amount'));
+  const dpw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'!" + dcol + '4'));
+  ok(dpw && JSON.stringify((dpw.body as { values: unknown[][] }).values) === '[[41000]]', 'a typed deposited_amount gets the deposit added: ' + dpw?.url);
+  const vw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'!" + hcol));
+  ok(vw && vw.url.includes(hcol + '4') && JSON.stringify((vw.body as { values: unknown[][] }).values) === '[[61000]]', 'and the holding value goes up by the deposit: ' + vw?.url);
+  ok((await dlgOpen()) && (await txt('#dlgT')) === 'Broker C', 'the popup stays open after saving');
+  await page.click('#dlgX');
+  const grps = await page.$$eval('#hl .hgrp span:first-child', (e) => e.map((x) => x.textContent));
+  ok(JSON.stringify(grps.slice(0, 5)) === JSON.stringify(['Study funds (1)', 'Funds and savings (2)', 'Trading accounts (2)', 'Bank (1)', 'Intel stocks (2)']) && grps[5]?.startsWith('Pension'), 'holdings are split into groups: ' + grps.join(', '));
+  ok(await page.$eval('#hl details.hgd[data-g=bank]', (d) => !!d.querySelector('.g') && d.querySelector('.g')!.textContent!.includes('Checking')), 'rows sit under their group');
+  ok(govCalls === 2, 'official data: one request per database (Gemel-Net, Bituach-Net): ' + govCalls);
+  ok((await txt('#hl .g:has-text("Invest B")')).includes('5y avg 9.4% (official)'), 'a holding with a fund number uses the official 5-year average: ' + (await txt('#hl .g:has-text("Invest B") .lbl')));
+  const bankG = '#hl details.hgd[data-g=bank]';
+  await page.click(bankG + ' > summary');
+  ok(!(await page.isVisible('#hl .g:has-text("Checking")')) && (await txt(bankG + ' > summary')).startsWith('Bank (1)'), 'a holding group collapses, its header (count and total) stays');
+  await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '1'; e.dispatchEvent(new Event('input')); });
+  await page.waitForTimeout(400);
+  ok(!(await page.$eval(bankG, (d) => (d as HTMLDetailsElement).open)) && (await page.$eval('#hl details.hgd[data-g=fund]', (d) => (d as HTMLDetailsElement).open)), 'open and closed groups are kept when the panel redraws');
+  await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '0'; e.dispatchEvent(new Event('input')); });
+  await page.click(bankG + ' > summary');
+  ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
+  const cols = () => page.$$eval('#ofc svg', (s) => [...s[0].querySelectorAll('text')].map((x) => x.textContent!.replace(/^(.+?)\1$/, '$1')).join('|'));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '11.0|VEN P|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else vendor + owner): ' + (await cols()));
+  await page.click('#ofc [data-ofp=ytd]');
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
+  await page.click('#ofc [data-ofp=avg5]');
+  ok((await page.locator('#ofc svg rect.tc-invest').count()) === 1 && (await page.locator('#ofc svg rect.tc-save').count()) === 1 && (await txt('#ofc .leg')) === 'Investment fundSavings plan' && (await page.$eval('#ofc .leg .sw.tc-invest', (e) => e.getBoundingClientRect().width)) >= 8, 'columns are coloured by holding type, with a legend: ' + (await txt('#ofc .leg')));
+  await page.click('#ofc [data-oh=H2] .ofhit');
+  ok((await txt('#hl .g.hsel b')) === 'Invest B' && (await page.locator('#ofc .ofc-col.dim').count()) === 1 && (await txt('#ofc .ofsel')).startsWith('INV-B · Invest B · Investment fund'), 'tapping a column highlights its holding in the list and names it under the chart');
+  await page.locator('#pHold').screenshot({ path: OUT + '/ofc-selected.png' });
+  await page.click('#ofc [data-ofgo]');
+  await page.click('#ofc [data-oh=H2] .ofhit');
+  ok((await page.locator('#hl .g.hsel').count()) === 0 && (await page.locator('#ofc .ofc-col.dim').count()) === 0, 'tapping it again clears the highlight');
+  ok(/to Oct 2026/.test(await txt('#ofc')), 'the chart says which month the data is from');
+  await page.locator('#pHold').screenshot({ path: OUT + '/holdings-official.png' });
+  await page.click('#hl .g:has-text("Invest B")');
+  const ob = await txt('#dlgB');
+  ok(ob.includes('Official data (Gemel-Net)') && ob.includes('5-year yearly average9.4%') && ob.includes('In stocks48%') && ob.includes('Your sheet says 8%'), 'popup shows the official figures and the sheet return');
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Savings D")');
+  const sb = await txt('#dlgB');
+  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('50% of this holding') && sb.includes('Mock fund 33 · 50% of this holding · Gemel-Net') && sb.includes('Return used: 11%'), 'a policy track missing from Bituach-Net is found in Gemel-Net; split evenly (12 and 10 → 11%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Study A")');
+  ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Checking")');
+  ok((await page.inputValue('#bvA')) === '80000' && (await page.locator('#dpS').count()) === 0, 'bank popup offers a balance update (no deposits), prefilled');
+  let n0 = writes.length;
+  await page.fill('#bvA', '85000');
+  await page.click('#bvS');
+  await page.waitForFunction(() => document.getElementById('bvM')?.textContent === 'Balance saved to the Holdings tab.');
+  const bw = writes.slice(n0).find((w) => w.method === 'PUT');
+  ok(bw && bw.url.includes("'Holdings'!" + hcol + '6') && JSON.stringify((bw.body as { values: unknown[][] }).values) === '[[85000]]', 'bank balance written to current_amount: ' + bw?.url);
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Intel vested")');
+  ok((await page.locator('#grS').count()) === 1 && (await txt('#dlgB')).includes('“Intel unvested”'), 'stocks popup offers a grant, added to the unvested holding');
+  n0 = writes.length;
+  await page.fill('#grN', '120');
+  await page.click('#grS');
+  await page.waitForFunction(() => document.getElementById('grM')?.textContent === 'Grant saved to the Grants tab.');
+  const gw = writes.slice(n0);
+  const gRow = (gw.find((w) => w.url.includes("'Grants'") && w.url.endsWith(':append'))?.body as { values: unknown[][] } | undefined)?.values[0];
+  ok(gRow && /^\["GR1","H7","\d{4}-\d{2}-\d{2}",120,""\]$/.test(JSON.stringify(gRow)), 'grant appended in the Grants column order: ' + JSON.stringify(gRow));
+  const qcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('quantity'));
+  const qw = gw.find((w) => w.method === 'PUT');
+  ok(qw && qw.url.includes("'Holdings'!" + qcol + '8') && JSON.stringify((qw.body as { values: unknown[][] }).values) === '[[120]]', 'and the shares are added to the unvested quantity: ' + qw?.url);
   await page.mouse.click(5, 5);
   ok(!(await dlgOpen()), 'tapping outside closes the popup');
   await page.click('#hl .g:has-text("Pension 1")');

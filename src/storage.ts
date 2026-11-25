@@ -22,6 +22,10 @@ export const KEYS = {
   aiSetup: P + 'ai_setup',
   /** Ask AI "Don't send my data" (app questions only). */
   aiPrivate: P + 'ai_private',
+  /** Holdings panel: which groups are open (UI choice only). */
+  holdOpen: P + 'hold_open',
+  /** Holdings panel: period shown in the official returns chart (UI choice only). */
+  ofcPeriod: P + 'ofc_period',
 } as const;
 
 function ls(): Storage | null {

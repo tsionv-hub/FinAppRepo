@@ -166,3 +166,47 @@ On start and when returning to the app (online), it compares its version with th
 
 ### 12.9 Beta channel (v1.12)
 A `beta` branch is built with `VITE_CHANNEL=beta` and published under `/beta/` as a separate app ("Finance β", BETA-ribbon icon, version shown as `-beta`). It has its own storage prefix (`fpb_`), service worker scope and cache; the stable service worker ignores `/beta/`. Changes land on `beta` first and are released by merging `beta` into `main`.
+
+### 12.10 Deposits (v1.13)
+Optional `Deposits` tab, one row per deposit: `holding_id` (Holdings `id`), `date`, `amount` (holding's currency) required; `deposit_id`, `currency`, `notes` optional; other columns (e.g. a `holding_name` formula) are kept. Dates may be ISO, day-first d/m/y or d.m.y, or a sheet serial. The holding popup lists the holding's deposits, the total, first and last date, and the return so far: the yearly rate r that solves Σ amount·(1+r)^(years since deposit) = current_amount (shown only with a span of two months or more). An add form appends a row in the tab's own column order (`deposit_id` = next `D<n>`) and, if ticked (default), adds the amount to the holding's `current_amount`. `deposited_amount` is read as typed first: a formula (e.g. SUMIFS over Deposits) is left alone, a number gets the deposit added, and a blank becomes the value before the deposit plus the deposit (v1.14.1). The projection still uses `deposited_amount` as the cost basis. Deposits go to Ask AI with the sheet data (holding name, date, amount; no row numbers).
+
+### 12.11 Holding groups, bank balance, share grants (v1.14)
+Holdings gets two optional columns. `group` is one of `study_fund`, `fund`, `trading`, `bank` or `stocks`; when it is blank or unknown, the group comes from `type`: Study fund → study_fund, Cash → bank, Stocks and Stocks (unvested) → stocks, Brokerage → trading, anything else → fund. `fund_number` is free text.
+
+The Holdings panel shows one sub-section per group in that order, then Pension, each with a count and a pre-tax subtotal at the selected month.
+
+The holding popup by group:
+- **study_fund:** details only; the fund number is shown.
+- **fund and trading:** deposits (12.10); the fund number is shown for funds.
+- **bank:** a balance form that writes `current_amount`, in the row's own currency.
+- **stocks:** share grants. A grant goes to the `Stocks (unvested)` holding with the same ticker, or else to the holding tapped. Saving appends a row to the optional Grants tab (`holding_id`, `date` and `shares` required; `grant_id` = next `GR<n>`; `notes`) and adds the shares to that holding's `quantity`. Its value is usually `quantity × GOOGLEFINANCE`.
+
+The projection is unchanged: vesting still uses the Settings vesting values. Groups, fund numbers and grants go to Ask AI.
+
+### 12.12 Official fund data (v1.15)
+For study_fund and fund holdings with a `fund_number`, the app reads the latest month for each number from data.gov.il, which sends CORS `*`. It queries `datastore_search` on the "2024–today" resources: Bituach-Net (`c6c62cc7-…`) for type `Savings plan`, Gemel-Net (`a30dcbea-…`) for everything else. There is one request per database, filtering on `FUND_ID` (list) and sorting by `REPORT_PERIOD` descending. Fund IDs repeat across the two databases, so the database comes from the holding type. A policy can invest through another company's provident fund: a policy track not found in Bituach-Net is looked up in Gemel-Net in the same Gemel-Net request (v1.15.1).
+
+`fund_number` may hold several numbers. The holding is then split evenly between the tracks: return = mean over tracks of (official `AVG_ANNUAL_YIELD_TRAILING_5YRS`, or the sheet's `return_5y_avg_pct` when a track has none or is not found). That return replaces `ret` for the projection, and the Stock reinvestment average is recomputed from it. Fees are never taken from official data; the sheet's fees are kept, because personal fees are usually lower.
+
+The popup shows per track: name, 5-year and 3-year yearly averages, year to date (with month), the fund's average fee next to the user's, and stock and abroad exposure as a percent of assets. The panel marks such returns "(official)".
+
+Results stay in memory for the visit only and are never stored. If the fetch fails, the sheet's returns are used. Demo mode does not fetch. Since v1.17.1 it uses made-up official figures built into `src/example.ts` instead, for made-up fund numbers 99901–99905. Those numbers are above any real fund ID, so a downloaded example sheet never matches a real fund. Demo mode labels these figures as made up. Only fund numbers are sent. The data goes to Ask AI with the holdings. The CSP `connect-src` adds `https://data.gov.il`.
+
+### 12.13 Collapsible groups, official returns chart (v1.16)
+Each Holdings group (including Pension) is a collapsible section. Sections are closed by default, and the open ones are remembered on the phone (`hold_open`, a UI choice).
+
+At the bottom of the Holdings panel, an "Official returns" chart compares every holding with official data in one vertical column chart. A selector picks the period: 5 years or 3 years (yearly averages), or since January. The choice is remembered on the phone (`ofc_period`). A holding split between tracks shows the plain average of its tracks. Columns are sorted best first, in reading order (right to left in Hebrew). Each column shows its value; negative values go below the zero line, and a missing value shows "–". Names are rotated and shortened to 18 characters. The note names the latest month of the data. (v1.16.1)
+
+**v1.17:** Columns are coloured by holding type (study fund, investment fund, savings plan, brokerage, other), with a legend.
+
+Each column is labelled with a short name:
+- the optional Holdings `short_name`, if filled;
+- otherwise a short form of the vendor (a fixed list of public company names, e.g. Migdal → MG, Hachshara → HAC) plus the last 4 digits at the end of the holding name;
+- otherwise the owner's initial instead of the digits.
+
+Tapping a column picks it:
+- the other columns dim;
+- a line under the chart names the holding, with a "Show in list" button that scrolls to it;
+- its row in the list is highlighted, and its group opens.
+
+Tapping the column again clears the pick. Redraws take the groups' open state from the screen, so a fast redraw doesn't undo a close.

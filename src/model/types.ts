@@ -10,7 +10,16 @@ export const REINVEST_TYPE = 'Stock reinvestment';
 /** Holding types whose value-weighted 5y return drives the Stock reinvestment holding. */
 export const INVEST_TYPES = ['Study fund', 'Investment fund', 'Savings plan', 'Brokerage'];
 
+/** Sub-sections of the Holdings panel; each has its own actions in the holding popup. */
+export type HoldingGroup = 'study_fund' | 'fund' | 'trading' | 'bank' | 'stocks';
+export const GROUPS: HoldingGroup[] = ['study_fund', 'fund', 'trading', 'bank', 'stocks'];
+
 export interface Holding {
+  /** The sheet's id (e.g. H9) and row, for deposits and writes. */
+  id?: string;
+  row?: number;
+  /** Holdings `group` column; blank = worked out from the type. */
+  group?: HoldingGroup;
   name: string;
   vendor: string;
   owner: string;
@@ -28,6 +37,28 @@ export interface Holding {
   synthetic?: boolean;
   /** Display-only details from the sheet (account numbers are never read). */
   info?: HoldingInfo;
+  /** return_5y_avg_pct from the sheet, kept when `ret` comes from official data. */
+  retSheet?: number;
+  /** Official data per track (fund_number may hold several; the money is split evenly). */
+  official?: { id: number; o: Official | null }[];
+}
+
+/** One fund or track's latest month in Gemel-Net / Bituach-Net (data.gov.il). Percent values. */
+export interface Official {
+  db: 'gemel' | 'bituach';
+  id: number;
+  name: string;
+  /** YYYYMM */
+  period: number;
+  avg5: number | null;
+  avg3: number | null;
+  ytd: number | null;
+  /** Average management fee across members (for comparison; the app uses the sheet's own fees). */
+  fee: number | null;
+  /** Fund size, millions of ILS. */
+  assetsM: number | null;
+  stocksPct: number | null;
+  foreignPct: number | null;
 }
 
 export interface HoldingInfo {
@@ -44,6 +75,10 @@ export interface HoldingInfo {
   quantity: number | null;
   lastUpdated: string;
   notes: string;
+  /** fund_number column (study funds and funds only). */
+  fundNumber: string;
+  /** short_name column: a label for charts (blank = made from the vendor). */
+  short: string;
 }
 
 export interface PensionFund {

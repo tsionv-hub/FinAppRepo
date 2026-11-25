@@ -8,7 +8,7 @@ export type Tab = { name: string; rows: Val[][] };
 const HOLDINGS_HEAD = [
   'id', 'name', 'vendor', 'account_number', 'owner', 'type', 'investment_style', 'investment_track', 'currency',
   'current_amount', 'deposited_amount', 'return_5y_avg_pct', 'deposit_fee_pct', 'management_fee_pct', 'tax_type',
-  'include_in_total', 'ticker', 'quantity', 'available_from', 'opened_date', 'last_updated', 'notes',
+  'include_in_total', 'ticker', 'quantity', 'available_from', 'opened_date', 'last_updated', 'notes', 'group', 'fund_number', 'short_name',
 ];
 
 /** One generic example row per holding type (SPEC 3.6). Stock values come from GOOGLEFINANCE in the sheet. */
@@ -58,13 +58,13 @@ export const TEMPLATE_TABS: Tab[] = [
     name: 'Holdings',
     rows: [
       HOLDINGS_HEAD,
-      holdingRow(1, { name: 'Study fund A', vendor: 'Provider', owner: 'Person 1', type: 'Study fund', currency: 'ILS', current_amount: 100000, deposited_amount: 80000, return_5y_avg_pct: 7, tax_type: 'none', notes: EX + 'type: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). tax_type: none, capital_gain, income. include_in_total: 1 or 0. Pension goes in the Pension tab.' }),
-      holdingRow(2, { name: 'Investment fund A', vendor: 'Provider', owner: 'Person 1', type: 'Investment fund', currency: 'ILS', current_amount: 50000, deposited_amount: 40000, return_5y_avg_pct: 6, tax_type: 'capital_gain', notes: EX }),
-      holdingRow(3, { name: 'Savings plan A', vendor: 'Provider', owner: 'Person 2', type: 'Savings plan', currency: 'ILS', current_amount: 30000, deposited_amount: 30000, return_5y_avg_pct: 4, tax_type: 'capital_gain', notes: EX }),
-      holdingRow(4, { name: 'Brokerage A', vendor: 'Broker', owner: 'Person 2', type: 'Brokerage', currency: 'USD', current_amount: 10000, deposited_amount: 8000, return_5y_avg_pct: 9, tax_type: 'capital_gain', notes: EX + 'Amounts are in the row’s currency.' }),
-      holdingRow(5, { name: 'Checking', vendor: 'Bank', owner: 'Person 1', type: 'Cash', currency: 'ILS', current_amount: 20000, tax_type: 'none', notes: EX + 'Blank return = 0.' }),
-      holdingRow(6, { name: 'Company shares (vested)', owner: 'Person 1', type: 'Stocks', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 100, return_5y_avg_pct: 0, tax_type: 'income', notes: EX + 'current_amount = quantity × GOOGLEFINANCE price.' }),
-      holdingRow(7, { name: 'Company shares (unvested)', owner: 'Person 1', type: 'Stocks (unvested)', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 200, return_5y_avg_pct: 0, tax_type: 'income', notes: EX + 'Never spendable until vested.' }),
+      holdingRow(1, { name: 'Study fund A', vendor: 'Provider', owner: 'Person 1', type: 'Study fund', currency: 'ILS', current_amount: 100000, deposited_amount: 80000, return_5y_avg_pct: 7, tax_type: 'none', group: 'study_fund', fund_number: 1001, notes: EX + 'group (app panel section): study_fund, fund, trading, bank, stocks; blank = from type. fund_number: the fund\'s number, for study funds and funds. short_name: optional chart label. type: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). tax_type: none, capital_gain, income. include_in_total: 1 or 0. Pension goes in the Pension tab.' }),
+      holdingRow(2, { name: 'Investment fund A', vendor: 'Provider', owner: 'Person 1', type: 'Investment fund', currency: 'ILS', current_amount: 50000, deposited_amount: 40000, return_5y_avg_pct: 6, tax_type: 'capital_gain', group: 'fund', fund_number: 1002, notes: EX }),
+      holdingRow(3, { name: 'Savings plan A', vendor: 'Provider', owner: 'Person 2', type: 'Savings plan', currency: 'ILS', current_amount: 30000, deposited_amount: 30000, return_5y_avg_pct: 4, tax_type: 'capital_gain', group: 'fund', fund_number: 1003, notes: EX }),
+      holdingRow(4, { name: 'Brokerage A', vendor: 'Broker', owner: 'Person 2', type: 'Brokerage', currency: 'USD', current_amount: 10000, deposited_amount: 8000, return_5y_avg_pct: 9, tax_type: 'capital_gain', group: 'trading', notes: EX + 'Amounts are in the row’s currency.' }),
+      holdingRow(5, { name: 'Checking', vendor: 'Bank', owner: 'Person 1', type: 'Cash', currency: 'ILS', current_amount: 20000, tax_type: 'none', group: 'bank', notes: EX + 'Blank return = 0.' }),
+      holdingRow(6, { name: 'Company shares (vested)', owner: 'Person 1', type: 'Stocks', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 100, return_5y_avg_pct: 0, tax_type: 'income', group: 'stocks', notes: EX + 'current_amount = quantity × GOOGLEFINANCE price.' }),
+      holdingRow(7, { name: 'Company shares (unvested)', owner: 'Person 1', type: 'Stocks (unvested)', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 200, return_5y_avg_pct: 0, tax_type: 'income', group: 'stocks', notes: EX + 'Never spendable until vested.' }),
     ],
   },
   {
@@ -90,6 +90,21 @@ export const TEMPLATE_TABS: Tab[] = [
       ['id', 'name', 'owner', 'kind', 'balance_ILS', 'interest_rate_pct', 'monthly_payment_ILS', 'repay_year', 'repay_month', 'notes'],
       ['L1', 'Car loan', 'Person 1', 'installments', 40000, 4, 1200, null, null, EX + 'Optional tab. kind installments: balance_ILS = still owed today, paid monthly_payment_ILS each month until paid off.'],
       ['L2', 'Loan from family', 'Person 2', 'lump_sum', 50000, 0, null, 2029, 1, EX + 'kind lump_sum: the whole balance (plus interest) is repaid on the 1st of repay_month of repay_year.'],
+    ],
+  },
+  {
+    name: 'Deposits',
+    rows: [
+      ['deposit_id', 'holding_id', 'date', 'amount', 'currency', 'notes'],
+      ['D1', 'H2', '2020-01-15', 25000, 'ILS', EX + 'Optional tab: one row per deposit into a fund or trading account. holding_id = the id in Holdings; amount in the holding\'s currency. The app shows them when you tap a holding, and can add new ones.'],
+      ['D2', 'H2', '2023-06-01', 15000, 'ILS', EX],
+    ],
+  },
+  {
+    name: 'Grants',
+    rows: [
+      ['grant_id', 'holding_id', 'date', 'shares', 'notes'],
+      ['GR1', 'H7', '2025-03-01', 200, EX + 'Optional tab: company share grants. holding_id = the unvested shares holding. Adding a grant in the app also adds the shares to that holding\'s quantity.'],
     ],
   },
   {

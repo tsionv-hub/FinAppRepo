@@ -28,7 +28,7 @@ export const RULES: Record<string, TabRule> = {
   Holdings: {
     required: true,
     columns: ['id', 'name', 'type', 'currency', 'current_amount'],
-    optionalColumns: ['vendor', 'owner', 'deposited_amount', 'return_5y_avg_pct', 'tax_type', 'include_in_total'],
+    optionalColumns: ['vendor', 'owner', 'deposited_amount', 'return_5y_avg_pct', 'tax_type', 'include_in_total', 'group', 'fund_number', 'short_name'],
   },
   Pension: {
     required: false,
@@ -39,6 +39,16 @@ export const RULES: Record<string, TabRule> = {
     required: true,
     columns: ['id', 'name', 'target_amount_ILS', 'target_year', 'type'],
     optionalColumns: ['target_month', 'priority', 'notes', 'spend_when_due', 'repeat_every_years', 'repeat_until_year'],
+  },
+  Deposits: {
+    required: false,
+    columns: ['holding_id', 'date', 'amount'],
+    optionalColumns: ['deposit_id', 'currency', 'notes'],
+  },
+  Grants: {
+    required: false,
+    columns: ['holding_id', 'date', 'shares'],
+    optionalColumns: ['grant_id', 'notes'],
   },
   Loans: {
     required: false,
