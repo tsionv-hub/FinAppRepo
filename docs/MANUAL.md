@@ -55,7 +55,7 @@ The screen has four sections: **Quick look** (your money today, projection), **Y
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
 | **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates and the rainy day fund. Changes are "what if" only. |
 | **Loans** | Each loan: what you still owe (at the date on the slider), the payment plan and whether it's on track. Only shown if your sheet has a Loans tab with loans. |
-| **Holdings** | Your money today by type (before tax), then every account at the date on the slider, in sections (study funds, funds and savings, trading accounts, bank, stocks, pension): tap a section's header to open or close it. At the bottom, the **Official returns** chart compares your funds' official returns (see section 6). |
+| **Holdings** | Your money today by type (before tax), then every account at the date on the slider, in sections (study funds, funds and savings, trading accounts, bank, stocks, pension): tap a section's header to open or close it. Next to each account's name, a **%** shows its own yearly return so far, worked out from its deposits (each from its own date) to today's value: greener the higher, red if it lost money. It's shown only for accounts with deposits. At the bottom, the **Official returns** chart compares your funds' official returns (see section 6). |
 
 **Tap any holding, loan or goal** for details. A holding's window also lets you add a deposit (funds and trading accounts), update the balance (bank) or add a share grant (stocks).
 

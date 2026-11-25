@@ -285,3 +285,9 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .leg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline-end: 5px; vertical-align: -1px; }
 .sheetbar { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; }
 .sheetbar select { width: auto; max-width: 100%; font-weight: 600; padding: 5px 8px; border-radius: 8px; }
+/* Holding row: own yearly return pill (colour strength --k from 0.15 to 1) */
+:root { --rp-up: 22, 163, 74; --rp-down: 220, 38, 38; }
+.rp { display: inline-block; margin-inline-start: 6px; padding: 1px 7px; border-radius: 999px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; vertical-align: 1px; white-space: nowrap; }
+.rp.up { background: rgba(var(--rp-up), calc(.12 + .78 * var(--k))); color: rgb(var(--rp-up)); }
+.rp.down { background: rgba(var(--rp-down), calc(.12 + .78 * var(--k))); color: rgb(var(--rp-down)); }
+.rp.strong { color: #fff; }

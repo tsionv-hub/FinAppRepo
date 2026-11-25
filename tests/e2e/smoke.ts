@@ -132,6 +132,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(govCalls === 0, 'example mode does not call data.gov.il');
   ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'KIDS,PRO 4821,PRO A,PRO S', 'example chart labels: short_name and vendor short forms');
   ok((await page.locator('#hl details.hgd').count()) === 6, 'example shows all six holding groups');
+  const pill = (name: string) => page.$eval(`#hl .g:has(b:text-is("${name}")) .rp`, (e) => e.className + ' ' + e.textContent).catch(() => 'none');
+  ok(/^rp up( strong)? \+\d+\.\d%$/.test(await pill('Investment fund ...4821')) && /^rp down( strong)? −\d+\.\d%$/.test(await pill('Old foreign account')), 'holding titles show their own yearly return: green when up, red when down: ' + (await pill('Investment fund ...4821')) + ' / ' + (await pill('Old foreign account')));
+  ok((await pill('Study fund (Alex)')) === 'none', 'no return shown without deposits');
   await page.locator('#pHold').screenshot({ path: OUT + '/example-holdings.png' });
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
   await page.click('#demoExit');
