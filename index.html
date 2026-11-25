@@ -16,7 +16,7 @@
 <link rel="stylesheet" href="/src/ui/style.css">
 </head>
 <body>
-<div class="top"><h1 data-t="title"></h1><div class="topb"><button class="s hw" id="helpBtn" data-t="hwBtn"></button><button class="s" id="lb"></button></div></div>
+<div class="top"><h1><span data-t="title"></span> <span class="ver-top" id="verTop"></span></h1><div class="topb"><button class="s hw" id="helpBtn" data-t="hwBtn"></button><button class="s" id="lb"></button></div></div>
 <div class="sub"><span id="upd"></span><button class="s" id="reload" data-t="reload" hidden></button></div>
 <div class="card demo" id="demoBar" hidden><span data-t="demoBar"></span><button class="s" id="demoExit" data-t="demoExit"></button></div>
 <div class="card" id="msg" hidden></div>
@@ -73,9 +73,6 @@
 </section>
 
 <div id="app" hidden>
-<nav class="jump" id="jump" aria-label="Sections">
-<button data-go="pToday" data-t="jToday"></button><button data-go="pProj" data-t="jProj"></button><button data-go="pHold" data-t="jHold"></button><button data-go="pGoals" data-t="jGoals"></button><button data-go="lnCard" data-t="jLoans" id="jLoans" hidden></button><button data-go="pRet" data-t="jRet"></button><button data-go="pPen" data-t="jPen"></button><button data-go="pAss" data-t="jAss"></button>
-</nav>
 <div class="infl-bar warn" id="inflBar" role="status"><span class="infl-ic" id="inflIc" aria-hidden="true">!</span><div class="infl-txt" id="inflTxt"></div><div class="infl-act"><button class="infl-btn" id="infl" aria-pressed="false"></button><button type="button" class="hq" id="inflHelp" aria-label="?">🤔</button></div></div>
 
 <div class="hint" data-t="hint"></div>

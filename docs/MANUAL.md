@@ -41,7 +41,7 @@ Next time: open the icon → **Continue with Google**. You sign in again each ti
 
 ## 3. What you see
 
-The screen has four sections: **Quick look** (your money today, projection), **Your money & goals** (holdings, goals, loans), **Retirement & pension** and **Settings**. The bar at the top jumps straight to any panel. Tap **➕** to open a panel and **➖** to close it; only the projection graph starts open. Every panel has a **🤔** button with a short explanation.
+The screen has four sections: **Quick look** (your money today, projection), **Your money & goals** (holdings, goals, loans), **Retirement & pension** and **Settings**. Tap **➕** to open a panel and **➖** to close it; only the projection graph starts open. Every panel has a **🤔** button with a short explanation.
 
 | Panel | What it tells you |
 |---|---|
@@ -131,4 +131,4 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 | Sign-in window doesn't open | Tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
 | Ask AI: "prepayment credits are depleted" (402) | The key's Google project is on paid billing with no credit. In AI Studio (ai.studio/projects) create a new project without billing and a key in it, or add credit. |
 | Ask AI: "busy" (503) | Google's free AI is overloaded for a moment; the app already tried other models. Your key is fine: try again in a minute. |
-| Old version after an update | Close the app completely (swipe it away) and reopen it. |
+| Old version after an update | Close the app completely and reopen it while online: it checks for a new version and updates itself. The version is shown at the top, next to the name. |
