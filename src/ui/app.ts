@@ -213,7 +213,11 @@ function openGroups(): Set<string> {
   }
 }
 
-/** Holdings panel, bottom: official returns of every holding that has them. */
+type OfcPeriod = 'avg5' | 'avg3' | 'ytd';
+const OFC: [OfcPeriod, 'ofc5' | 'ofc3' | 'ofcY'][] = [['avg5', 'ofc5'], ['avg3', 'ofc3'], ['ytd', 'ofcY']];
+const ofcPeriod = (): OfcPeriod => (OFC.some(([k]) => k === get(KEYS.ofcPeriod)) ? (get(KEYS.ofcPeriod) as OfcPeriod) : 'avg5');
+
+/** Holdings panel, bottom: one column chart comparing the official return of every holding that has one. */
 function officialChart(): void {
   const el = $('ofc');
   const H = (data?.holdings ?? []).filter((h) => h.official?.some((x) => x.o));
@@ -221,22 +225,42 @@ function officialChart(): void {
     el.innerHTML = '';
     return;
   }
+  const k = ofcPeriod();
   // A holding split between tracks gets the plain average of its tracks (equal shares).
-  const avg = (h: Holding, k: 'avg5' | 'avg3' | 'ytd') => {
+  const val = (h: Holding) => {
     const v = h.official!.map((x) => x.o?.[k]).filter((x): x is number => x != null);
     return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
   };
-  const rowsD = H.map((h) => ({ h, v: { avg5: avg(h, 'avg5'), avg3: avg(h, 'avg3'), ytd: avg(h, 'ytd') } }))
-    .sort((a, b) => (b.v.avg5 ?? -99) - (a.v.avg5 ?? -99) || (b.v.avg3 ?? -99) - (a.v.avg3 ?? -99));
-  const max = Math.max(1, ...rowsD.flatMap((r) => Object.values(r.v).filter((x): x is number => x != null)));
+  const cols = H.map((h) => ({ h, v: val(h) })).sort((a, b) => (b.v ?? -1e9) - (a.v ?? -1e9));
+  const vs = cols.map((c) => c.v).filter((x): x is number => x != null);
+  const hi = Math.max(1, ...vs);
+  const lo = Math.min(0, ...vs);
+  // SVG in a fixed coordinate box, scaled to the panel width.
+  // Labels are rotated and end at their column, so they reach left: keep a margin there.
+  const W = 340, L = 46, top = 18, plotH = 150, labH = 96, n = cols.length;
+  const slot = (W - L) / n, bw = Math.min(28, slot * 0.62);
+  const y = (v: number) => top + ((hi - v) / (hi - lo)) * plotH;
+  const y0 = y(0);
+  const short = (s: string) => (s.length > 18 ? s.slice(0, 17) + '…' : s);
+  let svg = `<line x1="${L}" x2="${W}" y1="${y0}" y2="${y0}" class="ofax"/>`;
+  const rtl = document.documentElement.dir === 'rtl';
+  cols.forEach(({ h, v }, i) => {
+    // Best first, in reading order (right to left in Hebrew).
+    const cx = L + slot * (rtl ? n - 1 - i : i) + slot / 2;
+    if (v != null) {
+      const y1 = Math.min(y(v), y0), hgt = Math.max(1, Math.abs(y(v) - y0));
+      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="s-${k}"/>`;
+      svg += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? y1 - 4 : y1 + hgt + 11).toFixed(1)}" class="ofvl${v < 0 ? ' neg' : ''}">${v.toFixed(1)}</text>`;
+    } else svg += `<text x="${cx.toFixed(1)}" y="${(y0 - 4).toFixed(1)}" class="ofvl na">–</text>`;
+    const ly = top + plotH + (lo < 0 ? 22 : 10);
+    svg += `<text x="${cx.toFixed(1)}" y="${ly}" transform="rotate(-55 ${cx.toFixed(1)} ${ly})" class="ofnm"><title>${esc(h.name)}</title>${esc(short(h.name))}</text>`;
+  });
   const last = Math.max(...H.flatMap((h) => h.official!.map((x) => x.o?.period ?? 0)));
-  const series = [['avg5', 'ofc5'], ['avg3', 'ofc3'], ['ytd', 'ofcY']] as const;
-  const bar = (k: string, v: number | null) =>
-    `<div class="ofb"><span class="ofbt"><i class="s-${k}" style="width:${v == null ? 0 : Math.max(0, (v / max) * 100).toFixed(1)}%"></i></span><span class="ofv${v != null && v < 0 ? ' bad' : ''}">${v == null ? '–' : v.toFixed(1) + '%'}</span></div>`;
-  el.innerHTML = `<div class="addh" style="margin-top:14px">${t('ofcT')}</div>`
-    + `<div class="leg">${series.map(([k, l]) => `<span><i class="sw s-${k}"></i>${t(l)}</span>`).join('')}</div>`
-    + rowsD.map(({ h, v }) => `<div class="ofr"><div class="ofn">${esc(h.name)}</div>${series.map(([k]) => bar(k, v[k])).join('')}</div>`).join('')
-    + `<div class="dnote">${t('ofcN', { d: period(last) })}</div>`;
+  const missing = cols.filter((c) => c.v == null).length;
+  el.innerHTML = `<div class="addh" style="margin-top:14px">${t('ofcT')} <span class="lbl">${t(k === 'ytd' ? 'ofcSubY' : 'ofcSub')}</span></div>`
+    + `<div class="seg" role="group" aria-label="${t('ofcT')}">${OFC.map(([p, l]) => `<button type="button" data-ofp="${p}" aria-pressed="${p === k}" class="${p === k ? 'on' : ''}">${t(l)}</button>`).join('')}</div>`
+    + `<svg class="ofsvg" viewBox="0 0 ${W} ${top + plotH + labH}" role="img" aria-label="${t('ofcT')}: ${t(OFC.find(([p]) => p === k)![1])}">${svg}</svg>`
+    + `<div class="dnote">${t('ofcN', { d: period(last) })}${missing ? ' ' + t('ofcMiss', { n: missing }) : ''}</div>`;
 }
 
 const period = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
@@ -1087,6 +1111,12 @@ export function initApp(d: AppDeps): void {
     e.stopPropagation();
     panelHelp(b.dataset.help!);
   }, true);
+  $('ofc').addEventListener('click', (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-ofp]');
+    if (!b) return;
+    set(KEYS.ofcPeriod, b.dataset.ofp!);
+    officialChart();
+  });
   // Remember which holding groups are open (toggle does not bubble, so listen in the capture phase).
   $('hl').addEventListener('toggle', (e) => {
     const d = e.target as HTMLDetailsElement;
