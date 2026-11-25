@@ -26,7 +26,10 @@ const depositsX = [
   ['D1', 'H3', 30000, 25000, 'USD', 'first', 'Broker C'],
   ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
 ];
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
+// fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
+const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '22, 33' : '']);
+let govCalls = 0;
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -67,6 +70,18 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     if (aiMode === 'limit') return route.fulfill({ status: 429, json: { error: { message: 'Resource exhausted' } } });
     const q = body.contents[body.contents.length - 1].parts[0].text;
     return route.fulfill({ json: { candidates: [{ content: { parts: [{ text: q === 'ping' ? 'OK' : `**Answer** to: ${q}` }] } }] } });
+  });
+  await ctx.route('https://data.gov.il/**', async (route) => {
+    govCalls++;
+    const q = new URL(route.request().url()).searchParams;
+    const ids = JSON.parse(q.get('filters')!).FUND_ID as number[];
+    const db = q.get('resource_id')!.startsWith('c6c6') ? 'bituach' : 'gemel';
+    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12 };
+    const records = ids.filter((id) => known[db + ':' + id] != null).map((id) => ({
+      FUND_ID: id, FUND_NAME: 'Mock fund ' + id, REPORT_PERIOD: 202610, AVG_ANNUAL_YIELD_TRAILING_5YRS: known[db + ':' + id], AVG_ANNUAL_YIELD_TRAILING_3YRS: 11,
+      YEAR_TO_DATE_YIELD: 6.5, AVG_ANNUAL_MANAGEMENT_FEE: 0.66, TOTAL_ASSETS: 1000, STOCK_MARKET_EXPOSURE: 480, FOREIGN_EXPOSURE: 520,
+    }));
+    return route.fulfill({ json: { success: true, result: { records } } });
   });
   await ctx.route('https://sheets.googleapis.com/**', async (route) => {
     const r = route.request();
@@ -145,7 +160,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 9, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the two new optional Holdings columns');
+  ok((await page.locator('#chkList .ck').count()) === 8, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the missing optional group column');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -364,6 +379,16 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const grps = await page.$$eval('#hl .hgrp span:first-child', (e) => e.map((x) => x.textContent));
   ok(JSON.stringify(grps.slice(0, 5)) === JSON.stringify(['Study funds (1)', 'Funds and savings (2)', 'Trading accounts (2)', 'Bank (1)', 'Intel stocks (2)']) && grps[5]?.startsWith('Pension'), 'holdings are split into groups: ' + grps.join(', '));
   ok(await page.$eval('#hl', (hl) => { const k = [...hl.children]; const b = k.findIndex((x) => x.classList.contains('hgrp') && x.textContent!.startsWith('Bank')); return k[b + 1]?.textContent?.includes('Checking'); }), 'rows sit under their group');
+  ok(govCalls === 2, 'official data: one request per database (Gemel-Net, Bituach-Net): ' + govCalls);
+  ok((await txt('#hl .g:has-text("Invest B")')).includes('5y avg 9.4% (official)'), 'a holding with a fund number uses the official 5-year average: ' + (await txt('#hl .g:has-text("Invest B") .lbl')));
+  await page.click('#hl .g:has-text("Invest B")');
+  const ob = await txt('#dlgB');
+  ok(ob.includes('Official data (Gemel-Net)') && ob.includes('5-year yearly average9.4%') && ob.includes('In stocks48%') && ob.includes('Your sheet says 8%'), 'popup shows the official figures and the sheet return');
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Savings D")');
+  const sb = await txt('#dlgB');
+  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('50% of this holding') && sb.includes('not found in Bituach-Net') && sb.includes('Return used: 8.5%'), 'two tracks split evenly; one not found uses the sheet (12 and 5 → 8.5%)');
+  await page.click('#dlgX');
   await page.click('#hl .g:has-text("Study A")');
   ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');
   await page.click('#dlgX');

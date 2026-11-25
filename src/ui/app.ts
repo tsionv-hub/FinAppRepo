@@ -11,6 +11,8 @@ import {
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleRows } from '../example';
+import { applyOfficial, fetchOfficial, fundIds, lookupHoldings, dbFor } from '../official/gov';
+import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
 import { get, KEYS, set } from '../storage';
@@ -151,6 +153,7 @@ export async function load(): Promise<void> {
       return;
     }
     data = res.data;
+    if (!demo) officialFor(data);
     fillInputs(data);
     cache = null;
     updatedLine();
@@ -164,6 +167,65 @@ export async function load(): Promise<void> {
     showMsg(errorText(e));
     $('reload').hidden = false;
   }
+}
+
+// ---------- official fund data (data.gov.il) ----------
+
+/** Kept in memory for this visit only (never stored on the phone). */
+let official: { ids: string; map: Map<string, Official> } | null = null;
+let officialState: 'none' | 'loading' | 'ok' | 'error' = 'none';
+
+const officialIds = (d: SheetData) => lookupHoldings(d.holdings).map((h) => dbFor(h) + ':' + fundIds(h.info!.fundNumber).join('+')).sort().join(',');
+
+/** Uses official returns for holdings with a fund number: at once if already fetched, else after fetching. */
+function officialFor(d: SheetData): void {
+  const ids = officialIds(d);
+  if (!ids) {
+    officialState = 'none';
+    return;
+  }
+  if (official?.ids === ids) {
+    applyOfficial(d.holdings, official.map);
+    officialState = 'ok';
+    return;
+  }
+  officialState = 'loading';
+  fetchOfficial(d.holdings)
+    .then((map) => {
+      official = { ids, map };
+      officialState = 'ok';
+      if (data !== d) return;
+      applyOfficial(d.holdings, map);
+      cache = null;
+      if (!$('app').hidden) render();
+    })
+    .catch(() => {
+      officialState = 'error';
+    });
+}
+
+const period = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
+
+/** Holding popup: official figures per track, and where the return used comes from. */
+function officialSection(h: Holding): string {
+  if (!h.info?.fundNumber || !(h.group === 'study_fund' || h.group === 'fund')) return '';
+  const src = dbFor(h) === 'bituach' ? 'Bituach-Net' : 'Gemel-Net';
+  let body = sec(t('ofT', { s: src }));
+  if (officialState === 'loading') return body + `<div class="dnote">${t('ofLoading')}</div>`;
+  if (officialState === 'error' || !h.official) return body + `<div class="dnote">${t('ofErr')}</div>`;
+  const many = h.official.length > 1;
+  for (const { id, o } of h.official) {
+    if (!o) {
+      body += row(t('ofTrack', { n: id }), `<span class="bad">${t('ofNF', { s: src })}</span>`);
+      continue;
+    }
+    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${many ? ' · ' + t('ofShare', { p: Math.round(100 / h.official.length) }) : ''}</div>`
+      + row(t('ofAvg5'), o.avg5 == null ? t('ofNo5', { r: pct(h.retSheet) }) : pct(o.avg5))
+      + row(t('ofAvg3'), pct(o.avg3)) + row(t('ofYtd', { d: period(o.period) }), pct(o.ytd))
+      + row(t('ofFee'), pct(o.fee) + (h.info.managementFeePct != null ? ' · ' + t('ofYours', { f: pct(h.info.managementFeePct) }) : ''))
+      + row(t('ofStocks'), pct(o.stocksPct, 1)) + row(t('ofAbroad'), pct(o.foreignPct, 1));
+  }
+  return body + `<div class="dnote">${t('ofN', { r: pct(h.ret), s: pct(h.retSheet) })}</div>`;
 }
 
 /** Opens the main screen once the sheet has been read (and checked on first run). */
@@ -393,7 +455,7 @@ export function tmView(): void {
       const pre = x.b / infl;
       const post = (x.b - taxOf(h, x.b, x.d, p.cgTax, p.incomeTax)) / infl;
       const inc = h.type === 'Pension' ? false : h.type === 'Stocks (unvested)' ? p.countUnvested : h.include;
-      const meta = esc(ty(h.type)) + (h.synthetic ? ' · ' + t('avgr', { r: h.ret.toFixed(1) }) : ' · ' + t('r5') + ' ' + h.ret.toFixed(1) + '%')
+      const meta = esc(ty(h.type)) + (h.synthetic ? ' · ' + t('avgr', { r: h.ret.toFixed(1) }) : ' · ' + t('r5') + ' ' + h.ret.toFixed(1) + '%' + (h.official?.some((x) => x.o?.avg5 != null) ? ' ' + t('ofMark') : ''))
         + (h.vendor ? ' · ' + esc(h.vendor) : '') + (h.owner ? ' · ' + esc(h.owner) : '') + (inc ? '' : ' · ' + t('sepn'));
       return `<div class="g" data-h="${i}"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b><div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
     });
@@ -672,6 +734,7 @@ function holdingDetails(x: Slot): void {
   if (h.synthetic) body += `<div class="dnote">${t('dSreN')}</div>`;
   if (h.type === 'Stocks (unvested)') body += `<div class="dnote">${t('dUnvN', { m: data.settings.vestEveryMonths })}</div>`;
   if (i?.notes) body += `<div class="dnote">${esc(i.notes)}</div>`;
+  body += officialSection(h);
   // What can be added from here depends on the group.
   const g = h.group ?? 'fund';
   const real = !!h.id && !h.synthetic && !!h.info;

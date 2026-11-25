@@ -48,6 +48,10 @@ export function sheetJson(s: AiSnapshot): string {
       return_5y_avg_pct: h.ret, tax_type: h.tax, included_in_totals: h.include,
       track: h.info?.track || undefined, style: h.info?.style || undefined, ticker: h.info?.ticker || undefined, quantity: h.info?.quantity ?? undefined,
       deposit_fee_pct: h.info?.depositFeePct ?? undefined, management_fee_pct: h.info?.managementFeePct ?? undefined,
+      return_from_sheet_pct: h.retSheet,
+      official_tracks: h.official?.map((x) => x.o
+        ? { fund_number: x.id, name: x.o.name, month: x.o.period, avg_yearly_5y_pct: x.o.avg5, avg_yearly_3y_pct: x.o.avg3, ytd_pct: x.o.ytd, fund_avg_fee_pct: x.o.fee, stocks_pct: x.o.stocksPct, abroad_pct: x.o.foreignPct }
+        : { fund_number: x.id, not_found: true }),
       last_updated: h.info?.lastUpdated || undefined, notes: h.info?.notes || undefined, created_by_app: h.synthetic || undefined,
     }));
   const goals = s.goals.map((g) => ({

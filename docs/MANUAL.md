@@ -112,7 +112,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
   - Funds and trading accounts: deposits, and adding a deposit.
   - Bank: update the balance.
   - Intel stocks: share grants (optional Grants tab: `grant_id`, `holding_id`, `date`, `shares`, `notes`). Adding one also adds the shares to the unvested holding's `quantity`.
-- **Fund number** (Holdings `fund_number`): shown in the popup of study funds and funds.
+- **Fund number** (Holdings `fund_number`, the official fund or track number): for study funds and funds, the app looks it up in the Finance Ministry's public data (Gemel-Net; Bituach-Net for savings plans) and shows the official returns, fees and stock exposure. The projection then uses the official 5-year average instead of `return_5y_avg_pct`. Your fees still come from your sheet. Several numbers (e.g. `101, 202`) mean the money is split evenly between those tracks. A track with no 5-year figure, or one not found, uses your `return_5y_avg_pct`.
 - **Liquid money** means accounts you can actually use: not pension, not shares that haven't vested.
 - It's a planning tool with simplified tax rules, not financial advice.
 
@@ -122,6 +122,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 
 - Your numbers go only between your phone and your Google Sheet.
 - The person who sent you the app **cannot** see your sheet or your numbers.
+- If you fill in `fund_number`, only those fund numbers are sent to data.gov.il (the government's public data site) to fetch public fund data. No amounts, names or account numbers.
 - The phone keeps only your sheet link, language and (if you add one) your Gemini key. **Forget this sheet** (bottom of the app) removes them.
 - **Ask AI** is the one exception to "only between your phone and your sheet": see section 5.
 
