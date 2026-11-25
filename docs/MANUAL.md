@@ -112,7 +112,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
   - Funds and trading accounts: deposits, and adding a deposit.
   - Bank: update the balance.
   - Intel stocks: share grants (optional Grants tab: `grant_id`, `holding_id`, `date`, `shares`, `notes`). Adding one also adds the shares to the unvested holding's `quantity`.
-- **Fund number** (Holdings `fund_number`, the official fund or track number): for study funds and funds, the app looks it up in the Finance Ministry's public data (Gemel-Net; Bituach-Net for savings plans) and shows the official returns, fees and stock exposure. The projection then uses the official 5-year average instead of `return_5y_avg_pct`. Your fees still come from your sheet. Several numbers (e.g. `101, 202`) mean the money is split evenly between those tracks. A track with no 5-year figure, or one not found, uses your `return_5y_avg_pct`.
+- **Fund number** (Holdings `fund_number`, the official fund or track number): for study funds and funds, the app looks it up in the Finance Ministry's public data (Gemel-Net; Bituach-Net for savings plans) and shows the official returns, fees and stock exposure. The projection then uses the official 5-year average instead of `return_5y_avg_pct`. Your fees still come from your sheet. Several numbers (e.g. `101, 202`) mean the money is split evenly between those tracks. A savings plan's track can also be another company's provident fund: if it isn't in Bituach-Net, the app looks in Gemel-Net. A track with no 5-year figure, or one not found, uses your `return_5y_avg_pct`.
 - **Liquid money** means accounts you can actually use: not pension, not shares that haven't vested.
 - It's a planning tool with simplified tax rules, not financial advice.
 

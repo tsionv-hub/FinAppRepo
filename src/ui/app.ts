@@ -216,10 +216,10 @@ function officialSection(h: Holding): string {
   const many = h.official.length > 1;
   for (const { id, o } of h.official) {
     if (!o) {
-      body += row(t('ofTrack', { n: id }), `<span class="bad">${t('ofNF', { s: src })}</span>`);
+      body += row(t('ofTrack', { n: id }), `<span class="bad">${t('ofNF', { s: src === 'Bituach-Net' ? 'Bituach-Net / Gemel-Net' : src })}</span>`);
       continue;
     }
-    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${many ? ' · ' + t('ofShare', { p: Math.round(100 / h.official.length) }) : ''}</div>`
+    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${many ? ' · ' + t('ofShare', { p: Math.round(100 / h.official.length) }) : ''}${o.db !== dbFor(h) ? ' · ' + (o.db === 'gemel' ? 'Gemel-Net' : 'Bituach-Net') : ''}</div>`
       + row(t('ofAvg5'), o.avg5 == null ? t('ofNo5', { r: pct(h.retSheet) }) : pct(o.avg5))
       + row(t('ofAvg3'), pct(o.avg3)) + row(t('ofYtd', { d: period(o.period) }), pct(o.ytd))
       + row(t('ofFee'), pct(o.fee) + (h.info.managementFeePct != null ? ' · ' + t('ofYours', { f: pct(h.info.managementFeePct) }) : ''))
