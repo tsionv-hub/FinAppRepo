@@ -5,7 +5,7 @@ const BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 /** Tried in order; the first that exists for this key is remembered for the session. */
 export const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
 
-export type AiErrorCode = 'badkey' | 'denied' | 'limit' | 'blocked' | 'network' | 'other';
+export type AiErrorCode = 'badkey' | 'billing' | 'denied' | 'limit' | 'blocked' | 'network' | 'other';
 
 export class AiError extends Error {
   constructor(public code: AiErrorCode, message: string) {
@@ -77,6 +77,8 @@ export async function ask(key: string, system: string, turns: ChatTurn[], fetche
       last = new AiError('other', msg); // this model isn't available: try the next one
       continue;
     }
+    // 402: the key's project is on paid/prepaid billing with no credit left.
+    if (r.status === 402 || /prepay|credits? (are|is) depleted|billing/i.test(msg)) throw new AiError('billing', msg);
     if (r.status === 429) throw new AiError('limit', msg);
     if (r.status === 400 && /api key/i.test(msg)) throw new AiError('badkey', msg);
     if (r.status === 401 || r.status === 403) throw new AiError(/api key/i.test(msg) ? 'badkey' : 'denied', msg);

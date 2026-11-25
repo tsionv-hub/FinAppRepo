@@ -57,6 +57,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     const r = route.request();
     const body = r.postDataJSON() as { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: { text: string }[] }[] };
     aiCalls.push({ url: r.url(), key: r.headers()['x-goog-api-key'], body });
+    if (r.headers()['x-goog-api-key'].includes('NOCREDIT')) return route.fulfill({ status: 402, json: { error: { message: 'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.' } } });
     if (aiMode === 'limit') return route.fulfill({ status: 429, json: { error: { message: 'Resource exhausted' } } });
     const q = body.contents[body.contents.length - 1].parts[0].text;
     return route.fulfill({ json: { candidates: [{ content: { parts: [{ text: q === 'ping' ? 'OK' : `**Answer** to: ${q}` }] } }] } });
@@ -384,6 +385,22 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForSelector('#app:not([hidden])');
   await page.waitForFunction(() => (document.getElementById('dlg') as HTMLDialogElement).open);
   ok((await txt('#dlgT')).includes('Connect your free Gemini key') && (await txt('#aiKMsg')).startsWith('Welcome back'), 'coming back (even after a reload) reopens the key setup: ' + (await txt('#aiKMsg')));
+  // Until a key works, the full warning comes back on every new opening.
+  await page.click('#dlgX');
+  await page.click('#aiBtn');
+  ok((await txt('#dlgT')).includes('Connect your free Gemini key'), 'in the same opening, accepted once is enough');
+  await page.click('#dlgX');
+  await page.reload();
+  await page.click('#signIn');
+  await page.waitForSelector('#app:not([hidden])');
+  await page.click('#aiBtn');
+  ok((await txt('#dlgT')) === '⚠️ Your data goes to Google’s AI', 'no working key yet: the full privacy warning shows again after reopening');
+  await page.click('[data-ai=agree]');
+  // A key whose project is on prepaid billing with no credit (the real case seen on a phone).
+  await page.fill('#aiKey', 'AQ.NOCREDIT' + 'x'.repeat(20));
+  await page.click('[data-ai=savekey]');
+  await page.waitForFunction(() => /paid|billing/.test(document.getElementById('aiKMsg')!.textContent!));
+  ok((await txt('#aiKMsg')).includes('set up for paid (prepaid) use') && (await page.getAttribute('#aiKMsg a', 'href')) === 'https://ai.studio/projects' && !(await page.evaluate(() => localStorage.getItem('fp_ai_key'))), 'a key whose project has no credit gets a plain explanation and a link, and is not saved');
   await page.fill('#aiKey', 'sk-too-short');
   await page.click('[data-ai=savekey]');
   ok((await txt('#aiKMsg')).includes('too short'), 'only an obviously wrong key is caught before testing');
@@ -391,6 +408,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.fill('#aiKey', '  ' + KEY + '\n');
   await page.click('[data-ai=savekey]');
   await page.waitForFunction(() => (document.getElementById('aiChat') as HTMLDialogElement).open);
+  aiCalls.splice(0, aiCalls.length - 1); // keep only the successful test call
   ok(aiCalls.length === 1 && aiCalls[0].key === KEY && !aiCalls[0].url.includes(KEY), 'a key in another format is tested for real (spaces removed, sent in a header), then the chat opens');
   ok(!(await page.evaluate(() => localStorage.getItem('fp_ai_setup'))), 'once the key works, the setup is no longer pending');
   ok((await page.locator('#aiLog .ai-ex button').count()) === 3, 'the chat suggests example questions');
@@ -488,7 +506,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(!(await page.evaluate(() => localStorage.getItem('fp_ai_key'))), 'Remove AI key deletes it from the phone');
   await page.click('#dlgX');
   await page.click('#aiBtn');
-  ok((await txt('#dlgT')).includes('Connect your free Gemini key'), 'without a key, the key setup comes back');
+  ok((await txt('#dlgT')) === '⚠️ Your data goes to Google’s AI', 'after removing the key, the full privacy warning comes back first');
+  await page.click('[data-ai=agree]');
+  ok((await txt('#dlgT')).includes('Connect your free Gemini key'), 'then the key setup');
   await page.click('#dlgX');
 
   // 8. Sign-in test screen: both methods.

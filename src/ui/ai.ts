@@ -20,6 +20,8 @@ const AI_STUDIO = 'https://aistudio.google.com/apikey';
 let isDemo: () => boolean = () => false;
 /** The reminder shows once per app opening. */
 let remindedThisOpening = false;
+/** The full privacy warning was accepted during this opening (it is only remembered for good once a key works). */
+let acceptedThisOpening = false;
 let history: ChatTurn[] = [];
 let busy = false;
 /** Set while the key setup popup is the one showing. */
@@ -34,7 +36,8 @@ function closeDlg(): void {
 
 /** Entry point: the floating 💬 button. */
 export function startAi(): void {
-  if (!get(KEYS.aiOk)) return warning();
+  // Until a key actually works, the full warning is shown every time.
+  if (!get(KEYS.aiKey) && !acceptedThisOpening) return warning();
   if (!get(KEYS.aiQuiet) && !remindedThisOpening) return reminder();
   if (!get(KEYS.aiKey)) return keySetup();
   openChat();
@@ -67,10 +70,12 @@ function keySetup(msg = ''): void {
  * even reload it, so the steps and the paste box come back by themselves.
  */
 export function resumeKeySetup(): void {
-  if (!get(KEYS.aiSetup) || get(KEYS.aiKey) || !get(KEYS.aiOk)) return;
+  // Only right after the user accepted the warning and left for AI Studio.
+  if (!get(KEYS.aiSetup) || get(KEYS.aiKey)) return;
   if ($<HTMLDialogElement>('dlg').open && keySetupShown) return;
   if ($('app').hidden) return;
   remindedThisOpening = true; // they just accepted the privacy note
+  acceptedThisOpening = true;
   keySetup(t('aiKBack'));
 }
 
@@ -87,12 +92,18 @@ async function saveKey(): Promise<void> {
   try {
     await ask(key, 'Reply with the single word OK.', [{ role: 'user', text: 'ping' }]);
     set(KEYS.aiKey, key);
+    set(KEYS.aiOk, '1'); // the warning counts as accepted for good only now
     remove(KEYS.aiSetup);
     closeDlg();
     openChat();
   } catch (e) {
-    // Show Google's own reason, so a wrong key, a key without Gemini access, etc. are clear.
-    m.textContent = t('aiKFail', { c: String((e as Error).message ?? e).slice(0, 160) });
+    if (e instanceof AiError && e.code === 'billing') {
+      // Key is fine, but its project is on prepaid billing with no credit: explain and link.
+      m.innerHTML = `${esc(t('aiKBilling'))} <a href="https://ai.studio/projects" target="_blank" rel="noopener">${esc(t('aiKProjects'))}</a>`;
+    } else {
+      // Show Google's own reason in full, so a wrong key, a key without Gemini access, etc. are clear.
+      m.textContent = t('aiKFail', { c: String((e as Error).message ?? e) });
+    }
     m.className = 'lbl bad';
   }
 }
@@ -101,6 +112,7 @@ function errText(e: unknown): string {
   const c = e instanceof AiError ? e.code : 'other';
   if (c === 'badkey') return t('aiErrKey');
   if (c === 'limit') return t('aiErrLimit');
+  if (c === 'billing') return t('aiKBilling');
   if (c === 'network') return t('aiErrNet');
   if (c === 'blocked') return t('aiErrBlock');
   if (c === 'denied') return t('aiErrDenied', { c: (e as Error).message.slice(0, 80) });
@@ -157,7 +169,7 @@ export function initAi(demo: () => boolean): void {
     const a = b.dataset.ai;
     if (a === 'cancel') closeDlg();
     if (a === 'agree') {
-      set(KEYS.aiOk, '1');
+      acceptedThisOpening = true;
       remindedThisOpening = true;
       closeDlg();
       startAi();
