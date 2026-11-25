@@ -1,13 +1,19 @@
-# Builds the app and publishes dist/ to GitHub Pages on every push to main.
-# One-time: Settings → Pages → Source: "GitHub Actions".
-# Optional: Settings → Secrets and variables → Actions → Variables → GOOGLE_CLIENT_ID
-# bakes your OAuth client ID into the build so you don't have to paste it on the phone.
-# Optional: variable FEEDBACK_EMAIL shows a 'Send feedback' button that emails that address.
+# Publishes both apps to GitHub Pages in one site:
+#   main  → https://USER.github.io/REPO/        (stable)
+#   beta  → https://USER.github.io/REPO/beta/   (beta, VITE_CHANNEL=beta)
+# Runs on every push to main, and after "Beta CI" passes on the beta branch.
+# (Pages only accepts deploys started from main; workflow_run always runs from
+# main, so beta changes deploy without changing any GitHub setting.)
+# Optional repo variables: GOOGLE_CLIENT_ID, FEEDBACK_EMAIL.
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
+  workflow_run:
+    workflows: ["Beta CI"]
+    types: [completed]
+    branches: [beta]
   workflow_dispatch:
 
 permissions:
@@ -21,23 +27,45 @@ concurrency:
 
 jobs:
   build:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    env:
+      VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+      VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+          path: stable
+      - id: beta
+        uses: actions/checkout@v4
+        continue-on-error: true
+        with:
+          ref: beta
+          path: beta
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm test
-      - run: npm run build
+          cache-dependency-path: '**/package-lock.json'
+      - name: Build stable (main)
+        working-directory: stable
+        run: npm ci && npm test && npm run build
+      - name: Build beta
+        if: steps.beta.outcome == 'success'
+        working-directory: beta
+        run: npm ci && npm test && npm run build
         env:
-          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
-          VITE_FEEDBACK_EMAIL: ${{ vars.FEEDBACK_EMAIL }}
+          VITE_CHANNEL: beta
+      - name: Assemble the site
+        run: |
+          mkdir site
+          cp -r stable/dist/. site/
+          if [ -d beta/dist ]; then mkdir -p site/beta && cp -r beta/dist/. site/beta/; fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: site
 
   deploy:
     needs: build

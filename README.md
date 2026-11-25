@@ -49,4 +49,9 @@ npm run build       # dist/: static files, host anywhere with HTTPS
 npm run e2e         # builds, serves and drives the app with Google mocked (needs Playwright)
 ```
 
-Deploys run from `.github/workflows/deploy.yml` on every push to `main`. The version shown in the app comes from `package.json`.
+Deploys run from `.github/workflows/deploy.yml`: `main` is published as the stable app and `beta` (built with `VITE_CHANNEL=beta`) under `/beta/` as a separate "Finance β" app; see [`docs/SETUP.md`](docs/SETUP.md). The version shown in the app comes from `package.json`.
+
+```sh
+VITE_CHANNEL=beta npm run build   # beta build (own name, icon, storage, offline cache)
+npx tsx tests/e2e/channels.ts <base url>   # checks stable and beta side by side
+```

@@ -86,7 +86,7 @@ export function applyLang(l?: Lang): void {
   const lang = getLang();
   document.documentElement.lang = lang;
   document.documentElement.dir = lang === 'he' ? 'rtl' : 'ltr';
-  document.title = t('title');
+  document.title = t('title') + (__APP_CHANNEL__ === 'beta' ? ' β' : '');
   $('lb').textContent = lang === 'he' ? 'English' : 'עברית';
   document.querySelectorAll<HTMLElement>('[data-t]').forEach((e) => (e.textContent = t(e.dataset.t as never)));
   document.querySelectorAll<HTMLInputElement>('[data-p]').forEach((e) => (e.placeholder = t(e.dataset.p as never)));

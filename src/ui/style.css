@@ -234,3 +234,4 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .ai-msg.note { align-self: stretch; background: var(--bg); color: var(--mu); font-size: 13px; text-align: center; }
 .ai-tip { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 13.5px; }
 .ver-top { font-size: 13px; font-weight: 500; color: var(--mu); }
+.ver-top.beta { color: #b45309; font-weight: 700; }

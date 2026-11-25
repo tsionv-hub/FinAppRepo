@@ -2,23 +2,26 @@
 // language, UI choices and (if the user adds one) their Gemini key. Never the
 // access token, financial data, or AI questions and answers.
 
+/** Storage names start with this; the beta uses its own, so the two apps share nothing. */
+export const P = __APP_CHANNEL__ === 'beta' ? 'fpb_' : 'fp_';
+
 export const KEYS = {
-  sheet: 'fp_sheet',
-  clientId: 'fp_client_id',
-  lang: 'fp_lang',
-  authMode: 'fp_auth_mode',
-  signedIn: 'fp_signed_in',
-  oauthState: 'fp_oauth_state',
-  checked: 'fp_checked',
+  sheet: P + 'sheet',
+  clientId: P + 'client_id',
+  lang: P + 'lang',
+  authMode: P + 'auth_mode',
+  signedIn: P + 'signed_in',
+  oauthState: P + 'oauth_state',
+  checked: P + 'checked',
   /** Ask AI: the user's own Gemini key, privacy warning accepted, reminder count, reminder off. */
-  aiKey: 'fp_ai_key',
-  aiOk: 'fp_ai_ok',
-  aiSeen: 'fp_ai_seen',
-  aiQuiet: 'fp_ai_quiet',
+  aiKey: P + 'ai_key',
+  aiOk: P + 'ai_ok',
+  aiSeen: P + 'ai_seen',
+  aiQuiet: P + 'ai_quiet',
   /** Key setup in progress (the user went to AI Studio to create a key). */
-  aiSetup: 'fp_ai_setup',
+  aiSetup: P + 'ai_setup',
   /** Ask AI "Don't send my data" (app questions only). */
-  aiPrivate: 'fp_ai_private',
+  aiPrivate: P + 'ai_private',
 } as const;
 
 function ls(): Storage | null {
@@ -49,6 +52,6 @@ export function remove(k: string): void {
 export function forgetAll(): void {
   for (const s of [ls(), (() => { try { return sessionStorage; } catch { return null; } })()]) {
     if (!s) continue;
-    for (const k of Object.keys(s)) if (k.startsWith('fp_')) s.removeItem(k);
+    for (const k of Object.keys(s)) if (k.startsWith(P)) s.removeItem(k);
   }
 }

@@ -7,7 +7,7 @@ import {
   signInRedirect, signOut, validClientId, wasSignedIn, type RedirectResult,
 } from './sheets/auth';
 import type { Checklist } from './sheets/validate';
-import { forgetAll, get, KEYS, remove, set } from './storage';
+import { forgetAll, get, KEYS, P, remove, set } from './storage';
 import { templateXlsx } from './template';
 import { exampleXlsx } from './example';
 import { applyLang, clearData, errorText, initApp, load, showApp, showHelp, showMsg } from './ui/app';
@@ -16,15 +16,17 @@ import { initAi, resumeKeySetup } from './ui/ai';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
-const K_SILENT = 'fp_silent_tried';
+const K_SILENT = P + 'silent_tried';
+/** "1.12.0" or "1.12.0-beta". */
+const VERSION_LABEL = __APP_VERSION__ + (__APP_CHANNEL__ === 'beta' ? '-beta' : '');
 /** Feedback address: set at build time (repo variable FEEDBACK_EMAIL), so it is not in the source. */
 const FEEDBACK = ((import.meta.env.VITE_FEEDBACK_EMAIL as string | undefined) ?? '').trim();
 
 /** Points the feedback links at the phone's mail app, with version and device filled in (never any financial data). */
 function feedbackLinks(): void {
   const standalone = matchMedia('(display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
-  const subject = t('fbSubj', { v: __APP_VERSION__ });
-  const body = t('fbBody', { v: __APP_VERSION__, l: document.documentElement.lang, i: standalone ? t('yes') : t('no'), d: navigator.userAgent });
+  const subject = t('fbSubj', { v: VERSION_LABEL });
+  const body = t('fbBody', { v: VERSION_LABEL, l: document.documentElement.lang, i: standalone ? t('yes') : t('no'), d: navigator.userAgent });
   const href = 'mailto:' + FEEDBACK + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   for (const id of ['fbBtn', 'fbBtn2']) {
     const a = $<HTMLAnchorElement>(id);
@@ -151,7 +153,7 @@ async function diag(extra?: string): Promise<void> {
   const cid = clientId();
   const mode = authMode() === 'popup' ? t('mPopup') : t('mRedirect');
   const lines = [
-    'Finance Planner v' + __APP_VERSION__,
+    'Finance Planner v' + VERSION_LABEL,
     t('dgInst') + ': ' + (standalone ? t('yes') : t('dgNotInst')),
     t('dgDev') + ': ' + navigator.userAgent,
     t('dgOnline') + ': ' + (navigator.onLine ? t('yes') : t('no')),
@@ -296,9 +298,9 @@ async function checkForUpdate(): Promise<void> {
     const r = await fetch('version.json', { cache: 'no-store' });
     const { version } = (await r.json()) as { version: string };
     if (!version || version === __APP_VERSION__) return;
-    const tried = sessionStorage.getItem('fp_update_tried');
+    const tried = sessionStorage.getItem(P + 'update_tried');
     if (tried === version) return; // already reloaded for this version: never loop
-    sessionStorage.setItem('fp_update_tried', version);
+    sessionStorage.setItem(P + 'update_tried', version);
     location.reload();
   } catch {
     /* offline or no version file: keep running this version */
@@ -346,8 +348,9 @@ function main(): void {
     demo: () => demo,
   });
   applyLang(saved === 'he' ? 'he' : 'en');
-  $('ver').textContent = 'v' + __APP_VERSION__;
-  $('verTop').textContent = '(v' + __APP_VERSION__ + ')';
+  $('ver').textContent = 'v' + VERSION_LABEL;
+  $('verTop').textContent = '(v' + VERSION_LABEL + ')';
+  $('verTop').classList.toggle('beta', __APP_CHANNEL__ === 'beta');
   feedbackLinks();
   initAi(() => demo);
   $('helpBtn').addEventListener('click', showHelp);

@@ -1,0 +1,22 @@
+# Tests and builds the beta branch. When it passes, "Deploy to GitHub Pages"
+# (which runs from main) publishes it under /beta/.
+name: Beta CI
+
+on:
+  push:
+    branches: [beta]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_CHANNEL: beta
