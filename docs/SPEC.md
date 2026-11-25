@@ -219,3 +219,10 @@ The phone keeps a list of sheets in `sheets`: `[{id, nick}]`, holding only the s
 - **Sheet check:** shown once per sheet. `checked` is a list of sheet IDs; the older value `"1"` means the sheet that was current.
 - **Sheets from before v1.18:** a sheet already set up gets its sheet title as its nickname on the first load.
 - **Remove this sheet** (main screen) removes only the current one; removing the last sheet clears everything as before. **Forget everything** (setup screen) clears all.
+
+### 12.15 Own return in each holding's title (v1.19)
+A holding with deposits in the Deposits tab shows its own yearly return so far next to its name, as a pill.
+- **How it's calculated:** it is the same money-weighted figure as the popup's "Yearly return so far" (`impliedReturn`, like XIRR). Each deposit counts from its own date up to today's `current_amount`, in the holding's own currency.
+- **Colour:** green for positive, red for negative. The strength scales with the size: full strength at +15% a year or −10% a year, and white text at about 55% strength or more.
+- **When it's missing:** there is no pill without deposits, or with less than about two months of history.
+- **Example data:** an account that lost value shows the red case.

@@ -557,7 +557,7 @@ export function tmView(): void {
       const inc = h.type === 'Pension' ? false : h.type === 'Stocks (unvested)' ? p.countUnvested : h.include;
       const meta = esc(ty(h.type)) + (h.synthetic ? ' · ' + t('avgr', { r: h.ret.toFixed(1) }) : ' · ' + t('r5') + ' ' + h.ret.toFixed(1) + '%' + (h.official?.some((x) => x.o?.avg5 != null) ? ' ' + t('ofMark') : ''))
         + (h.vendor ? ' · ' + esc(h.vendor) : '') + (h.owner ? ' · ' + esc(h.owner) : '') + (inc ? '' : ' · ' + t('sepn'));
-      return `<div class="g" data-h="${i}"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b><div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
+      return `<div class="g" data-h="${i}"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b>${retPill(h)}<div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
     });
   const pens = data.pension.map((fd, i) => {
     const bs = pensionBalances[i];
@@ -931,6 +931,27 @@ function addGrant(h: Holding, target: Holding): Promise<void> {
     return Promise.resolve();
   }
   return popupSave(h, 'grS', 'grM', (c) => saveGrant(c, data!, target, { date, shares, notes: inp('grO').value.trim() }), t('grSaved'));
+}
+
+/**
+ * The holding's own yearly return so far, from its deposits (each counted from its
+ * own date, money-weighted like XIRR) and today's value. Null without deposits.
+ */
+function ownReturn(h: Holding): number | null {
+  if (!h.id || !h.info || !data?.deposits) return null;
+  const ds = data.deposits.filter((d) => d.holdingId === h.id);
+  return ds.length ? impliedReturn(ds, h.info.amount, new Date()) : null;
+}
+
+/** Row title: the return as a pill, greener the higher, redder the lower. */
+function retPill(h: Holding): string {
+  const r = ownReturn(h);
+  if (r == null) return '';
+  const p = r * 100;
+  // Strength 0.15–1: full green at +15%/year or more, full red at −10% or less.
+  const k = Math.min(1, Math.max(0.15, p >= 0 ? p / 15 : -p / 10));
+  const cls = (p >= 0 ? 'up' : 'down') + (k >= 0.55 ? ' strong' : '');
+  return ` <span class="rp ${cls}" style="--k:${k.toFixed(2)}" title="${esc(t('rpT'))}">${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(1)}%</span>`;
 }
 
 const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;

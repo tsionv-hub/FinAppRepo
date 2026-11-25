@@ -55,7 +55,7 @@ export const EXAMPLE_TABS: Tab[] = [
       hold({ id: 'H6', name: 'Checking and deposits', vendor: 'Bank E', owner: 'Joint', type: 'Cash', currency: 'ILS', current_amount: 65000, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-20' }),
       hold({ id: 'H7', name: 'Company shares (vested)', owner: 'Alex', type: 'Stocks', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 400, current_amount: 18000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1, notes: 'In your own sheet, current_amount can be quantity × GOOGLEFINANCE price.' }),
       hold({ id: 'H8', name: 'Company shares (unvested)', owner: 'Alex', type: 'Stocks (unvested)', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 800, current_amount: 36000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1 }),
-      hold({ id: 'H9', name: 'Old foreign account', vendor: 'Bank F', owner: 'Sam', type: 'Brokerage', currency: 'EUR', current_amount: 4000, deposited_amount: 4000, return_5y_avg_pct: 2, tax_type: 'capital_gain', include_in_total: 0, notes: 'include_in_total = 0: shown but not counted.' }),
+      hold({ id: 'H9', name: 'Old foreign account', vendor: 'Bank F', owner: 'Sam', type: 'Brokerage', currency: 'EUR', current_amount: 4000, deposited_amount: 4500, return_5y_avg_pct: 2, tax_type: 'capital_gain', include_in_total: 0, notes: 'include_in_total = 0: shown but not counted.' }),
     ],
   },
   {
@@ -100,6 +100,7 @@ export const EXAMPLE_TABS: Tab[] = [
       ['D5', 'H3', '2025-09-01', 20000, 'ILS', null],
       ['D6', 'H5', '2022-01-10', 20000, 'USD', null],
       ['D7', 'H5', '2024-05-01', 10000, 'USD', null],
+      ['D8', 'H9', '2023-01-15', 4500, 'EUR', 'Lost value: shows a red return'],
     ],
   },
   {
