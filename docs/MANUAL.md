@@ -106,7 +106,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 - **Rainy day fund** counts in your totals but is never spent.
 - **Repeating goals** (Goals tab: `repeat_every_years`, `repeat_until_year`): each time is checked on its own, so you'll see if, say, the 2031 vacation is short.
 - **Loans** (optional Loans tab): money you owe, paid in monthly installments or in one payment on a date. Repayments come out of your money like goals do. Your totals don't subtract loans; the **After debts** line does.
-- **Deposits** (optional Deposits tab: `deposit_id`, `holding_id`, `date`, `amount`, `currency`, `notes`): tap a holding to see its deposits, the yearly return they add up to so far, and a form to add a deposit. Saving adds a row to Deposits and, if you leave the box ticked, adds the amount to the holding's `current_amount`.
+- **Deposits** (optional Deposits tab: `deposit_id`, `holding_id`, `date`, `amount`, `currency`, `notes`): tap a holding to see its deposits, the yearly return they add up to so far, and a form to add a deposit. Saving adds a row to Deposits, adds the amount to the holding's `deposited_amount` (unless that cell is a formula, which updates itself), and, if you leave the box ticked, to its `current_amount`.
 - **Holding groups** (Holdings `group` column: `study_fund`, `fund`, `trading`, `bank`, `stocks`; blank = from the type): the Holdings panel shows one section per group, and tapping a holding offers what fits its group:
   - Study funds: details only.
   - Funds and trading accounts: deposits, and adding a deposit.

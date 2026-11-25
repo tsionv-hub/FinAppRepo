@@ -5,7 +5,7 @@
 import { parseGoals, parseHoldings, parseLoans, parsePension, parseSettings, type GoalsTab } from '../model/parse';
 import { nextDepositId, nextId, parseDeposits, parseGrants, type Deposit, type Grant } from '../model/deposits';
 import type { Goal, Holding, Loan, PensionFund, Settings, StartMonth } from '../model/types';
-import type { Cell, Rows } from '../model/parse';
+import { num, type Cell, type Rows } from '../model/parse';
 import { a1, columnLetter, SheetsClient, SheetsError } from './api';
 import { RULES, validate, type Checklist } from './validate';
 
@@ -166,7 +166,24 @@ export async function saveDeposit(c: SheetsClient, data: SheetData, h: Holding, 
   const need = ['holding_id', 'date', 'amount'].filter((k) => !data.headers.deposits.includes(k));
   if (need.length) throw new MissingColumnError('Deposits', need);
   await c.append(a1('Deposits', 'A1'), [depositRow(data.headers.deposits, data.deposits, h, d)]);
+  // deposited_amount: a formula over Deposits updates itself; a typed number gets the deposit added.
+  const di = data.headers.holdings.indexOf('deposited_amount');
+  if (di >= 0 && h.row && h.info) {
+    const next = depositedAfter(await c.cellFormula(a1('Holdings', columnLetter(di) + h.row)), h.info.amount, d.amount);
+    if (next != null) await setHoldingCell(c, data, h, 'deposited_amount', next);
+  }
   if (addToValue && h.info) await saveValue(c, data, h, h.info.amount + d.amount);
+}
+
+/**
+ * New deposited_amount after a deposit, or null to leave the cell alone (a
+ * formula, e.g. a SUMIFS over the Deposits tab). Blank means "deposited = value",
+ * so it becomes the value before the deposit plus the deposit.
+ */
+export function depositedAfter(cell: Cell, valueBefore: number, amount: number): number | null {
+  if (typeof cell === 'string' && cell.trim().startsWith('=')) return null;
+  if (cell == null || String(cell).trim() === '') return valueBefore + amount;
+  return num(cell) + amount;
 }
 
 /** One Holdings cell of this holding's row. */

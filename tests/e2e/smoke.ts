@@ -80,6 +80,13 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
       writes.push({ method: r.method(), url: decodeURIComponent(u.pathname), body: r.postDataJSON() });
       return route.fulfill({ json: {} });
     }
+    // Single-cell formula read (deposited_amount before a deposit): the mock sheet has no formulas.
+    const one = /\/values\/'([^']+)'!([A-Z]+)(\d+)$/.exec(decodeURIComponent(u.pathname));
+    if (one && u.searchParams.get('valueRenderOption') === 'FORMULA') {
+      const t = tabs[one[1]] ?? [];
+      const ci = one[2].charCodeAt(0) - 65;
+      return route.fulfill({ json: { values: [[t[+one[3] - 1]?.[ci] ?? '']] } });
+    }
     if (u.searchParams.get('fields')) return route.fulfill({ json: { properties: { title: 'Test sheet' }, sheets: Object.keys(tabs).map((title) => ({ properties: { title } })) } });
     const ranges = u.searchParams.getAll('ranges');
     return route.fulfill({ json: { valueRanges: ranges.map((x) => ({ values: tabs[x.split('!')[0].replace(/'/g, '')] ?? [] })) } });
@@ -347,7 +354,10 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const dRow = (dw.find((w) => w.url.includes("'Deposits'") && w.url.endsWith(':append'))?.body as { values: unknown[][] } | undefined)?.values[0];
   ok(dRow && /^\["D3","H3","\d{4}-\d{2}-\d{2}",1000,"USD","test","Broker C"\]$/.test(JSON.stringify(dRow)), 'deposit appended in the Deposits column order: ' + JSON.stringify(dRow));
   const hcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('current_amount'));
-  const vw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'"));
+  const dcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('deposited_amount'));
+  const dpw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'!" + dcol + '4'));
+  ok(dpw && JSON.stringify((dpw.body as { values: unknown[][] }).values) === '[[41000]]', 'a typed deposited_amount gets the deposit added: ' + dpw?.url);
+  const vw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'!" + hcol));
   ok(vw && vw.url.includes(hcol + '4') && JSON.stringify((vw.body as { values: unknown[][] }).values) === '[[61000]]', 'and the holding value goes up by the deposit: ' + vw?.url);
   ok((await dlgOpen()) && (await txt('#dlgT')) === 'Broker C', 'the popup stays open after saving');
   await page.click('#dlgX');
