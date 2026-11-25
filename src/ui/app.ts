@@ -198,10 +198,45 @@ function officialFor(d: SheetData): void {
       applyOfficial(d.holdings, map);
       cache = null;
       if (!$('app').hidden) render();
+      else officialChart();
     })
     .catch(() => {
       officialState = 'error';
     });
+}
+
+function openGroups(): Set<string> {
+  try {
+    return new Set(JSON.parse(get(KEYS.holdOpen) || '[]') as string[]);
+  } catch {
+    return new Set();
+  }
+}
+
+/** Holdings panel, bottom: official returns of every holding that has them. */
+function officialChart(): void {
+  const el = $('ofc');
+  const H = (data?.holdings ?? []).filter((h) => h.official?.some((x) => x.o));
+  if (!H.length) {
+    el.innerHTML = '';
+    return;
+  }
+  // A holding split between tracks gets the plain average of its tracks (equal shares).
+  const avg = (h: Holding, k: 'avg5' | 'avg3' | 'ytd') => {
+    const v = h.official!.map((x) => x.o?.[k]).filter((x): x is number => x != null);
+    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+  };
+  const rowsD = H.map((h) => ({ h, v: { avg5: avg(h, 'avg5'), avg3: avg(h, 'avg3'), ytd: avg(h, 'ytd') } }))
+    .sort((a, b) => (b.v.avg5 ?? -99) - (a.v.avg5 ?? -99) || (b.v.avg3 ?? -99) - (a.v.avg3 ?? -99));
+  const max = Math.max(1, ...rowsD.flatMap((r) => Object.values(r.v).filter((x): x is number => x != null)));
+  const last = Math.max(...H.flatMap((h) => h.official!.map((x) => x.o?.period ?? 0)));
+  const series = [['avg5', 'ofc5'], ['avg3', 'ofc3'], ['ytd', 'ofcY']] as const;
+  const bar = (k: string, v: number | null) =>
+    `<div class="ofb"><span class="ofbt"><i class="s-${k}" style="width:${v == null ? 0 : Math.max(0, (v / max) * 100).toFixed(1)}%"></i></span><span class="ofv${v != null && v < 0 ? ' bad' : ''}">${v == null ? '–' : v.toFixed(1) + '%'}</span></div>`;
+  el.innerHTML = `<div class="addh" style="margin-top:14px">${t('ofcT')}</div>`
+    + `<div class="leg">${series.map(([k, l]) => `<span><i class="sw s-${k}"></i>${t(l)}</span>`).join('')}</div>`
+    + rowsD.map(({ h, v }) => `<div class="ofr"><div class="ofn">${esc(h.name)}</div>${series.map(([k]) => bar(k, v[k])).join('')}</div>`).join('')
+    + `<div class="dnote">${t('ofcN', { d: period(last) })}</div>`;
 }
 
 const period = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
@@ -467,18 +502,22 @@ export function tmView(): void {
   $('hsT').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
   $('hsK').textContent = k === 0 ? t('atToday') : dateAt(k, 'short');
   // One sub-section per group, in GROUPS order, then pension funds.
-  const head = (name: string, n: number, sum: number) => `<div class="hgrp"><span>${name} (${n})</span><span>${f(sum / infl)}</span></div>`;
+  // Each group collapses on its own (closed by default; the choice is remembered).
+  const open = openGroups();
+  const group = (g: string, name: string, n: number, sum: number, body: string) =>
+    `<details class="hgd" data-g="${g}"${open.has(g) ? ' open' : ''}><summary class="hgrp"><span>${name} (${n})</span><span>${f(sum / infl)}</span></summary>${body}</details>`;
   let html = '';
   for (const g of GROUPS) {
     const idx = holdRows.map((x, i) => (x.h.group ?? 'fund') === g ? i : -1).filter((i) => i >= 0);
     if (!idx.length) continue;
-    html += head(t(('grp_' + g) as 'grp_fund'), idx.length, idx.reduce((a, i) => a + holdRows[i].b, 0)) + idx.map((i) => rows[i]).join('');
+    html += group(g, t(('grp_' + g) as 'grp_fund'), idx.length, idx.reduce((a, i) => a + holdRows[i].b, 0), idx.map((i) => rows[i]).join(''));
   }
   if (pens.length) {
     const sum = data.pension.reduce((a, fd, i) => a + (pensionBalances[i] ? pensionBalances[i]![Math.min(k, pensionBalances[i]!.length - 1)] : fd.balance), 0);
-    html += head(t('grp_pension'), pens.length, sum) + pens.join('');
+    html += group('pension', t('grp_pension'), pens.length, sum, pens.join(''));
   }
   $('hl').innerHTML = html;
+  officialChart();
   loansView(s, infl);
 }
 
@@ -1047,6 +1086,15 @@ export function initApp(d: AppDeps): void {
     e.preventDefault();
     e.stopPropagation();
     panelHelp(b.dataset.help!);
+  }, true);
+  // Remember which holding groups are open (toggle does not bubble, so listen in the capture phase).
+  $('hl').addEventListener('toggle', (e) => {
+    const d = e.target as HTMLDetailsElement;
+    if (!d.classList?.contains('hgd')) return;
+    const s = openGroups();
+    if (d.open) s.add(d.dataset.g!);
+    else s.delete(d.dataset.g!);
+    set(KEYS.holdOpen, JSON.stringify([...s]));
   }, true);
   $('hl').addEventListener('click', (e) => {
     const r = rowTap(e);

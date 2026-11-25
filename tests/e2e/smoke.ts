@@ -46,6 +46,10 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ ...devices['iPhone 13'] });
+  // Holding groups start closed; open them all so the checks can tap rows (closing is checked below).
+  await ctx.addInitScript(() => {
+    if (!localStorage.getItem('fp_hold_open')) localStorage.setItem('fp_hold_open', JSON.stringify(['study_fund', 'fund', 'trading', 'bank', 'stocks', 'pension']));
+  });
   const page = await ctx.newPage();
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e)));
@@ -378,9 +382,22 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#dlgX');
   const grps = await page.$$eval('#hl .hgrp span:first-child', (e) => e.map((x) => x.textContent));
   ok(JSON.stringify(grps.slice(0, 5)) === JSON.stringify(['Study funds (1)', 'Funds and savings (2)', 'Trading accounts (2)', 'Bank (1)', 'Intel stocks (2)']) && grps[5]?.startsWith('Pension'), 'holdings are split into groups: ' + grps.join(', '));
-  ok(await page.$eval('#hl', (hl) => { const k = [...hl.children]; const b = k.findIndex((x) => x.classList.contains('hgrp') && x.textContent!.startsWith('Bank')); return k[b + 1]?.textContent?.includes('Checking'); }), 'rows sit under their group');
+  ok(await page.$eval('#hl details.hgd[data-g=bank]', (d) => !!d.querySelector('.g') && d.querySelector('.g')!.textContent!.includes('Checking')), 'rows sit under their group');
   ok(govCalls === 2, 'official data: one request per database (Gemel-Net, Bituach-Net): ' + govCalls);
   ok((await txt('#hl .g:has-text("Invest B")')).includes('5y avg 9.4% (official)'), 'a holding with a fund number uses the official 5-year average: ' + (await txt('#hl .g:has-text("Invest B") .lbl')));
+  const bankG = '#hl details.hgd[data-g=bank]';
+  await page.click(bankG + ' > summary');
+  ok(!(await page.isVisible('#hl .g:has-text("Checking")')) && (await txt(bankG + ' > summary')).startsWith('Bank (1)'), 'a holding group collapses, its header (count and total) stays');
+  await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '1'; e.dispatchEvent(new Event('input')); });
+  await page.waitForTimeout(400);
+  ok(!(await page.$eval(bankG, (d) => (d as HTMLDetailsElement).open)) && (await page.$eval('#hl details.hgd[data-g=fund]', (d) => (d as HTMLDetailsElement).open)), 'open and closed groups are kept when the panel redraws');
+  await page.$eval('#tm', (e: HTMLInputElement) => { e.value = '0'; e.dispatchEvent(new Event('input')); });
+  await page.click(bankG + ' > summary');
+  ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
+  const ofc = await page.$$eval('#ofc .ofr', (rs) => rs.map((r) => r.textContent));
+  ok(ofc.length === 2 && ofc[0] === 'Savings D11.0%11.0%6.5%' && ofc[1] === 'Invest B9.4%11.0%6.5%', 'official returns chart at the bottom of Holdings, best 5-year first: ' + JSON.stringify(ofc));
+  ok(/to Oct 2026/.test(await txt('#ofc')), 'the chart says which month the data is from');
+  await page.locator('#pHold').screenshot({ path: OUT + '/holdings-official.png' });
   await page.click('#hl .g:has-text("Invest B")');
   const ob = await txt('#dlgB');
   ok(ob.includes('Official data (Gemel-Net)') && ob.includes('5-year yearly average9.4%') && ob.includes('In stocks48%') && ob.includes('Your sheet says 8%'), 'popup shows the official figures and the sheet return');

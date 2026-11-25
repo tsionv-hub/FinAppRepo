@@ -22,6 +22,8 @@ export const KEYS = {
   aiSetup: P + 'ai_setup',
   /** Ask AI "Don't send my data" (app questions only). */
   aiPrivate: P + 'ai_private',
+  /** Holdings panel: which groups are open (UI choice only). */
+  holdOpen: P + 'hold_open',
 } as const;
 
 function ls(): Storage | null {

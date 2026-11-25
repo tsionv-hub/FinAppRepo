@@ -191,3 +191,8 @@ For study_fund and fund holdings with a `fund_number`, the app reads the latest 
 The popup shows per track: name, 5-year and 3-year yearly averages, year to date (with month), the fund's average fee next to the user's, and stock and abroad exposure as a percent of assets. The panel marks such returns "(official)".
 
 Results stay in memory for the visit only and are never stored. If the fetch fails, the sheet's returns are used. Demo mode does not fetch. Only fund numbers are sent. The data goes to Ask AI with the holdings. The CSP `connect-src` adds `https://data.gov.il`.
+
+### 12.13 Collapsible groups, official returns chart (v1.16)
+Each Holdings group (including Pension) is a collapsible section. Sections are closed by default, and the open ones are remembered on the phone (`hold_open`, a UI choice).
+
+At the bottom of the Holdings panel, an "Official returns" chart shows every holding with official data. Each holding gets three bars: the 5-year yearly average, the 3-year yearly average, and since January. A holding split between tracks shows the plain average of its tracks. Holdings are sorted by the 5-year figure, best first, and a missing value shows "–". The bars share one scale, and the note names the latest month of the data.
