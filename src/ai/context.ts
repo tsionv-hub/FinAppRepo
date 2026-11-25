@@ -3,6 +3,7 @@
 // Account numbers are never included (the parsers never read them).
 
 import type { Goal, Holding, Loan, PensionFund } from '../model/types';
+import type { Deposit } from '../model/deposits';
 
 export interface AiResults {
   postTax: number;
@@ -28,6 +29,8 @@ export interface AiSnapshot {
   goals: Goal[];
   rainyDayFund: number;
   loans: Loan[];
+  /** Deposits tab rows; null when the sheet has none. */
+  deposits?: Deposit[] | null;
   results: AiResults;
   guide: string;
 }
@@ -56,7 +59,9 @@ export function sheetJson(s: AiSnapshot): string {
     monthly_payment_ILS: l.kind === 'installments' ? l.monthlyPayment : undefined,
     repay: l.kind === 'lump_sum' ? `${l.year}-${String(l.month).padStart(2, '0')}` : undefined, notes: l.notes || undefined,
   }));
-  return JSON.stringify({ settings: s.settings, holdings, pension_funds: s.pension, goals, rainy_day_fund_ILS: s.rainyDayFund, loans });
+  const names = new Map(s.holdings.filter((h) => h.id).map((h) => [h.id!, h.name]));
+  const deposits = s.deposits?.map((d) => ({ holding: names.get(d.holdingId) ?? d.holdingId, date: d.date, amount: d.amount, currency: d.currency || undefined, notes: d.notes || undefined }));
+  return JSON.stringify({ settings: s.settings, holdings, pension_funds: s.pension, goals, rainy_day_fund_ILS: s.rainyDayFund, loans, deposits });
 }
 
 export function systemPrompt(s: AiSnapshot): string {
@@ -65,7 +70,8 @@ export function systemPrompt(s: AiSnapshot): string {
     'You are the assistant inside "Finance Planner", a personal finance planning app. You answer questions about the user\'s own data and about how the app works.',
     '',
     'Rules:',
-    '- Use only the sheet data, the app results and the guide below. If something is not there, say so plainly. For example, the sheet keeps no history of individual deposits: only the total deposited and a last_updated date per holding.',
+    '- Use only the sheet data, the app results and the guide below. If something is not there, say so plainly.',
+    s.deposits ? '- "deposits" lists each deposit into a holding (date, amount in the holding\'s currency).' : '- The sheet keeps no history of individual deposits: only the total deposited and a last_updated date per holding.',
     '- For totals, free money, goal status, retirement and pension, use the app results as given; do not recompute them differently.',
     '- Amounts are in Israeli shekels (₪) unless another currency is stated.',
     `- Today is ${s.today}.`,

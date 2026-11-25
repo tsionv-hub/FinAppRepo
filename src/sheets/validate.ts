@@ -40,6 +40,11 @@ export const RULES: Record<string, TabRule> = {
     columns: ['id', 'name', 'target_amount_ILS', 'target_year', 'type'],
     optionalColumns: ['target_month', 'priority', 'notes', 'spend_when_due', 'repeat_every_years', 'repeat_until_year'],
   },
+  Deposits: {
+    required: false,
+    columns: ['holding_id', 'date', 'amount'],
+    optionalColumns: ['deposit_id', 'currency', 'notes'],
+  },
   Loans: {
     required: false,
     columns: ['name', 'kind', 'balance_ILS'],

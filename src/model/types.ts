@@ -11,6 +11,9 @@ export const REINVEST_TYPE = 'Stock reinvestment';
 export const INVEST_TYPES = ['Study fund', 'Investment fund', 'Savings plan', 'Brokerage'];
 
 export interface Holding {
+  /** The sheet's id (e.g. H9) and row, for deposits and writes. */
+  id?: string;
+  row?: number;
   name: string;
   vendor: string;
   owner: string;

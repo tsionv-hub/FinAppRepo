@@ -166,3 +166,6 @@ On start and when returning to the app (online), it compares its version with th
 
 ### 12.9 Beta channel (v1.12)
 A `beta` branch is built with `VITE_CHANNEL=beta` and published under `/beta/` as a separate app ("Finance β", BETA-ribbon icon, version shown as `-beta`). It has its own storage prefix (`fpb_`), service worker scope and cache; the stable service worker ignores `/beta/`. Changes land on `beta` first and are released by merging `beta` into `main`.
+
+### 12.10 Deposits (v1.13)
+Optional `Deposits` tab, one row per deposit: `holding_id` (Holdings `id`), `date`, `amount` (holding's currency) required; `deposit_id`, `currency`, `notes` optional; other columns (e.g. a `holding_name` formula) are kept. Dates may be ISO, day-first d/m/y or d.m.y, or a sheet serial. The holding popup lists the holding's deposits, the total, first and last date, and the return so far: the yearly rate r that solves Σ amount·(1+r)^(years since deposit) = current_amount (shown only with a span of two months or more). An add form appends a row in the tab's own column order (`deposit_id` = next `D<n>`) and, if ticked (default), adds the amount to the holding's `current_amount`. The projection still uses `deposited_amount` as the cost basis. Deposits go to Ask AI with the sheet data (holding name, date, amount; no row numbers).

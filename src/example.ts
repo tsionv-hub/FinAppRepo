@@ -90,8 +90,19 @@ export const EXAMPLE_TABS: Tab[] = [
     ],
   },
   {
+    name: 'Deposits',
+    rows: [
+      TEMPLATE_TABS[5].rows[0],
+      ['D1', 'H1', '2018-03-01', 100000, 'ILS', 'Opening balance'],
+      ['D2', 'H1', '2024-02-01', 40000, 'ILS', null],
+      ['D3', 'H3', '2021-03-01', 60000, 'ILS', null],
+      ['D4', 'H3', '2023-06-15', 30000, 'ILS', null],
+      ['D5', 'H3', '2025-09-01', 20000, 'ILS', null],
+    ],
+  },
+  {
     name: 'ToDo',
-    rows: [TEMPLATE_TABS[5].rows[0], ['T1', 'Update balances from the provider sites', 'Holdings', 'open', 'Once a month']],
+    rows: [TEMPLATE_TABS[6].rows[0], ['T1', 'Update balances from the provider sites', 'Holdings', 'open', 'Once a month']],
   },
 ];
 

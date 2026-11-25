@@ -100,12 +100,13 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 ## 6. Good to know
 
 - **Your sheet is the source of truth.** Edit numbers in Google Sheets, then tap **Reload** in the app.
-- **The app writes to your sheet only when you tap a Save button**: new goals, the rainy day fund, and retirement age and allowance. Nothing else, never automatically.
+- **The app writes to your sheet only when you tap a Save button**: new goals, the rainy day fund, retirement age and allowance, and new deposits. Nothing else, never automatically.
 - **"What if" changes** in Assumptions only change the screen. To keep them, change the sheet.
 - **Returns** use each account's 5-year average return, scaled by the scenario (Moderate = 75% of it).
 - **Rainy day fund** counts in your totals but is never spent.
 - **Repeating goals** (Goals tab: `repeat_every_years`, `repeat_until_year`): each time is checked on its own, so you'll see if, say, the 2031 vacation is short.
 - **Loans** (optional Loans tab): money you owe, paid in monthly installments or in one payment on a date. Repayments come out of your money like goals do. Your totals don't subtract loans; the **After debts** line does.
+- **Deposits** (optional Deposits tab: `deposit_id`, `holding_id`, `date`, `amount`, `currency`, `notes`): tap a holding to see its deposits, the yearly return they add up to so far, and a form to add a deposit. Saving adds a row to Deposits and, if you leave the box ticked, adds the amount to the holding's `current_amount`.
 - **Liquid money** means accounts you can actually use: not pension, not shares that haven't vested.
 - It's a planning tool with simplified tax rules, not financial advice.
 

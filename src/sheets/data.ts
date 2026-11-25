@@ -2,6 +2,7 @@
 // new goals, rainy day fund amount, retirement age and allowance.
 
 import { parseGoals, parseHoldings, parseLoans, parsePension, parseSettings, type GoalsTab } from '../model/parse';
+import { nextDepositId, parseDeposits, type Deposit } from '../model/deposits';
 import type { Goal, Holding, Loan, PensionFund, Settings, StartMonth } from '../model/types';
 import type { Cell, Rows } from '../model/parse';
 import { a1, columnLetter, SheetsClient, SheetsError } from './api';
@@ -14,6 +15,10 @@ export interface SheetData {
   pension: PensionFund[];
   goals: GoalsTab;
   loans: Loan[];
+  /** Null when the sheet has no Deposits tab. */
+  deposits: Deposit[] | null;
+  /** Column order of the tabs the app writes to. */
+  headers: { holdings: string[]; deposits: string[] };
   fetchedAt: number;
 }
 
@@ -49,6 +54,11 @@ export function fromRows(title: string, tabs: string[], rows: Record<string, Row
       pension: rows.Pension ? parsePension(rows.Pension) : [],
       goals: parseGoals(rows.Goals, start.year),
       loans: rows.Loans ? parseLoans(rows.Loans) : [],
+      deposits: rows.Deposits ? parseDeposits(rows.Deposits) : null,
+      headers: {
+        holdings: (rows.Holdings[0] ?? []).map((h) => String(h ?? '').trim()),
+        deposits: (rows.Deposits?.[0] ?? []).map((h) => String(h ?? '').trim()),
+      },
       fetchedAt: Date.now(),
     },
   };
@@ -118,4 +128,42 @@ export async function appendGoals(c: SheetsClient, gt: GoalsTab, goals: Goal[]):
   const need = goals.some((g) => g.everyYears) ? ['repeat_every_years', 'repeat_until_year'].filter((h) => !gt.header.includes(h)) : [];
   if (need.length) throw new MissingColumnError('Goals', need);
   await c.append(a1('Goals', 'A1'), goalRows(gt, goals));
+}
+
+export interface NewDeposit {
+  /** YYYY-MM-DD */
+  date: string;
+  amount: number;
+  notes: string;
+}
+
+/** The new Deposits row, in the tab's own column order. */
+export function depositRow(header: string[], existing: Deposit[], h: Holding, d: NewDeposit): Cell[] {
+  const v: Record<string, Cell> = {
+    deposit_id: nextDepositId(existing.map((x) => x.id)),
+    holding_id: h.id ?? '',
+    date: d.date,
+    amount: d.amount,
+    currency: h.info?.currency ?? 'ILS',
+    notes: d.notes,
+    holding_name: h.name,
+  };
+  return header.map((k) => (k in v ? v[k] : ''));
+}
+
+/**
+ * Records a deposit: a new row in the Deposits tab and, if asked, the amount
+ * added to the holding's current_amount (the deposited total and first/last
+ * deposit dates in Holdings are usually formulas over the Deposits tab).
+ */
+export async function saveDeposit(c: SheetsClient, data: SheetData, h: Holding, d: NewDeposit, addToValue: boolean): Promise<void> {
+  if (!data.deposits) throw new MissingColumnError('Deposits', ['holding_id', 'date', 'amount']);
+  const need = ['holding_id', 'date', 'amount'].filter((k) => !data.headers.deposits.includes(k));
+  if (need.length) throw new MissingColumnError('Deposits', need);
+  await c.append(a1('Deposits', 'A1'), [depositRow(data.headers.deposits, data.deposits, h, d)]);
+  if (addToValue && h.row && h.info) {
+    const ci = data.headers.holdings.indexOf('current_amount');
+    if (ci < 0) throw new MissingColumnError('Holdings', ['current_amount']);
+    await c.update(a1('Holdings', columnLetter(ci) + h.row), [[Math.round((h.info.amount + d.amount) * 100) / 100]]);
+  }
 }
