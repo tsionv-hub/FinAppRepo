@@ -163,3 +163,6 @@ A floating 💬 Ask AI button opens a chat with Google Gemini, using each user's
 
 ### 12.8 Updates and header (v1.11)
 On start and when returning to the app (online), it compares its version with the site's `version.json` and reloads once if newer; the service worker always revalidates the page (GitHub Pages lets browsers reuse pages for 10 minutes). The version is shown in brackets next to the title. The quick-navigation bar was removed.
+
+### 12.9 Beta channel (v1.12)
+A `beta` branch is built with `VITE_CHANNEL=beta` and published under `/beta/` as a separate app ("Finance β", BETA-ribbon icon, version shown as `-beta`). It has its own storage prefix (`fpb_`), service worker scope and cache; the stable service worker ignores `/beta/`. Changes land on `beta` first and are released by merging `beta` into `main`.

@@ -94,6 +94,20 @@ Friends don't repeat parts A and B. They use **your** app address and **your** c
 
 Their data stays between their phone and their own sheet; you can't see it.
 
+## Beta app (testing before release)
+
+There are two apps, built from two branches and published together:
+
+| | Branch | Address | On the phone |
+|---|---|---|---|
+| Stable | `main` | `https://USER.github.io/REPO/` | "Finance" |
+| Beta | `beta` | `https://USER.github.io/REPO/beta/` | "Finance β", icon with a BETA ribbon |
+
+- Install the beta like the stable app (Safari → Share → Add to Home Screen). It is a separate app: its own settings, sheet link, AI key and offline cache. You can connect it to a **copy** of your sheet so testing never touches real data.
+- Changes go to `beta` first. When ready, merge `beta` into `main` to release them.
+- How the deploy works: a push to `beta` runs **Beta CI**; when it passes, **Deploy to GitHub Pages** (which always runs from `main`) builds both branches and publishes both apps. A push to `main` does the same.
+- The normal Google sign-in needs no change for the beta. Only the backup "redirect" sign-in would need `https://USER.github.io/REPO/beta/` added as a redirect URI.
+
 ## Day to day
 
 - **Change your numbers:** edit the Google Sheet, then tap **Reload** in the app.
