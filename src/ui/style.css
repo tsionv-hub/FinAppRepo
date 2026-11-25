@@ -244,3 +244,4 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .hgrp { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .03em; margin: 14px 0 2px; padding-bottom: 4px; border-bottom: 2px solid var(--ln); }
 .hgrp:first-child { margin-top: 4px; }
 .hgrp span:last-child { font-variant-numeric: tabular-nums; text-transform: none; }
+.oft { font-size: 13px; margin: 10px 0 2px; }

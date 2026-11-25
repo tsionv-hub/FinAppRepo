@@ -37,6 +37,28 @@ export interface Holding {
   synthetic?: boolean;
   /** Display-only details from the sheet (account numbers are never read). */
   info?: HoldingInfo;
+  /** return_5y_avg_pct from the sheet, kept when `ret` comes from official data. */
+  retSheet?: number;
+  /** Official data per track (fund_number may hold several; the money is split evenly). */
+  official?: { id: number; o: Official | null }[];
+}
+
+/** One fund or track's latest month in Gemel-Net / Bituach-Net (data.gov.il). Percent values. */
+export interface Official {
+  db: 'gemel' | 'bituach';
+  id: number;
+  name: string;
+  /** YYYYMM */
+  period: number;
+  avg5: number | null;
+  avg3: number | null;
+  ytd: number | null;
+  /** Average management fee across members (for comparison; the app uses the sheet's own fees). */
+  fee: number | null;
+  /** Fund size, millions of ILS. */
+  assetsM: number | null;
+  stocksPct: number | null;
+  foreignPct: number | null;
 }
 
 export interface HoldingInfo {
