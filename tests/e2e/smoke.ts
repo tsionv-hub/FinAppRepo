@@ -93,7 +93,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForFunction(() => /Saving about/.test(document.getElementById('fn')!.textContent!));
   ok(true, 'example mode, Pessimistic: ' + (await txt('#fn')));
   await page.selectOption('#sc', 'mod');
-  await page.click('#jump [data-go=pRet]');
+  await page.evaluate(() => ((document.getElementById('pRet') as HTMLDetailsElement).open = true));
   await page.click('#rb2');
   ok((await txt('#gm')) === 'This is example data, so nothing is saved.', 'example mode: save buttons save nothing');
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
@@ -209,8 +209,10 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
   await page.locator('#pHold').screenshot({ path: OUT + '/holdings.png' });
   await page.evaluate(() => ((document.getElementById('pProj') as HTMLDetailsElement).open = true));
-  ok(await page.evaluate(() => getComputedStyle(document.getElementById('jump')!).position === 'sticky'), 'the jump bar stays at the top while scrolling');
-  await page.click('#jump [data-go=pRet]');
+  ok(!(await page.$('#jump')) && !(await page.$('[data-go]')), 'no quick-navigation bar');
+  const ver = (await page.evaluate(() => fetch('version.json', { cache: 'no-store' }).then((r) => r.json()))) as { version: string };
+  ok((await txt('#verTop')) === `(v${ver.version})` && /^\d+\.\d+\.\d+$/.test(ver.version), 'the version is shown in brackets at the top and matches the site: ' + (await txt('#verTop')));
+  await page.evaluate(() => ((document.getElementById('pRet') as HTMLDetailsElement).open = true));
   const retTxt = await txt('#retBody');
   ok(/Starts.*Jan 2035.*Age 55/.test(retTxt) && /StatusOn track/.test(retTxt) && /Set aside today/.test(retTxt) && /Pension then covers\d+%/.test(retTxt), 'Early retirement panel: start, status, money set aside and pension coverage');
   ok(/Age 55.*On track/.test(await txt('#retK')), 'the closed retirement panel shows age and status in its header: ' + (await txt('#retK')));
@@ -266,8 +268,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#rb');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Rainy'));
   ok(writes.some((w) => w.url.includes("'Goals'!C2") && JSON.stringify(w.body).includes('130000')), 'rainy day fund written to Goals!C2');
-  await page.click('#jump [data-go=pRet]');
-  ok(await page.evaluate(() => (document.getElementById('pRet') as HTMLDetailsElement).open), 'the jump bar opens the Early retirement panel');
+  await page.evaluate(() => ((document.getElementById('pRet') as HTMLDetailsElement).open = true));
   await page.fill('#ra', '57');
   await page.click('#rb2');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Retirement'));
@@ -542,6 +543,15 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForFunction(() => (document.getElementById('aiChat') as HTMLDialogElement).open, null, { timeout: 15000 });
   ok((await txt('#aiLog .ai-msg.err')).includes('Your key works and is saved') && !!(await page.evaluate(() => localStorage.getItem('fp_ai_key'))), 'a 503 during setup: the key is saved and the chat opens, saying Google is busy');
   await page.click('#aiX');
+
+  // 7b. After a deploy: the app notices the newer version and reloads once (never loops).
+  let loads = 0;
+  page.on('load', () => loads++);
+  await page.route('**/version.json', (r) => r.fulfill({ json: { version: '99.0.0' } }));
+  await page.reload();
+  await page.waitForTimeout(3000);
+  ok(loads === 2, 'a newer version on the site makes the app reload once to pick it up, and not loop (' + loads + ' loads)');
+  await page.unroute('**/version.json');
 
   // 8. Sign-in test screen: both methods.
   await page.goto(URL0 + '?diag');

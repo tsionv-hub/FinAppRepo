@@ -69,6 +69,6 @@ From now on, **always open it from the icon**.
 | **"This Google account cannot open the sheet"** | Sign in with the account that owns the sheet. |
 | A **✗** in the sheet check | Fix that tab or column name exactly as shown, then **Check again**. |
 | The sign-in window doesn't open | Tap **Sign-in test** at the bottom, then **2. Sign in (redirect)**. |
-| An old version | Close the app completely (swipe it away) and open it again. The version number is at the bottom of the app. |
+| An old version | Close the app completely and open it again while online: it updates itself. The version is shown at the top, next to the name. |
 
 More detail: the [full user guide](MANUAL.md).

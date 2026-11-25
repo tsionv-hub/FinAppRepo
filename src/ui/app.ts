@@ -410,7 +410,6 @@ export function tmView(): void {
 function loansView(s: Snapshot, infl: number): void {
   const L = data!.loans;
   $('lnCard').hidden = !L.length;
-  $('jLoans').hidden = !L.length;
   if (!L.length) return;
   let total = 0;
   $('lnl').innerHTML = L.map((l, i) => {
@@ -471,14 +470,6 @@ const PANEL_HELP: Record<string, [Parameters<typeof t>[0], Parameters<typeof t>[
 function panelHelp(key: string): void {
   const h = PANEL_HELP[key];
   if (h) openDialog(t(h[0]), '', `<div class="dhelp">${t(h[1])}</div>`);
-}
-
-/** Jump bar: opens the panel and scrolls to it. */
-function jumpTo(id: string): void {
-  const d = document.getElementById(id) as HTMLDetailsElement | null;
-  if (!d) return;
-  d.open = true;
-  d.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: number): void {
@@ -852,10 +843,6 @@ export function initApp(d: AppDeps): void {
     e.stopPropagation();
     panelHelp(b.dataset.help!);
   }, true);
-  $('jump').addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-go]');
-    if (b) jumpTo(b.dataset.go!);
-  });
   $('hl').addEventListener('click', (e) => {
     const r = rowTap(e);
     if (r?.dataset.h) holdingDetails(holdRows[parseInt(r.dataset.h, 10)]);

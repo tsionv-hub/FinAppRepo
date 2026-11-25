@@ -37,7 +37,8 @@ function serviceWorker(): Plugin {
 const CACHE = 'fp-${version}';
 const SHELL = ${JSON.stringify(files)};
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // cache: 'reload' so the offline copy is the new version, not a browser-cached old one.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL.map((u) => new Request(u, { cache: 'reload' })))).then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
@@ -46,25 +47,30 @@ self.addEventListener('fetch', (e) => {
   const req = e.request;
   const url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
+  // The version check must always reach the network.
+  if (url.pathname.endsWith('/version.json')) return;
   if (req.mode === 'navigate') {
     // Network first for the page (the OAuth redirect lands here), cached shell when offline.
-    e.respondWith(fetch(req).catch(() => caches.match('./', { cacheName: CACHE })));
+    // 'no-cache': always ask the server (GitHub Pages lets browsers reuse pages for 10 minutes).
+    e.respondWith(fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' }).catch(() => caches.match('./', { cacheName: CACHE })));
     return;
   }
   e.respondWith(caches.match(req, { ignoreSearch: true }).then((r) => r || fetch(req)));
 });
 `;
       this.emitFile({ type: 'asset', fileName: 'sw.js', source: sw });
+      // The app compares this with its own version on start and reloads once if they differ.
+      this.emitFile({ type: 'asset', fileName: 'version.json', source: JSON.stringify({ version: appVersion }) });
     },
   };
 }
 
-const version = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version;
+const appVersion = (JSON.parse(readFileSync('package.json', 'utf8')) as { version: string }).version;
 
 export default defineConfig({
   base: './',
   // Shown at the bottom of the app and in the sign-in test, to check which version a phone runs.
-  define: { __APP_VERSION__: JSON.stringify(version) },
+  define: { __APP_VERSION__: JSON.stringify(appVersion) },
   plugins: [csp(), serviceWorker()],
   build: { target: 'es2020' },
   test: { include: ['tests/**/*.test.ts'] },

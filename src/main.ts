@@ -286,6 +286,25 @@ function wire(): void {
   });
 }
 
+/**
+ * After a deploy, a phone can still be running the previous version. On start
+ * (when online) compare with the site's version.json and reload once if newer.
+ */
+async function checkForUpdate(): Promise<void> {
+  if (!navigator.onLine || !import.meta.env.PROD) return;
+  try {
+    const r = await fetch('version.json', { cache: 'no-store' });
+    const { version } = (await r.json()) as { version: string };
+    if (!version || version === __APP_VERSION__) return;
+    const tried = sessionStorage.getItem('fp_update_tried');
+    if (tried === version) return; // already reloaded for this version: never loop
+    sessionStorage.setItem('fp_update_tried', version);
+    location.reload();
+  } catch {
+    /* offline or no version file: keep running this version */
+  }
+}
+
 function route(): void {
   $('demoBar').hidden = !demo;
   $('foot').hidden = demo;
@@ -328,6 +347,7 @@ function main(): void {
   });
   applyLang(saved === 'he' ? 'he' : 'en');
   $('ver').textContent = 'v' + __APP_VERSION__;
+  $('verTop').textContent = '(v' + __APP_VERSION__ + ')';
   feedbackLinks();
   initAi(() => demo);
   $('helpBtn').addEventListener('click', showHelp);
@@ -336,7 +356,10 @@ function main(): void {
   if (lastRedirect.kind !== 'none' && lastRedirect.returnTo === 'diag') history.replaceState(null, '', location.pathname + '?diag');
   if (lastRedirect.kind === 'ok') diagLog.push(t('dgRedOk'));
   route();
-  if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && import.meta.env.PROD) navigator.serviceWorker.register('sw.js').then((r) => r.update()).catch(() => {});
+  checkForUpdate();
+  // Coming back to an app left open in the background also checks.
+  document.addEventListener('visibilitychange', () => document.visibilityState === 'visible' && checkForUpdate());
 }
 
 main();
