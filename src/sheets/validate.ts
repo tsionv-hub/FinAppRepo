@@ -28,7 +28,7 @@ export const RULES: Record<string, TabRule> = {
   Holdings: {
     required: true,
     columns: ['id', 'name', 'type', 'currency', 'current_amount'],
-    optionalColumns: ['vendor', 'owner', 'deposited_amount', 'return_5y_avg_pct', 'tax_type', 'include_in_total', 'group', 'fund_number'],
+    optionalColumns: ['vendor', 'owner', 'deposited_amount', 'return_5y_avg_pct', 'tax_type', 'include_in_total', 'group', 'fund_number', 'short_name'],
   },
   Pension: {
     required: false,

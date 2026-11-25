@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { groupOf, impliedReturn, nextDepositId, nextId, parseDate, parseDeposits, parseGrants, parseHoldings, type Holding } from '../src/model';
+import { groupOf, shortName, impliedReturn, nextDepositId, nextId, parseDate, parseDeposits, parseGrants, parseHoldings, type Holding } from '../src/model';
 import { depositedAfter, grantRow } from '../src/sheets/data';
 
 describe('deposits', () => {
@@ -90,5 +90,16 @@ describe('deposited_amount after a deposit', () => {
     expect(depositedAfter('', 60000, 1000)).toBe(61000);
     expect(depositedAfter(undefined, 60000, 1000)).toBe(61000);
     expect(depositedAfter('=SUMIFS(Deposits!D:D,Deposits!B:B,A2)', 60000, 1000)).toBeNull();
+  });
+});
+
+describe('short names for charts', () => {
+  const h = (o: Partial<Holding> & { short?: string }) => ({ name: '', vendor: '', owner: '', ...o, info: { short: o.short ?? '' } }) as unknown as Holding;
+  it('uses short_name, else vendor short form plus the digits in the name, else the owner', () => {
+    expect(shortName(h({ short: 'My fund', vendor: 'Migdal' }))).toBe('My fund');
+    expect(shortName(h({ vendor: 'Migdal', name: 'Savings plan ...1234' }))).toBe('MG 1234');
+    expect(shortName(h({ vendor: 'Hachshara', name: 'Policy', owner: 'dana' }))).toBe('HAC D');
+    expect(shortName(h({ vendor: 'הפניקס', name: 'קרן 98765' }))).toBe('PHX 8765');
+    expect(shortName(h({ vendor: 'Some Bank', name: 'X' }))).toBe('SOM');
   });
 });
