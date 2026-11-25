@@ -27,7 +27,7 @@ const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
 let sheetCalls = 0;
 const aiCalls: { url: string; key: string; body: { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: { text: string }[] }[] } }[] = [];
-let aiMode: 'ok' | 'limit' = 'ok';
+let aiMode: 'ok' | 'limit' | 'busy' = 'ok';
 const fail = (m: string) => { console.error('FAIL: ' + m); process.exitCode = 1; };
 const ok = (c: unknown, m: string) => (c ? console.log('ok   ' + m) : fail(m));
 
@@ -57,6 +57,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     const r = route.request();
     const body = r.postDataJSON() as { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: { text: string }[] }[] };
     aiCalls.push({ url: r.url(), key: r.headers()['x-goog-api-key'], body });
+    if (r.headers()['x-goog-api-key'].includes('BUSY') || aiMode === 'busy') return route.fulfill({ status: 503, json: { error: { message: 'The model is overloaded. Please try again later.' } } });
     if (r.headers()['x-goog-api-key'].includes('NOCREDIT')) return route.fulfill({ status: 402, json: { error: { message: 'Your prepayment credits are depleted. Please go to AI Studio at https://ai.studio/projects to manage your project and billing.' } } });
     if (aiMode === 'limit') return route.fulfill({ status: 429, json: { error: { message: 'Resource exhausted' } } });
     const q = body.contents[body.contents.length - 1].parts[0].text;
@@ -431,6 +432,11 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#aiSend');
   await page.waitForSelector('#aiLog .ai-msg.err');
   ok((await txt('#aiLog .ai-msg.err')).includes('free limit'), 'the free-tier limit shows a plain message');
+  aiMode = 'busy';
+  await page.fill('#aiIn', 'One more');
+  await page.click('#aiSend');
+  await page.waitForSelector('#aiLog .ai-msg.err:has-text("busy")', { timeout: 15000 });
+  ok((await txt('#aiLog .ai-msg.err')).includes('Your key is fine'), 'when Google’s AI is busy (503), after trying other models the chat says so plainly');
   aiMode = 'ok';
   await page.click('#aiX');
   // The dialog's close event fires a moment after the tap.
@@ -509,7 +515,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await txt('#dlgT')) === '⚠️ Your data goes to Google’s AI', 'after removing the key, the full privacy warning comes back first');
   await page.click('[data-ai=agree]');
   ok((await txt('#dlgT')).includes('Connect your free Gemini key'), 'then the key setup');
-  await page.click('#dlgX');
+  // The real case seen on a phone: a new key, but Google answers 503 (busy).
+  await page.fill('#aiKey', 'AQ.BUSY' + 'x'.repeat(20));
+  await page.click('[data-ai=savekey]');
+  await page.waitForFunction(() => (document.getElementById('aiChat') as HTMLDialogElement).open, null, { timeout: 15000 });
+  ok((await txt('#aiLog .ai-msg.err')).includes('Your key works and is saved') && !!(await page.evaluate(() => localStorage.getItem('fp_ai_key'))), 'a 503 during setup: the key is saved and the chat opens, saying Google is busy');
+  await page.click('#aiX');
 
   // 8. Sign-in test screen: both methods.
   await page.goto(URL0 + '?diag');

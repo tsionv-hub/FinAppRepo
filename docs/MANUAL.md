@@ -129,4 +129,5 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 | Sheet check shows ✗ | Fix that tab or column name in the sheet exactly as shown, then **Check again**. |
 | Sign-in window doesn't open | Tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
 | Ask AI: "prepayment credits are depleted" (402) | The key's Google project is on paid billing with no credit. In AI Studio (ai.studio/projects) create a new project without billing and a key in it, or add credit. |
+| Ask AI: "busy" (503) | Google's free AI is overloaded for a moment; the app already tried other models. Your key is fine: try again in a minute. |
 | Old version after an update | Close the app completely (swipe it away) and reopen it. |

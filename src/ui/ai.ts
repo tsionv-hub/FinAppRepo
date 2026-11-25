@@ -97,6 +97,15 @@ async function saveKey(): Promise<void> {
     closeDlg();
     openChat();
   } catch (e) {
+    if (e instanceof AiError && e.code === 'busy') {
+      // Google got past the key check but its AI is overloaded: the key is fine, save it.
+      set(KEYS.aiKey, key);
+      set(KEYS.aiOk, '1');
+      remove(KEYS.aiSetup);
+      closeDlg();
+      openChat(t('aiKBusySaved'));
+      return;
+    }
     if (e instanceof AiError && e.code === 'billing') {
       // Key is fine, but its project is on prepaid billing with no credit: explain and link.
       m.innerHTML = `${esc(t('aiKBilling'))} <a href="https://ai.studio/projects" target="_blank" rel="noopener">${esc(t('aiKProjects'))}</a>`;
@@ -112,6 +121,7 @@ function errText(e: unknown): string {
   const c = e instanceof AiError ? e.code : 'other';
   if (c === 'badkey') return t('aiErrKey');
   if (c === 'limit') return t('aiErrLimit');
+  if (c === 'busy') return t('aiErrBusy');
   if (c === 'billing') return t('aiKBilling');
   if (c === 'network') return t('aiErrNet');
   if (c === 'blocked') return t('aiErrBlock');
@@ -128,10 +138,10 @@ function render(extra = ''): void {
   log.scrollTop = log.scrollHeight;
 }
 
-function openChat(): void {
+function openChat(note = ''): void {
   history = [];
   $('aiDemo').hidden = !isDemo();
-  render();
+  render(note ? `<div class="ai-msg err">${esc(note)}</div>` : '');
   const d = $<HTMLDialogElement>('aiChat');
   if (!d.open) d.showModal();
   $<HTMLTextAreaElement>('aiIn').focus();
