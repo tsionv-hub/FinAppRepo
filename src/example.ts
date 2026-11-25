@@ -47,10 +47,10 @@ export const EXAMPLE_TABS: Tab[] = [
     name: 'Holdings',
     rows: [
       HOLD_HEAD,
-      hold({ id: 'H1', name: 'Study fund (Alex)', vendor: 'Provider A', owner: 'Alex', type: 'Study fund', investment_track: 'Stocks', currency: 'ILS', current_amount: 185000, deposited_amount: 140000, return_5y_avg_pct: 7.2, deposit_fee_pct: 0, management_fee_pct: 0.6, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-01' }),
-      hold({ id: 'H2', name: 'Study fund (Sam)', vendor: 'Provider B', owner: 'Sam', type: 'Study fund', investment_track: 'General', currency: 'ILS', current_amount: 96000, deposited_amount: 80000, return_5y_avg_pct: 6.8, management_fee_pct: 0.7, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-01' }),
-      hold({ id: 'H3', name: 'Investment fund', vendor: 'Provider A', owner: 'Alex', type: 'Investment fund', investment_track: 'S&P 500', currency: 'ILS', current_amount: 140000, deposited_amount: 110000, return_5y_avg_pct: 6.5, management_fee_pct: 0.5, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-11-01' }),
-      hold({ id: 'H4', name: 'Kids savings plan', vendor: 'Provider C', owner: 'Sam', type: 'Savings plan', investment_track: 'Balanced', currency: 'ILS', current_amount: 60000, deposited_amount: 52000, return_5y_avg_pct: 5.1, management_fee_pct: 0.4, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-10-15' }),
+      hold({ id: 'H1', name: 'Study fund (Alex)', vendor: 'Provider A', owner: 'Alex', type: 'Study fund', investment_track: 'Stocks', currency: 'ILS', current_amount: 185000, deposited_amount: 140000, return_5y_avg_pct: 7.2, deposit_fee_pct: 0, management_fee_pct: 0.6, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-01', fund_number: 99901 }),
+      hold({ id: 'H2', name: 'Study fund (Sam)', vendor: 'Provider B', owner: 'Sam', type: 'Study fund', investment_track: 'General', currency: 'ILS', current_amount: 96000, deposited_amount: 80000, return_5y_avg_pct: 6.8, management_fee_pct: 0.7, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-01', fund_number: 99902 }),
+      hold({ id: 'H3', name: 'Investment fund ...4821', vendor: 'Provider A', owner: 'Alex', type: 'Investment fund', investment_track: 'S&P 500', currency: 'ILS', current_amount: 140000, deposited_amount: 110000, return_5y_avg_pct: 6.5, management_fee_pct: 0.5, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-11-01', fund_number: 99903 }),
+      hold({ id: 'H4', name: 'Kids savings plan', vendor: 'Provider C', owner: 'Sam', type: 'Savings plan', investment_track: 'Balanced', currency: 'ILS', current_amount: 60000, deposited_amount: 52000, return_5y_avg_pct: 5.1, management_fee_pct: 0.4, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-10-15', fund_number: '99904, 99905', short_name: 'KIDS', notes: 'Two fund numbers: the money is split evenly between two tracks. short_name sets the chart label.' }),
       hold({ id: 'H5', name: 'Brokerage account', vendor: 'Broker D', owner: 'Alex', type: 'Brokerage', investment_style: 'Index ETFs', currency: 'USD', current_amount: 42000, deposited_amount: 30000, return_5y_avg_pct: 9.8, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-11-20' }),
       hold({ id: 'H6', name: 'Checking and deposits', vendor: 'Bank E', owner: 'Joint', type: 'Cash', currency: 'ILS', current_amount: 65000, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-20' }),
       hold({ id: 'H7', name: 'Company shares (vested)', owner: 'Alex', type: 'Stocks', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 400, current_amount: 18000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1, notes: 'In your own sheet, current_amount can be quantity × GOOGLEFINANCE price.' }),
@@ -98,6 +98,8 @@ export const EXAMPLE_TABS: Tab[] = [
       ['D3', 'H3', '2021-03-01', 60000, 'ILS', null],
       ['D4', 'H3', '2023-06-15', 30000, 'ILS', null],
       ['D5', 'H3', '2025-09-01', 20000, 'ILS', null],
+      ['D6', 'H5', '2022-01-10', 20000, 'USD', null],
+      ['D7', 'H5', '2024-05-01', 10000, 'USD', null],
     ],
   },
   {
@@ -119,4 +121,27 @@ export function exampleRows(): Record<string, Rows> {
 
 export function exampleXlsx(): Uint8Array {
   return zip(workbookFiles(EXAMPLE_TABS));
+}
+
+/**
+ * Made-up "official" fund figures for the example's made-up fund numbers, so
+ * example mode shows the official-data features without going online.
+ * Records look like data.gov.il rows; the month is last month.
+ */
+export function exampleOfficialRecords(today: Date): { db: 'gemel' | 'bituach'; records: Record<string, unknown>[] }[] {
+  const d = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+  const period = d.getFullYear() * 100 + d.getMonth() + 1;
+  const r = (id: number, name: string, avg5: number | null, avg3: number, ytd: number, fee: number, stocks: number, abroad: number) => ({
+    FUND_ID: id, FUND_NAME: name, REPORT_PERIOD: period, AVG_ANNUAL_YIELD_TRAILING_5YRS: avg5, AVG_ANNUAL_YIELD_TRAILING_3YRS: avg3,
+    YEAR_TO_DATE_YIELD: ytd, AVG_ANNUAL_MANAGEMENT_FEE: fee, TOTAL_ASSETS: 1000, STOCK_MARKET_EXPOSURE: stocks * 10, FOREIGN_EXPOSURE: abroad * 10,
+  });
+  return [
+    { db: 'gemel', records: [
+      r(99901, 'Example study fund – stocks track', 8.4, 12.6, 9.1, 0.62, 98, 70),
+      r(99902, 'Example study fund – general track', 6.1, 9.4, 6.8, 0.71, 52, 45),
+      r(99903, 'Example investment fund – S&P 500 track', 9.7, 14.2, 11.3, 0.55, 100, 99),
+      r(99905, 'Example provident fund – stocks (a policy track run by another company)', null, 11.8, 8.9, 0.58, 97, 68),
+    ] },
+    { db: 'bituach', records: [r(99904, 'Example insurer – bonds track', 3.2, 4.1, 3.6, 0.8, 0, 18)] },
+  ];
 }

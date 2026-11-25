@@ -127,6 +127,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.evaluate(() => ((document.getElementById('pRet') as HTMLDetailsElement).open = true));
   await page.click('#rb2');
   ok((await txt('#gm')) === 'This is example data, so nothing is saved.', 'example mode: save buttons save nothing');
+  await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 4 && (await txt('#ofc')).includes('Example: these official figures are made up.'), 'example mode shows the official returns chart with made-up figures (no network): ' + (await page.locator('#ofc svg .ofc-col').count()));
+  ok(govCalls === 0, 'example mode does not call data.gov.il');
+  ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'KIDS,PRO 4821,PRO A,PRO S', 'example chart labels: short_name and vendor short forms');
+  ok((await page.locator('#hl details.hgd').count()) === 6, 'example shows all six holding groups');
+  await page.locator('#pHold').screenshot({ path: OUT + '/example-holdings.png' });
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
   await page.click('#demoExit');
   await page.waitForSelector('#setupSheet:not([hidden])');

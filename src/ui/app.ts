@@ -10,8 +10,8 @@ import {
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
-import { exampleRows } from '../example';
-import { applyOfficial, fetchOfficial, fundIds, lookupHoldings, dbFor } from '../official/gov';
+import { exampleOfficialRecords, exampleRows } from '../example';
+import { applyOfficial, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, dbFor } from '../official/gov';
 import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
@@ -153,7 +153,8 @@ export async function load(): Promise<void> {
       return;
     }
     data = res.data;
-    if (!demo) officialFor(data);
+    if (demo) exampleOfficial(data);
+    else officialFor(data);
     fillInputs(data);
     cache = null;
     updatedLine();
@@ -176,6 +177,14 @@ let official: { ids: string; map: Map<string, Official> } | null = null;
 let officialState: 'none' | 'loading' | 'ok' | 'error' = 'none';
 
 const officialIds = (d: SheetData) => lookupHoldings(d.holdings).map((h) => dbFor(h) + ':' + fundIds(h.info!.fundNumber).join('+')).sort().join(',');
+
+/** Example mode: made-up official figures, nothing fetched. */
+function exampleOfficial(d: SheetData): void {
+  const map = new Map<string, Official>();
+  for (const { db, records } of exampleOfficialRecords(new Date())) for (const [id, o] of latest(db, records)) map.set(offKey(db, id), o);
+  applyOfficial(d.holdings, map);
+  officialState = 'ok';
+}
 
 /** Uses official returns for holdings with a fund number: at once if already fetched, else after fetching. */
 function officialFor(d: SheetData): void {
@@ -275,7 +284,7 @@ function officialChart(): void {
     + (sel
       ? `<div class="ofsel"><span><b>${esc(shortName(sel.h))}</b> · ${esc(sel.h.name)} · ${esc(ty(sel.h.type))}${sel.h.owner ? ' · ' + esc(sel.h.owner) : ''}: <b>${sel.v == null ? '–' : sel.v.toFixed(1) + '%'}</b></span><button type="button" class="s" data-ofgo="1">${t('ofcShow')}</button></div>`
       : `<div class="dnote">${t('ofcTap')}</div>`)
-    + `<div class="dnote">${t('ofcN', { d: period(last) })}${missing ? ' ' + t('ofcMiss', { n: missing }) : ''}</div>`;
+    + `<div class="dnote">${t('ofcN', { d: period(last) })}${missing ? ' ' + t('ofcMiss', { n: missing }) : ''}${deps.demo() ? ' ' + t('ofDemo') : ''}</div>`;
   markSelected();
 }
 
@@ -313,7 +322,7 @@ function officialSection(h: Holding): string {
       + row(t('ofFee'), pct(o.fee) + (h.info.managementFeePct != null ? ' · ' + t('ofYours', { f: pct(h.info.managementFeePct) }) : ''))
       + row(t('ofStocks'), pct(o.stocksPct, 1)) + row(t('ofAbroad'), pct(o.foreignPct, 1));
   }
-  return body + `<div class="dnote">${t('ofN', { r: pct(h.ret), s: pct(h.retSheet) })}</div>`;
+  return body + `<div class="dnote">${t('ofN', { r: pct(h.ret), s: pct(h.retSheet) })}${deps.demo() ? ' ' + t('ofDemo') : ''}</div>`;
 }
 
 /** Opens the main screen once the sheet has been read (and checked on first run). */
