@@ -2,7 +2,7 @@
 
 **[עברית](MANUAL.he.md)** · First time? The short version is [Getting started](START.md).
 
-Finance Planner shows where your money stands today and whether your plans are funded in the future. It reads your numbers from **your own Google Sheet**; nothing is sent anywhere else, and nothing is stored on any server.
+Finance Planner shows where your money stands today and whether your plans are funded in the future. It reads your numbers from **your own Google Sheet**, and nothing is stored on any server. Only two optional features send anything elsewhere: fund numbers to the government's public fund data, and Ask AI (see section 7).
 
 ---
 
@@ -53,9 +53,9 @@ The screen has four sections: **Quick look** (your money today, projection), **Y
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
 | **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates and the rainy day fund. Changes are "what if" only. |
 | **Loans** | Each loan: what you still owe (at the date on the slider), the payment plan and whether it's on track. Only shown if your sheet has a Loans tab with loans. |
-| **Holdings** | Your money today by type (before tax), then every account at the date on the slider. |
+| **Holdings** | Your money today by type (before tax), then every account at the date on the slider, in sections (study funds, funds and savings, trading accounts, bank, stocks, pension): tap a section's header to open or close it. At the bottom, the **Official returns** chart compares your funds' official returns (see section 6). |
 
-**Tap any holding, loan or goal** for details.
+**Tap any holding, loan or goal** for details. A holding's window also lets you add a deposit (funds and trading accounts), update the balance (bank) or add a share grant (stocks).
 
 **Language:** tap **עברית / English** at the top. Everything works in both, including adding goals.
 
@@ -91,7 +91,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 - **Privacy first:** each question sends your question **and your sheet's numbers** to Google Gemini, like pasting your sheet into Gemini yourself. With a free key, Google may use it to improve its AI. Account numbers are never sent, the app saves no questions or answers, and the person who shared the app never sees any of it. The first time, you must confirm you understand this.
 - **One-time setup:** create a free Gemini key at **aistudio.google.com/apikey** (sign in → **Create API key** → copy it → on iPhone tap **Done** to come back), paste it into the app and tap **Save and test**. The setup screen waits for you when you return. The key stays on your phone; **Remove AI key** in the chat deletes it.
 - **🔒 Don't send my data:** tick this in the chat to ask about the app only. Then only your question and this guide go to Google, none of your numbers. Switching it on or off starts a new conversation.
-- **What it knows:** your sheet, the app's own results (totals, free money, goal status, retirement, pension) and this guide. It can't know what isn't in the sheet; for example, the sheet keeps no history of individual deposits.
+- **What it knows:** your sheet, the app's own results (totals, free money, goal status, retirement, pension) and this guide. It also gets your deposits and share grants (if you have those tabs) and the official fund data. It can't know what isn't in the sheet.
 - **Limits:** the free key has a daily limit; AI can make mistakes, so the app's numbers are the reference. It's not financial advice.
 - A short reminder appears once each time you open the app; from the 4th time you can choose **Don't show this again**.
 
@@ -124,7 +124,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 - The person who sent you the app **cannot** see your sheet or your numbers.
 - If you fill in `fund_number`, only those fund numbers are sent to data.gov.il (the government's public data site) to fetch public fund data. No amounts, names or account numbers.
 - The phone keeps only your sheet link, language and (if you add one) your Gemini key. **Forget this sheet** (bottom of the app) removes them.
-- **Ask AI** is the one exception to "only between your phone and your sheet": see section 5.
+- Two optional exceptions to "only between your phone and your sheet": **fund numbers** go to data.gov.il as above, and **Ask AI** (see section 5).
 
 ---
 
@@ -139,4 +139,5 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 | Sign-in window doesn't open | Tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
 | Ask AI: "prepayment credits are depleted" (402) | The key's Google project is on paid billing with no credit. In AI Studio (ai.studio/projects) create a new project without billing and a key in it, or add credit. |
 | Ask AI: "busy" (503) | Google's free AI is overloaded for a moment; the app already tried other models. Your key is fine: try again in a minute. |
+| No official data for a fund ("not found") | Check the number in `fund_number`: it's the fund's or track's official number (on your statement or the provider's site). Several tracks: separate them with commas. |
 | Old version after an update | Close the app completely and reopen it while online: it checks for a new version and updates itself. The version is shown at the top, next to the name. |
