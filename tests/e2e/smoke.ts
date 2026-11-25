@@ -165,7 +165,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(await page.evaluate(() => !!(document.getElementById('chart')!.compareDocumentPosition(document.getElementById('sc')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'the return scenario is below the graph');
   const marker = (id: string) => page.evaluate((i) => getComputedStyle(document.querySelector(`#${i} > summary`)!, '::after').content, id);
   ok((await marker('pGoals')) === '"➕"' && (await marker('pProj')) === '"➖"', 'closed panels show ➕, open ones ➖');
-  ok((await txt('.hint')).includes('Tap ➕ to open a panel and ➖ to close it'), 'the tip mentions ➕ and ➖');
+  ok(await page.evaluate(() => (document.querySelector('.hint') as HTMLElement).innerText) === 'Tap ➕/➖ to open/close a panel.\nTap 🤔 for a short explanation.', 'the tip: ➕/➖ on one line, 🤔 on the next');
   await page.screenshot({ path: OUT + '/app-en.png', fullPage: true });
   await page.locator('#pToday').screenshot({ path: OUT + '/today-card.png' });
 
@@ -427,6 +427,19 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForFunction(() => document.querySelectorAll('#aiLog .ai-msg.bot:not(.wait)').length === 2);
   ok(aiCalls[aiCalls.length - 1].body.contents.map((c) => c.role).join() === 'user,model,user', 'follow-up questions include the conversation so far');
   await page.screenshot({ path: OUT + '/ai-chat.png' });
+  // Phone keyboard open: the visible area shrinks; the whole chat must stay on screen.
+  const full = page.viewportSize()!;
+  await page.setViewportSize({ width: full.width, height: 380 });
+  await page.waitForTimeout(300);
+  const box = await page.evaluate(() => {
+    const r = document.getElementById('aiChat')!.getBoundingClientRect();
+    const h = document.getElementById('aiT')!.getBoundingClientRect();
+    const i = document.getElementById('aiIn')!.getBoundingClientRect();
+    return { top: r.top, bottom: r.bottom, title: h.top, input: i.bottom, vh: window.visualViewport!.height };
+  });
+  ok(box.top >= 0 && box.title >= 0 && box.bottom <= box.vh && box.input <= box.vh, 'with the keyboard up, the chat fits above it: title and input both visible ' + JSON.stringify(box));
+  await page.screenshot({ path: OUT + '/ai-keyboard.png' });
+  await page.setViewportSize(full);
   // 🔒 Don't send my data.
   ok(!(await page.isChecked('#aiPriv')), '🔒 Don’t send my data starts unticked');
   await page.check('#aiPriv');
@@ -466,6 +479,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(forgot, 'closing the chat forgets the conversation');
   await page.click('#aiBtn');
   ok((await chatOpen()) && !(await dlgOpen2()), 'during the same opening, the chat opens straight away');
+  ok(!(await page.evaluate(() => document.activeElement?.id === 'aiIn')), 'opening the chat does not pop the keyboard up by itself');
   await page.click('#aiX');
   // Hebrew: the AI screens are translated too.
   await page.click('#lb');
