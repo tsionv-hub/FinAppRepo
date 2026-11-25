@@ -241,7 +241,25 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .dpf { margin-top: 8px; display: grid; gap: 8px; }
 .dpf input[type=date] { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 8px; border: 1px solid var(--ln); border-radius: 8px; background: var(--bg); color: var(--tx); }
 .dpck { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tx); }
-.hgrp { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .03em; margin: 14px 0 2px; padding-bottom: 4px; border-bottom: 2px solid var(--ln); }
-.hgrp:first-child { margin-top: 4px; }
+.hgrp { cursor: pointer; list-style: none; display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .03em; margin: 14px 0 2px; padding-bottom: 4px; border-bottom: 2px solid var(--ln); }
+.hgd:first-child .hgrp { margin-top: 4px; }
+.hgrp::-webkit-details-marker { display: none; }
+.hgrp > span:first-child::before { content: '▸'; display: inline-block; width: 1.1em; transition: transform .15s; }
+[dir=rtl] .hgrp > span:first-child::before { content: '◂'; }
+.hgd[open] > .hgrp > span:first-child::before { transform: rotate(90deg); }
+[dir=rtl] .hgd[open] > .hgrp > span:first-child::before { transform: rotate(-90deg); }
 .hgrp span:last-child { font-variant-numeric: tabular-nums; text-transform: none; }
 .oft { font-size: 13px; margin: 10px 0 2px; }
+/* Holdings panel: official returns chart */
+:root { --s5: #2563eb; --s3: #8b5cf6; --sy: #d97706; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --s5: #6ea0ff; --s3: #a78bfa; --sy: #fbbf24; } }
+:root[data-theme="dark"] { --s5: #6ea0ff; --s3: #a78bfa; --sy: #fbbf24; }
+.s-avg5 { background: var(--s5); } .s-avg3 { background: var(--s3); } .s-ytd { background: var(--sy); }
+.leg .sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-inline-end: 5px; vertical-align: -1px; }
+.ofr { padding: 8px 0; border-top: 1px solid var(--ln); }
+.ofr:first-of-type { border-top: 0; }
+.ofn { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+.ofb { display: flex; align-items: center; gap: 8px; margin-top: 3px; }
+.ofbt { flex: 1; height: 8px; background: var(--ln); border-radius: 4px; overflow: hidden; }
+.ofbt i { display: block; height: 100%; border-radius: 4px; }
+.ofv { width: 3.6em; text-align: end; font-size: 12px; font-variant-numeric: tabular-nums; color: var(--mu); }
