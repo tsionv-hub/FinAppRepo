@@ -196,3 +196,17 @@ Results stay in memory for the visit only and are never stored. If the fetch fai
 Each Holdings group (including Pension) is a collapsible section. Sections are closed by default, and the open ones are remembered on the phone (`hold_open`, a UI choice).
 
 At the bottom of the Holdings panel, an "Official returns" chart compares every holding with official data in one vertical column chart. A selector picks the period: 5 years or 3 years (yearly averages), or since January. The choice is remembered on the phone (`ofc_period`). A holding split between tracks shows the plain average of its tracks. Columns are sorted best first, in reading order (right to left in Hebrew). Each column shows its value; negative values go below the zero line, and a missing value shows "–". Names are rotated and shortened to 18 characters. The note names the latest month of the data. (v1.16.1)
+
+**v1.17:** Columns are coloured by holding type (study fund, investment fund, savings plan, brokerage, other), with a legend.
+
+Each column is labelled with a short name:
+- the optional Holdings `short_name`, if filled;
+- otherwise a short form of the vendor (a fixed list of public company names, e.g. Migdal → MG, Hachshara → HAC) plus the last 4 digits at the end of the holding name;
+- otherwise the owner's initial instead of the digits.
+
+Tapping a column picks it:
+- the other columns dim;
+- a line under the chart names the holding, with a "Show in list" button that scrolls to it;
+- its row in the list is highlighted, and its group opens.
+
+Tapping the column again clears the pick. Redraws take the groups' open state from the screen, so a fast redraw doesn't undo a close.

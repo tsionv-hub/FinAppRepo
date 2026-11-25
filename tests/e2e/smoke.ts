@@ -27,7 +27,7 @@ const depositsX = [
   ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
 ];
 // fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
-const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '22, 33' : '']);
+const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '22, 33' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
 let govCalls = 0;
 let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
@@ -395,10 +395,17 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click(bankG + ' > summary');
   ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
   const cols = () => page.$$eval('#ofc svg', (s) => [...s[0].querySelectorAll('text')].map((x) => x.textContent!.replace(/^(.+?)\1$/, '$1')).join('|'));
-  ok((await page.locator('#ofc svg rect.s-avg5').count()) === 2 && (await cols()) === '11.0|Savings D|9.4|Invest B', 'official returns: one column chart, 5 years first, best first: ' + (await cols()));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '11.0|VEN P|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else vendor + owner): ' + (await cols()));
   await page.click('#ofc [data-ofp=ytd]');
-  ok((await page.locator('#ofc svg rect.s-ytd').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
   await page.click('#ofc [data-ofp=avg5]');
+  ok((await page.locator('#ofc svg rect.tc-invest').count()) === 1 && (await page.locator('#ofc svg rect.tc-save').count()) === 1 && (await txt('#ofc .leg')) === 'Investment fundSavings plan' && (await page.$eval('#ofc .leg .sw.tc-invest', (e) => e.getBoundingClientRect().width)) >= 8, 'columns are coloured by holding type, with a legend: ' + (await txt('#ofc .leg')));
+  await page.click('#ofc [data-oh=H2] .ofhit');
+  ok((await txt('#hl .g.hsel b')) === 'Invest B' && (await page.locator('#ofc .ofc-col.dim').count()) === 1 && (await txt('#ofc .ofsel')).startsWith('INV-B · Invest B · Investment fund'), 'tapping a column highlights its holding in the list and names it under the chart');
+  await page.locator('#pHold').screenshot({ path: OUT + '/ofc-selected.png' });
+  await page.click('#ofc [data-ofgo]');
+  await page.click('#ofc [data-oh=H2] .ofhit');
+  ok((await page.locator('#hl .g.hsel').count()) === 0 && (await page.locator('#ofc .ofc-col.dim').count()) === 0, 'tapping it again clears the highlight');
   ok(/to Oct 2026/.test(await txt('#ofc')), 'the chart says which month the data is from');
   await page.locator('#pHold').screenshot({ path: OUT + '/holdings-official.png' });
   await page.click('#hl .g:has-text("Invest B")');

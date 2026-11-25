@@ -77,6 +77,8 @@ export interface HoldingInfo {
   notes: string;
   /** fund_number column (study funds and funds only). */
   fundNumber: string;
+  /** short_name column: a label for charts (blank = made from the vendor). */
+  short: string;
 }
 
 export interface PensionFund {

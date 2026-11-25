@@ -6,7 +6,7 @@ import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
   type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths,
-  impliedReturn, type Deposit, GROUPS, type Grant,
+  impliedReturn, type Deposit, GROUPS, type Grant, shortName,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
@@ -217,6 +217,12 @@ type OfcPeriod = 'avg5' | 'avg3' | 'ytd';
 const OFC: [OfcPeriod, 'ofc5' | 'ofc3' | 'ofcY'][] = [['avg5', 'ofc5'], ['avg3', 'ofc3'], ['ytd', 'ofcY']];
 const ofcPeriod = (): OfcPeriod => (OFC.some(([k]) => k === get(KEYS.ofcPeriod)) ? (get(KEYS.ofcPeriod) as OfcPeriod) : 'avg5');
 
+/** Chart colour class per holding type (legend in the same order). */
+const TYPE_COLOR: [string, string][] = [['Study fund', 'tc-study'], ['Investment fund', 'tc-invest'], ['Savings plan', 'tc-save'], ['Brokerage', 'tc-broker']];
+const typeColor = (type: string) => TYPE_COLOR.find(([t0]) => t0 === type)?.[1] ?? 'tc-other';
+/** Holding id picked in the official returns chart (its list row is highlighted). */
+let ofcSel: string | null = null;
+
 /** Holdings panel, bottom: one column chart comparing the official return of every holding that has one. */
 function officialChart(): void {
   const el = $('ofc');
@@ -225,6 +231,7 @@ function officialChart(): void {
     el.innerHTML = '';
     return;
   }
+  if (ofcSel && !H.some((h) => h.id === ofcSel)) ofcSel = null;
   const k = ofcPeriod();
   // A holding split between tracks gets the plain average of its tracks (equal shares).
   const val = (h: Holding) => {
@@ -235,32 +242,54 @@ function officialChart(): void {
   const vs = cols.map((c) => c.v).filter((x): x is number => x != null);
   const hi = Math.max(1, ...vs);
   const lo = Math.min(0, ...vs);
-  // SVG in a fixed coordinate box, scaled to the panel width.
-  // Labels are rotated and end at their column, so they reach left: keep a margin there.
-  const W = 340, L = 46, top = 18, plotH = 150, labH = 96, n = cols.length;
-  const slot = (W - L) / n, bw = Math.min(28, slot * 0.62);
+  // SVG in a fixed coordinate box, scaled to the panel width. Labels are short and slanted.
+  const W = 340, L = 26, top = 18, plotH = 150, labH = 52, n = cols.length;
+  const slot = (W - L) / n, bw = Math.min(28, slot * 0.66);
   const y = (v: number) => top + ((hi - v) / (hi - lo)) * plotH;
   const y0 = y(0);
-  const short = (s: string) => (s.length > 18 ? s.slice(0, 17) + '…' : s);
-  let svg = `<line x1="${L}" x2="${W}" y1="${y0}" y2="${y0}" class="ofax"/>`;
   const rtl = document.documentElement.dir === 'rtl';
+  let svg = `<line x1="${L}" x2="${W}" y1="${y0}" y2="${y0}" class="ofax"/>`;
   cols.forEach(({ h, v }, i) => {
     // Best first, in reading order (right to left in Hebrew).
     const cx = L + slot * (rtl ? n - 1 - i : i) + slot / 2;
+    const dim = ofcSel && ofcSel !== h.id ? ' dim' : '';
+    svg += `<g class="ofc-col${dim}${ofcSel === h.id ? ' sel' : ''}" data-oh="${esc(h.id!)}" role="button" tabindex="0" aria-label="${esc(h.name)}: ${v == null ? '–' : v.toFixed(1) + '%'}">`;
+    svg += `<rect x="${(cx - slot / 2).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${top + plotH + labH}" class="ofhit"/>`;
     if (v != null) {
       const y1 = Math.min(y(v), y0), hgt = Math.max(1, Math.abs(y(v) - y0));
-      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="s-${k}"/>`;
+      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="${typeColor(h.type)}"/>`;
       svg += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? y1 - 4 : y1 + hgt + 11).toFixed(1)}" class="ofvl${v < 0 ? ' neg' : ''}">${v.toFixed(1)}</text>`;
     } else svg += `<text x="${cx.toFixed(1)}" y="${(y0 - 4).toFixed(1)}" class="ofvl na">–</text>`;
-    const ly = top + plotH + (lo < 0 ? 22 : 10);
-    svg += `<text x="${cx.toFixed(1)}" y="${ly}" transform="rotate(-55 ${cx.toFixed(1)} ${ly})" class="ofnm"><title>${esc(h.name)}</title>${esc(short(h.name))}</text>`;
+    const ly = top + plotH + (lo < 0 ? 22 : 12);
+    svg += `<text x="${cx.toFixed(1)}" y="${ly}" transform="rotate(-40 ${cx.toFixed(1)} ${ly})" class="ofnm">${esc(shortName(h))}</text></g>`;
   });
   const last = Math.max(...H.flatMap((h) => h.official!.map((x) => x.o?.period ?? 0)));
   const missing = cols.filter((c) => c.v == null).length;
+  const types = TYPE_COLOR.filter(([t0]) => H.some((h) => h.type === t0)).map(([t0, c]) => `<span><i class="sw ${c}"></i>${esc(ty(t0))}</span>`)
+    .concat(H.some((h) => typeColor(h.type) === 'tc-other') ? [`<span><i class="sw tc-other"></i>${t('ofcOther')}</span>`] : []);
+  const sel = cols.find((c) => c.h.id === ofcSel);
   el.innerHTML = `<div class="addh" style="margin-top:14px">${t('ofcT')} <span class="lbl">${t(k === 'ytd' ? 'ofcSubY' : 'ofcSub')}</span></div>`
     + `<div class="seg" role="group" aria-label="${t('ofcT')}">${OFC.map(([p, l]) => `<button type="button" data-ofp="${p}" aria-pressed="${p === k}" class="${p === k ? 'on' : ''}">${t(l)}</button>`).join('')}</div>`
+    + `<div class="leg">${types.join('')}</div>`
     + `<svg class="ofsvg" viewBox="0 0 ${W} ${top + plotH + labH}" role="img" aria-label="${t('ofcT')}: ${t(OFC.find(([p]) => p === k)![1])}">${svg}</svg>`
+    + (sel
+      ? `<div class="ofsel"><span><b>${esc(shortName(sel.h))}</b> · ${esc(sel.h.name)} · ${esc(ty(sel.h.type))}${sel.h.owner ? ' · ' + esc(sel.h.owner) : ''}: <b>${sel.v == null ? '–' : sel.v.toFixed(1) + '%'}</b></span><button type="button" class="s" data-ofgo="1">${t('ofcShow')}</button></div>`
+      : `<div class="dnote">${t('ofcTap')}</div>`)
     + `<div class="dnote">${t('ofcN', { d: period(last) })}${missing ? ' ' + t('ofcMiss', { n: missing }) : ''}</div>`;
+  markSelected();
+}
+
+/** Highlights the list row of the holding picked in the chart (opening its group). */
+function markSelected(go = false): void {
+  document.querySelectorAll('#hl .g.hsel').forEach((e) => e.classList.remove('hsel'));
+  if (!ofcSel) return;
+  const i = holdRows.findIndex((x) => x.h.id === ofcSel);
+  const r = i >= 0 ? document.querySelector<HTMLElement>(`#hl .g[data-h="${i}"]`) : null;
+  if (!r) return;
+  r.classList.add('hsel');
+  const d = r.closest<HTMLDetailsElement>('details.hgd');
+  if (d && !d.open) d.open = true;
+  if (go) r.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
 const period = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
@@ -527,7 +556,10 @@ export function tmView(): void {
   $('hsK').textContent = k === 0 ? t('atToday') : dateAt(k, 'short');
   // One sub-section per group, in GROUPS order, then pension funds.
   // Each group collapses on its own (closed by default; the choice is remembered).
-  const open = openGroups();
+  // Take the open/closed state from the sections on screen (a toggle event may not have arrived yet).
+  const shown = document.querySelectorAll<HTMLDetailsElement>('#hl details.hgd');
+  const open = shown.length ? new Set([...shown].filter((d) => d.open).map((d) => d.dataset.g!)) : openGroups();
+  if (shown.length) set(KEYS.holdOpen, JSON.stringify([...open]));
   const group = (g: string, name: string, n: number, sum: number, body: string) =>
     `<details class="hgd" data-g="${g}"${open.has(g) ? ' open' : ''}><summary class="hgrp"><span>${name} (${n})</span><span>${f(sum / infl)}</span></summary>${body}</details>`;
   let html = '';
@@ -1112,10 +1144,26 @@ export function initApp(d: AppDeps): void {
     panelHelp(b.dataset.help!);
   }, true);
   $('ofc').addEventListener('click', (e) => {
-    const b = (e.target as HTMLElement).closest<HTMLElement>('[data-ofp]');
-    if (!b) return;
-    set(KEYS.ofcPeriod, b.dataset.ofp!);
+    const tg = e.target as Element;
+    const b = tg.closest<HTMLElement>('[data-ofp]');
+    if (b) {
+      set(KEYS.ofcPeriod, b.dataset.ofp!);
+      officialChart();
+      return;
+    }
+    if (tg.closest('[data-ofgo]')) return markSelected(true);
+    const c = tg.closest<SVGGElement>('[data-oh]');
+    if (!c) return;
+    // Tap a column to pick it, tap it again to clear.
+    ofcSel = ofcSel === c.dataset.oh ? null : c.dataset.oh!;
     officialChart();
+  });
+  $('ofc').addEventListener('keydown', (e) => {
+    const c = (e.target as Element).closest?.<SVGGElement>('[data-oh]');
+    if (c && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault();
+      c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    }
   });
   // Remember which holding groups are open (toggle does not bubble, so listen in the capture phase).
   $('hl').addEventListener('toggle', (e) => {
