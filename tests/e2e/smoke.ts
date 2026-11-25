@@ -26,6 +26,8 @@ let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
 let sheetCalls = 0;
+const aiCalls: { url: string; key: string; body: { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: { text: string }[] }[] } }[] = [];
+let aiMode: 'ok' | 'limit' = 'ok';
 const fail = (m: string) => { console.error('FAIL: ' + m); process.exitCode = 1; };
 const ok = (c: unknown, m: string) => (c ? console.log('ok   ' + m) : fail(m));
 
@@ -50,6 +52,14 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     await route.fulfill({ status: 302, headers: { location: back } });
   });
   await ctx.route('https://oauth2.googleapis.com/revoke**', (r) => r.fulfill({ json: {} }));
+  await ctx.route('https://generativelanguage.googleapis.com/**', async (route) => {
+    const r = route.request();
+    const body = r.postDataJSON() as { systemInstruction: { parts: { text: string }[] }; contents: { role: string; parts: { text: string }[] }[] };
+    aiCalls.push({ url: r.url(), key: r.headers()['x-goog-api-key'], body });
+    if (aiMode === 'limit') return route.fulfill({ status: 429, json: { error: { message: 'Resource exhausted' } } });
+    const q = body.contents[body.contents.length - 1].parts[0].text;
+    return route.fulfill({ json: { candidates: [{ content: { parts: [{ text: q === 'ping' ? 'OK' : `**Answer** to: ${q}` }] } }] } });
+  });
   await ctx.route('https://sheets.googleapis.com/**', async (route) => {
     const r = route.request();
     const u = new URL(r.url());
@@ -96,6 +106,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.goto(URL0);
   ok(await page.isVisible('#setupSheet'), 'first run asks for the sheet link');
   ok(await page.isVisible('#fbBtn2'), 'feedback is available on the setup screen');
+  ok(!(await page.isVisible('#aiBtn')), 'no Ask AI button on setup screens');
   await page.click('#helpBtn');
   ok((await txt('#dlgT')) === 'How it works' && /Settings:.*save each month and each year/.test(await txt('#dlgB')) && /Holdings:/.test(await txt('#dlgB')) && /Goals:/.test(await txt('#dlgB')) && /Free money:/.test(await txt('#dlgB')), 'How it works explains what to fill in and what you get, on the first screen');
   ok((await page.locator('#dlgB a.hwlink').count()) === 0, 'guide link is left out off GitHub Pages (it points at the repository the site comes from)');
@@ -349,6 +360,62 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#goals .g:has-text("Car") input[type=checkbox]');
   ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'no horizontal scroll at phone width');
 
+  // 5c. Ask AI.
+  const dlgOpen2 = () => page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open);
+  const chatOpen = () => page.evaluate(() => (document.getElementById('aiChat') as HTMLDialogElement).open);
+  ok(await page.isVisible('#aiBtn') && (await txt('#aiBtn')) === '💬 Ask AI', 'a floating 💬 Ask AI button is on the main screen');
+  await page.click('#aiBtn');
+  ok((await txt('#dlgT')) === '⚠️ Your data goes to Google’s AI' && (await page.isVisible('.ai-warn')) && /sheet’s numbers.*Google Gemini/.test(await txt('#dlgB')) && /developer never sees/.test(await txt('#dlgB')), 'first time: red privacy warning');
+  await page.screenshot({ path: OUT + '/ai-warning.png' });
+  await page.click('[data-ai=cancel]');
+  ok(!(await dlgOpen2()) && !(await page.evaluate(() => localStorage.getItem('fp_ai_ok'))), 'Cancel closes it and remembers nothing');
+  await page.click('#aiBtn');
+  await page.click('[data-ai=agree]');
+  ok((await txt('#dlgT')).includes('Connect your free Gemini key') && (await page.locator('#dlgB ol.steps li').count()) === 4 && (await page.getAttribute('#dlgB a.hwlink', 'href')) === 'https://aistudio.google.com/apikey', 'then step-by-step key setup with a link to AI Studio');
+  await page.screenshot({ path: OUT + '/ai-key.png' });
+  await page.fill('#aiKey', 'sk-not-a-gemini-key');
+  await page.click('[data-ai=savekey]');
+  ok((await txt('#aiKMsg')).includes('starts with “AIza”'), 'a wrong key is caught before saving');
+  const KEY = 'AIza' + 'x'.repeat(35);
+  await page.fill('#aiKey', KEY);
+  await page.click('[data-ai=savekey]');
+  await page.waitForFunction(() => (document.getElementById('aiChat') as HTMLDialogElement).open);
+  ok(aiCalls.length === 1 && aiCalls[0].key === KEY && !aiCalls[0].url.includes(KEY), 'the key is tested once (sent in a header, not the URL), then the chat opens');
+  ok((await page.locator('#aiLog .ai-ex button').count()) === 3, 'the chat suggests example questions');
+  await page.fill('#aiIn', 'How many holdings with Vendor 2?');
+  await page.click('#aiSend');
+  await page.waitForSelector('#aiLog .ai-msg.bot:not(.wait)');
+  const sys = aiCalls[1].body.systemInstruction.parts[0].text;
+  ok((await txt('#aiLog .ai-msg.bot')) === 'Answer to: How many holdings with Vendor 2?' && (await page.$eval('#aiLog .ai-msg.bot b', (b) => b.textContent)) === 'Answer', 'the answer shows in the chat (bold kept)');
+  ok(sys.includes('"vendor":"Vendor 2"') && sys.includes('APP RESULTS') && sys.includes('"freeToday"') && sys.includes('APP GUIDE') && !/account_number/.test(sys), 'the AI gets the sheet, the app’s results and the guide, never account numbers');
+  await page.click('#aiLog .ai-ex button >> nth=0').catch(() => {});
+  await page.fill('#aiIn', 'And Vendor 3?');
+  await page.press('#aiIn', 'Enter');
+  await page.waitForFunction(() => document.querySelectorAll('#aiLog .ai-msg.bot:not(.wait)').length === 2);
+  ok(aiCalls[aiCalls.length - 1].body.contents.map((c) => c.role).join() === 'user,model,user', 'follow-up questions include the conversation so far');
+  await page.screenshot({ path: OUT + '/ai-chat.png' });
+  const aiStored = await page.evaluate(() => JSON.stringify({ ...localStorage }));
+  ok(!aiStored.includes('Vendor 2') && !aiStored.includes('Answer'), 'no questions or answers are saved on the phone');
+  aiMode = 'limit';
+  await page.fill('#aiIn', 'Another one');
+  await page.click('#aiSend');
+  await page.waitForSelector('#aiLog .ai-msg.err');
+  ok((await txt('#aiLog .ai-msg.err')).includes('free limit'), 'the free-tier limit shows a plain message');
+  aiMode = 'ok';
+  await page.click('#aiX');
+  // The dialog's close event fires a moment after the tap.
+  const forgot = await page.waitForFunction(() => document.getElementById('aiLog')!.innerHTML === '', null, { timeout: 3000 }).then(() => true, () => false);
+  ok(forgot, 'closing the chat forgets the conversation');
+  await page.click('#aiBtn');
+  ok((await chatOpen()) && !(await dlgOpen2()), 'during the same opening, the chat opens straight away');
+  await page.click('#aiX');
+  // Hebrew: the AI screens are translated too.
+  await page.click('#lb');
+  await page.click('#aiBtn');
+  ok((await txt('#aiChat .ai-foot')).includes('שום דבר לא נשמר') && (await page.getAttribute('#aiIn', 'placeholder'))!.includes('שאלו'), 'the chat is in Hebrew in Hebrew mode');
+  await page.click('#aiX');
+  await page.click('#lb');
+
   // 6. Errors: rate limit, offline, missing tab.
   sheetsMode = 'ratelimit';
   await page.click('#reload');
@@ -382,6 +449,35 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#app:not([hidden])');
   ok(true, 'one tap back in (no checklist on later runs)');
+  // Ask AI after reopening: a short reminder; "Don't show again" only from the 4th time.
+  for (let i = 1; i <= 4; i++) {
+    if (i > 1) {
+      await page.reload();
+      await page.click('#signIn');
+      await page.waitForSelector('#app:not([hidden])');
+    }
+    await page.click('#aiBtn');
+    const isReminder = (await txt('#dlgT')) === '🥱🧑‍⚖️ The fine print, once more';
+    const hasQuiet = (await page.locator('#aiQuietChk').count()) === 1;
+    if (!isReminder || hasQuiet !== (i === 4)) fail(`reminder ${i}: shown=${isReminder}, don't-show-again=${hasQuiet}`);
+    if (i === 1) await page.screenshot({ path: OUT + '/ai-reminder.png' });
+    if (i === 4) await page.check('#aiQuietChk');
+    await page.click('[data-ai=gotit]');
+    await page.waitForFunction(() => (document.getElementById('aiChat') as HTMLDialogElement).open);
+    await page.click('#aiX');
+  }
+  ok(true, 'after reopening, a 🥱🧑‍⚖️ reminder shows once per opening, with "Don’t show again" from the 4th time');
+  await page.reload();
+  await page.click('#signIn');
+  await page.waitForSelector('#app:not([hidden])');
+  await page.click('#aiBtn');
+  ok((await chatOpen()) && !(await dlgOpen2()), 'after "Don’t show again", the chat opens directly');
+  await page.click('#aiRm');
+  ok(!(await page.evaluate(() => localStorage.getItem('fp_ai_key'))), 'Remove AI key deletes it from the phone');
+  await page.click('#dlgX');
+  await page.click('#aiBtn');
+  ok((await txt('#dlgT')).includes('Connect your free Gemini key'), 'without a key, the key setup comes back');
+  await page.click('#dlgX');
 
   // 8. Sign-in test screen: both methods.
   await page.goto(URL0 + '?diag');

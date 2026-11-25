@@ -4,7 +4,7 @@
 
 A phone app (iPhone and Android) for planning your money. It shows what your savings are worth after tax, how much you can spend today, and whether your goals, early retirement, loans and pension are covered.
 
-Your numbers stay in **your own Google Sheet**. There is no server and no tracking: data only travels between your phone and Google.
+Your numbers stay in **your own Google Sheet**. There is no server and no tracking: data only travels between your phone and Google. The optional **Ask AI** chat sends your question and sheet to Google Gemini, only after you agree.
 
 ## Using the app
 

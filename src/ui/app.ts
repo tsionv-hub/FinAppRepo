@@ -15,6 +15,9 @@ import { AuthError } from '../sheets/auth';
 import { get, KEYS, set } from '../storage';
 import { chartSvg } from './chart';
 import { docsUrl } from '../docs';
+import type { AiSnapshot } from '../ai/context';
+import guideEn from '../../docs/MANUAL.md?raw';
+import guideHe from '../../docs/MANUAL.he.md?raw';
 import { getLang, goalName, locale, setLang, t, ty, type Lang } from './i18n';
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -48,6 +51,8 @@ let goalRows: Goal[] = [];
 let curK = 0;
 /** Share of the retirement allowance the pension covers (for the retirement panel). */
 let lastCoverage: number | null = null;
+/** Last pension projection shown (for the AI's summary). */
+let lastPension: { total: number; monthlyPreTax: number; monthlyAfterTax: number } | null = null;
 
 const pill = (ok: boolean, text: string) => `<span class="pill ${ok ? 'ok' : 'bad'}">${text}</span>`;
 
@@ -346,6 +351,7 @@ function pensionView(w: WhatIf, goals: Goal[]): void {
   $('pnS').textContent = f(pr.monthlyPreTax) + '/' + t('mo2');
   $('pn4').textContent = pr.coverage == null ? '–' : Math.round(pr.coverage * 100) + '%';
   lastCoverage = pr.coverage;
+  lastPension = { total: pr.total, monthlyPreTax: pr.monthlyPreTax, monthlyAfterTax: pr.monthlyAfterTax };
   $('pn5').textContent = t('pnote', {
     n: f(pr.today), d: f(pr.deposits), f: f(pr.fees), y: rety ?? S.birthYear! + S.pensionStartAge, p: S.pensionStartAge,
     x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), m: w.inflationOn ? '' : t('pnom'),
@@ -614,7 +620,7 @@ const row = (label: string, value: string) => `<div class="dr"><span>${label}</s
 const sec = (title: string) => `<div class="dsec">${title}</div>`;
 const yn = (b: boolean) => (b ? t('yes') : t('no'));
 
-function openDialog(title: string, sub: string, body: string): void {
+export function openDialog(title: string, sub: string, body: string): void {
   $('dlgT').textContent = title;
   $('dlgB').innerHTML = (sub ? `<p class="dsub">${sub}</p>` : '') + body;
   const d = $<HTMLDialogElement>('dlg');
@@ -886,4 +892,61 @@ export function initApp(d: AppDeps): void {
     listed[parseInt(c.dataset.sp, 10)].spend = c.checked;
     render();
   });
+}
+
+// ---------- AI chat: what the app knows right now ----------
+
+/** Everything the AI is told about: sheet data plus the app's own results, as shown on screen. */
+export function aiSnapshot(demo: boolean): AiSnapshot | null {
+  if (!data || !cache) return null;
+  const d = data;
+  const { r, fm, p, goals } = cache;
+  const w = whatIf();
+  const ym = (y: number, m: number) => `${y}-${String(m).padStart(2, '0')}`;
+  const status = (ok: boolean, short: number) => (ok ? 'on track' : `short by ₪${Math.round(short).toLocaleString('en-US')}`);
+  const owed = d.loans.reduce((a, l) => a + l.balance, 0);
+  const td = today(d.holdings, p);
+  const n = fm.note;
+  const freeNote = n.kind === 'limited' ? `limited by ${n.goal.name} (${n.goal.year})` : n.kind === 'saveMore' ? `nothing free; saving about ₪${Math.round(n.perMonth)} more per month would fund every goal` : n.kind;
+  const goalRes = goals.filter((g) => !g.retirement).map((g) => {
+    const zs = r.res.filter((z) => z.g === g || z.g.series === g);
+    const bad = zs.find((z) => !z.ok);
+    return {
+      name: g.name, due: ym(g.year, g.month || 1), amount: g.amount,
+      repeats: g.everyYears ? `every ${g.everyYears} year(s)${g.untilYear ? ' until ' + g.untilYear : ''}` : undefined,
+      status: zs.length ? (bad ? `${zs.filter((z) => z.ok).length} of ${zs.length} funded; short ₪${Math.round(bad.short)} in ${bad.g.year}` : 'on track') : 'outside projection',
+    };
+  });
+  const loans = d.loans.map((l) => {
+    const z = r.res.find((x) => x.g.loan === l);
+    const m = loanMonths(l);
+    const plan = l.kind === 'installments' ? `₪${l.monthlyPayment}/month${m != null ? ', paid off ' + ym(monthAt(start, m).year, monthAt(start, m).month0 + 1) : ', never paid off at this payment'}` : `repay ${ym(l.year, l.month)}`;
+    return { name: l.name, owedToday: l.balance, plan, status: z ? status(z.ok, z.short) : '' };
+  });
+  const rg = goals.find((g) => g.retirement);
+  const rz = rg ? r.res.find((z) => z.g === rg) : undefined;
+  const S = d.settings;
+  return {
+    today: new Date().toISOString().slice(0, 10),
+    lang: getLang(),
+    example: demo,
+    settings: S.raw,
+    holdings: d.holdings,
+    pension: d.pension,
+    goals: allGoals(),
+    rainyDayFund: w.reserve,
+    loans: d.loans,
+    results: {
+      postTax: Math.round(td.postTax), preTax: Math.round(td.preTax), afterDebts: Math.round(td.postTax - owed), freeToday: Math.round(fm.free), freeNote,
+      scenario: w.scenario, inflation: w.inflationOn ? `on (${w.inflationRatePct}%/year): amounts in today's money` : 'off: amounts in future shekels',
+      goals: goalRes, loans,
+      retirement: rg && S.birthYear != null ? {
+        age: rg.year - S.birthYear, starts: ym(rg.year, 1), allowanceUntil: ym(rg.endYear ?? rg.year, 12), monthlyAllowance: rg.monthly ?? 0,
+        totalUntilPension: rg.amount, status: rz ? status(rz.ok, rz.short) : '', setAsideToday: Math.round(fm.retirementSetAside),
+        pensionCoversPct: lastCoverage != null ? Math.round(lastCoverage * 100) : '',
+      } : null,
+      pension: lastPension ? { totalAtPensionAge: Math.round(lastPension.total), monthlyBeforeTax: Math.round(lastPension.monthlyPreTax), monthlyAfterTax: Math.round(lastPension.monthlyAfterTax), pensionAge: S.pensionStartAge } : null,
+    },
+    guide: getLang() === 'he' ? guideHe : guideEn,
+  };
 }

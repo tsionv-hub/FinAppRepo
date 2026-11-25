@@ -1,5 +1,6 @@
 // Everything the app keeps on the phone (SPEC 2.4): sheet ID, OAuth client ID,
-// language and UI choices. Never the access token or financial data.
+// language, UI choices and (if the user adds one) their Gemini key. Never the
+// access token, financial data, or AI questions and answers.
 
 export const KEYS = {
   sheet: 'fp_sheet',
@@ -9,6 +10,11 @@ export const KEYS = {
   signedIn: 'fp_signed_in',
   oauthState: 'fp_oauth_state',
   checked: 'fp_checked',
+  /** Ask AI: the user's own Gemini key, privacy warning accepted, reminder count, reminder off. */
+  aiKey: 'fp_ai_key',
+  aiOk: 'fp_ai_ok',
+  aiSeen: 'fp_ai_seen',
+  aiQuiet: 'fp_ai_quiet',
 } as const;
 
 function ls(): Storage | null {

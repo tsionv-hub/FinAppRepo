@@ -204,3 +204,37 @@ details.card.tot > summary::after { order: 9; align-self: center; margin-top: 10
 .tot .freeline { margin-top: 10px; padding: 10px 12px; border: 0; border-radius: 10px; background: color-mix(in srgb, var(--free) 12%, transparent); align-items: center; }
 .tot .freeline .lbl { white-space: nowrap; }
 .tot .freeline .big { font-size: 24px; }
+
+/* ---------- Ask AI ---------- */
+body { padding-bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+.ai-fab {
+  position: fixed; z-index: 6; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); inset-inline-end: 16px;
+  border-radius: 999px; padding: 12px 18px; font-size: 15px; font-weight: 700; box-shadow: 0 6px 20px rgba(0, 0, 0, .25);
+}
+.ai-warn { border: 2px solid var(--bad); background: color-mix(in srgb, var(--bad) 10%, var(--card)); border-radius: 10px; padding: 10px 12px; font-size: 14px; }
+.ai-warn p { margin: 0 0 6px; }
+.ai-warn p:last-child { margin: 0; }
+.ai-ok { list-style: none; padding: 0; margin: 10px 0 0; font-size: 14px; }
+.ai-ok li { margin-bottom: 4px; }
+.ai-btns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+dialog#aiChat {
+  width: min(96vw, 560px); height: min(86vh, 720px); padding: 12px; border: 1px solid var(--ln); border-radius: 16px;
+  background: var(--card); color: var(--tx); display: none; flex-direction: column; gap: 8px;
+}
+dialog#aiChat[open] { display: flex; }
+dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
+.ai-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ai-head h2 { margin: 0; font-size: 17px; }
+.ai-hb { display: flex; gap: 6px; }
+.ai-demo { background: var(--bg); border-radius: 8px; padding: 6px 8px; }
+.ai-log { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; padding: 4px 2px; }
+.ai-msg { max-width: 88%; padding: 8px 11px; border-radius: 14px; font-size: 14.5px; line-height: 1.45; white-space: normal; overflow-wrap: anywhere; }
+.ai-msg.me { align-self: flex-end; background: var(--ac); color: #fff; border-end-end-radius: 4px; }
+.ai-msg.bot { align-self: flex-start; background: var(--bg); border-end-start-radius: 4px; }
+.ai-msg.wait { color: var(--mu); font-style: italic; }
+.ai-msg.err { align-self: stretch; background: color-mix(in srgb, var(--bad) 10%, var(--card)); color: var(--bad); }
+.ai-ex { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.ai-ex button { text-align: start; font-size: 13px; }
+.ai-in { display: flex; gap: 8px; align-items: flex-end; }
+.ai-in textarea { flex: 1; resize: none; padding: 8px; border: 1px solid var(--ln); border-radius: 10px; background: var(--bg); color: var(--tx); font: inherit; font-size: 16px; }
+.ai-foot { text-align: center; }
