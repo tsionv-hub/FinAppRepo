@@ -3,9 +3,9 @@
 
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 /** Tried in order; the first that exists for this key is remembered for the session. */
-export const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-2.0-flash'];
+export const MODELS = ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.0-flash'];
 
-export type AiErrorCode = 'badkey' | 'billing' | 'denied' | 'limit' | 'blocked' | 'network' | 'other';
+export type AiErrorCode = 'badkey' | 'billing' | 'denied' | 'limit' | 'busy' | 'blocked' | 'network' | 'other';
 
 export class AiError extends Error {
   constructor(public code: AiErrorCode, message: string) {
@@ -48,11 +48,24 @@ async function call(key: string, model: string, system: string, turns: ChatTurn[
   });
 }
 
-/** Sends the conversation; returns the model's answer text. */
-export async function ask(key: string, system: string, turns: ChatTurn[], fetcher: typeof fetch = fetch): Promise<string> {
-  const models = workingModel ? [workingModel] : MODELS;
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Sends the conversation; returns the model's answer text.
+ * Busy models (503/500/504, common on the free tier) are skipped for the next
+ * model; if every model is busy, it waits briefly and tries the first once more.
+ */
+export async function ask(key: string, system: string, turns: ChatTurn[], fetcher: typeof fetch = fetch, sleep: (ms: number) => Promise<unknown> = wait): Promise<string> {
+  const base = workingModel ? [workingModel, ...MODELS.filter((m) => m !== workingModel)] : MODELS;
   let last: AiError | null = null;
-  for (const model of models) {
+  let busy = 0;
+  const order = [...base, base[0]];
+  for (let i = 0; i < order.length; i++) {
+    const model = order[i];
+    if (i === order.length - 1) {
+      if (busy === 0) break; // the extra retry is only for "everything was busy"
+      await sleep(2000);
+    }
     let r: Response;
     try {
       r = await call(key, model, system, turns, fetcher);
@@ -74,7 +87,12 @@ export async function ask(key: string, system: string, turns: ChatTurn[], fetche
     }
     const msg = j.error?.message ?? r.statusText;
     if (r.status === 404) {
-      last = new AiError('other', msg); // this model isn't available: try the next one
+      last = last ?? new AiError('other', msg); // this model isn't available: try the next one
+      continue;
+    }
+    if (r.status === 503 || r.status === 500 || r.status === 504) {
+      busy++;
+      last = new AiError('busy', `${r.status} ${msg}`); // overloaded: try another model
       continue;
     }
     // 402: the key's project is on paid/prepaid billing with no credit left.

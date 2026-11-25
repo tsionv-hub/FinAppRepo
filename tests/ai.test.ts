@@ -70,9 +70,28 @@ describe('Gemini client', () => {
     expect(urls).toHaveLength(2);
   });
 
+  it('skips busy models (503) and answers from another one', async () => {
+    resetModel();
+    const urls: string[] = [];
+    const f = (async (url: string) => (urls.push(url), urls.length < 3 ? err(503, 'The model is overloaded.') : ok('hi'))) as unknown as typeof fetch;
+    expect(await ask('k', 's', [{ role: 'user', text: 'q' }], f, async () => {})).toBe('hi');
+    expect(urls).toHaveLength(3);
+  });
+
+  it('when every model is busy: waits once, retries, then reports busy', async () => {
+    resetModel();
+    let calls = 0;
+    let waited = 0;
+    const f = (async () => (calls++, err(503, 'The model is overloaded.'))) as unknown as typeof fetch;
+    const code = await ask('k', 's', [{ role: 'user', text: 'q' }], f, async (ms) => (waited += ms)).catch((e: AiError) => e.code);
+    expect(code).toBe('busy');
+    expect(calls).toBe(5); // 4 models + 1 retry
+    expect(waited).toBe(2000);
+  });
+
   it('turns errors into plain codes', async () => {
     resetModel();
-    const run = (r: Response) => ask('k', 's', [{ role: 'user', text: 'q' }], (async () => r) as unknown as typeof fetch).catch((e: AiError) => e.code);
+    const run = (r: Response) => ask('k', 's', [{ role: 'user', text: 'q' }], (async () => r.clone()) as unknown as typeof fetch, async () => {}).catch((e: AiError) => e.code);
     expect(await run(err(429, 'quota'))).toBe('limit');
     expect(await run(err(400, 'API key not valid. Please pass a valid API key.'))).toBe('badkey');
     expect(await run(err(403, 'permission denied'))).toBe('denied');
