@@ -44,7 +44,7 @@ From now on, **always open it from the icon**.
 ## Step 5. Connect your sheet
 
 1. In Google Sheets, open your sheet → **Share** → **Copy link**.
-2. In the app, paste the link → **Continue**.
+2. In the app, paste the link and give the sheet a nickname (e.g. *Home*) → **Continue**.
 3. Tap **Continue with Google** and choose your account.
 4. Google says **"Google hasn't verified this app"**. That's expected for a private app: tap **Advanced** → **Go to Finance Planner (unsafe)** → **Continue**.
 5. The **Sheet check** shows what was found. When everything has a ✓, tap **Open the planner**.

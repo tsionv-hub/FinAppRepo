@@ -15,7 +15,7 @@ import { applyOfficial, fetchOfficial, fundIds, key as offKey, latest, lookupHol
 import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
-import { get, KEYS, set } from '../storage';
+import { get, isChecked, KEYS, markChecked, nickOf, saveSheet, set } from '../storage';
 import { chartSvg } from './chart';
 import { docsUrl } from '../docs';
 import type { AiSnapshot } from '../ai/context';
@@ -158,7 +158,9 @@ export async function load(): Promise<void> {
     fillInputs(data);
     cache = null;
     updatedLine();
-    if (!demo && !get(KEYS.checked)) deps.onCheck(res.check, true);
+    // A sheet without a nickname (set up before nicknames existed) is named after its title.
+    if (!demo && c && !nickOf(c.id)) saveSheet(c.id, res.title);
+    if (!demo && c && !isChecked(c.id)) deps.onCheck(res.check, true);
     else showApp();
   } catch (e) {
     if (e instanceof SheetsError && e.code === 'auth') {
@@ -328,7 +330,8 @@ function officialSection(h: Holding): string {
 /** Opens the main screen once the sheet has been read (and checked on first run). */
 export function showApp(): void {
   if (!data) return;
-  if (!deps.demo()) set(KEYS.checked, '1');
+  const c = deps.client();
+  if (!deps.demo() && c) markChecked(c.id);
   deps.onReady();
   render();
 }

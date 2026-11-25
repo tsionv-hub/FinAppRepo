@@ -7,7 +7,7 @@ import {
   signInRedirect, signOut, validClientId, wasSignedIn, type RedirectResult,
 } from './sheets/auth';
 import type { Checklist } from './sheets/validate';
-import { forgetAll, get, KEYS, P, remove, set } from './storage';
+import { forgetAll, get, KEYS, nickOf, P, remove, removeSheet, saveSheet, savedSheets, set } from './storage';
 import { templateXlsx } from './template';
 import { exampleXlsx } from './example';
 import { applyLang, clearData, errorText, initApp, load, showApp, showHelp, showMsg } from './ui/app';
@@ -58,6 +58,37 @@ function markSilent(): void {
   }
 }
 
+// ---------- saved sheets ----------
+
+/** Setup screen: pick one of the saved sheets, or add a new link with a nickname. */
+function fillSavedPicker(): void {
+  const list = savedSheets();
+  $('savedBox').hidden = !list.length;
+  $<HTMLSelectElement>('savedSel').innerHTML = list.map((x) => `<option value="${esc(x.id)}">${esc(x.nick || t('noNick'))}</option>`).join('');
+  $<HTMLInputElement>('sid').value = '';
+  $<HTMLInputElement>('snick').value = '';
+  $('sidErr').textContent = '';
+}
+
+/** Main screen, top: the current sheet's nickname; switch, rename or add a sheet. */
+function renderSheetBar(): void {
+  const cur = sheetId();
+  const bar = $('sheetBar');
+  bar.hidden = demo || !cur || $('app').hidden;
+  if (bar.hidden) return;
+  const sel = $<HTMLSelectElement>('sheetSel');
+  sel.setAttribute('aria-label', t('sheetSelL'));
+  sel.innerHTML = savedSheets().map((x) => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.nick || t('noNick'))}</option>`).join('')
+    + `<option value="__rename">✏️ ${esc(t('nickRen'))}</option><option value="__add">➕ ${esc(t('sheetAdd'))}</option>`;
+}
+
+function useSheet(id: string): void {
+  if (id === sheetId()) return;
+  set(KEYS.sheet, id);
+  clearData();
+  route();
+}
+
 // ---------- screens ----------
 
 type Step = 'sheet' | 'client' | 'sign' | 'check';
@@ -77,6 +108,8 @@ function showStep(step: Step, err?: string | null): void {
   $('setupSign').hidden = step !== 'sign';
   $('setupCheck').hidden = step !== 'check';
   if (step !== 'check') $('reload').hidden = true;
+  $('sheetBar').hidden = true;
+  if (step === 'sheet') fillSavedPicker();
   if (step === 'client') {
     $('cid4').textContent = t('cid4', { o: location.origin });
     $('cid5').textContent = t('cid5', { u: redirectUri() });
@@ -195,18 +228,39 @@ function wire(): void {
     feedbackLinks();
     // Texts built in code (not data-t) need redrawing in the new language.
     if (!$('diag').hidden) diag();
-    else if ($('setup').hidden) return; // main screen: applyLang already re-rendered it
+    else if ($('setup').hidden) return renderSheetBar(); // main screen: applyLang already re-rendered it
     else if (!$('setupCheck').hidden && lastCheck) showCheck(...lastCheck);
     else if (!$('setupSign').hidden) showStep('sign');
     else if (!$('setupClient').hidden) showStep('client');
   });
   $('sidGo').addEventListener('click', () => {
     const id = parseSheetId($<HTMLInputElement>('sid').value);
-    $('sidErr').textContent = id ? '' : t('badId');
+    const nick = $<HTMLInputElement>('snick').value.trim() || nickOf(id ?? '');
+    $('sidErr').textContent = !id ? t('badId') : !nick ? t('nickNeed') : '';
+    if (!id || !nick) return;
+    saveSheet(id, nick);
+    set(KEYS.sheet, id);
+    route();
+  });
+  $('savedGo').addEventListener('click', () => {
+    const id = $<HTMLSelectElement>('savedSel').value;
     if (!id) return;
     set(KEYS.sheet, id);
-    remove(KEYS.checked);
     route();
+  });
+  $('sheetSel').addEventListener('change', () => {
+    const sel = $<HTMLSelectElement>('sheetSel');
+    const v = sel.value;
+    const cur = sheetId();
+    if (v === '__rename') {
+      const n = prompt(t('nickQ'), nickOf(cur));
+      if (n != null && n.trim()) saveSheet(cur, n);
+      renderSheetBar();
+    } else if (v === '__add') {
+      sel.value = cur;
+      showStep('sheet');
+      $<HTMLInputElement>('sid').focus();
+    } else useSheet(v);
   });
   $('cidGo').addEventListener('click', () => {
     const v = $<HTMLInputElement>('cid').value.trim();
@@ -232,7 +286,6 @@ function wire(): void {
   });
   $('chgSheet').addEventListener('click', () => {
     remove(KEYS.sheet);
-    remove(KEYS.checked);
     clearData();
     route();
   });
@@ -241,16 +294,26 @@ function wire(): void {
     clearData();
     route();
   });
-  const forget = async () => {
-    if (!confirm(t('forgetQ'))) return;
+  const forgetEverything = async () => {
     await signOut();
     forgetAll();
     clearData();
     applyLang('en');
     route();
   };
-  $('forget').addEventListener('click', forget);
-  $('setupForget').addEventListener('click', forget);
+  // Main screen: remove this sheet from the phone's list; the last one also clears everything else.
+  $('forget').addEventListener('click', async () => {
+    const cur = sheetId();
+    const others = savedSheets().filter((x) => x.id !== cur);
+    if (!confirm(others.length ? t('rmQ', { n: nickOf(cur) || t('noNick') }) : t('forgetQ'))) return;
+    if (!others.length) return forgetEverything();
+    removeSheet(cur);
+    clearData();
+    route();
+  });
+  $('setupForget').addEventListener('click', async () => {
+    if (confirm(t('forgetQ'))) await forgetEverything();
+  });
   const toDiag = () => {
     history.replaceState(null, '', location.pathname + '?diag');
     route();
@@ -343,11 +406,14 @@ function main(): void {
     onReady: () => {
       screen('app');
       showMsg(null);
+      renderSheetBar();
       resumeKeySetup();
     },
     demo: () => demo,
   });
   applyLang(saved === 'he' ? 'he' : 'en');
+  // Older versions marked the sheet check as done with "1": that meant the current sheet.
+  if (get(KEYS.checked) === '1') set(KEYS.checked, JSON.stringify(sheetId() ? [sheetId()] : []));
   $('ver').textContent = 'v' + VERSION_LABEL;
   $('verTop').textContent = '(v' + VERSION_LABEL + ')';
   $('verTop').classList.toggle('beta', __APP_CHANNEL__ === 'beta');

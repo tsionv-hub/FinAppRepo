@@ -36,6 +36,7 @@ const ok = (c: unknown, m: string) => (c ? console.log('ok   ' + m) : fail(m));
   // Storage: set up the stable app; the beta must still be on its first screen.
   await page.goto(BASE);
   await page.fill('#sid', 'https://docs.google.com/spreadsheets/d/STABLESHEET_abcdefghijklmnopqrstuvwxyz/edit');
+  await page.fill('#snick', 'Test');
   await page.click('#sidGo');
   await page.waitForSelector('#setupClient:not([hidden])');
   await page.goto(BASE + 'beta/');

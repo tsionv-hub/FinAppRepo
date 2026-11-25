@@ -158,6 +158,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await txt('#sidErr')).length > 0, 'rejects a non-Sheets link');
   await page.fill('#sid', `https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=0`);
   await page.click('#sidGo');
+  ok((await txt('#sidErr')) === 'Give this sheet a short nickname.' && (await page.isVisible('#setupSheet')), 'a new sheet link needs a nickname');
+  await page.fill('#snick', 'Home');
+  await page.click('#sidGo');
   ok(await page.isVisible('#setupClient'), 'then shows the guided sign-in setup');
   ok((await txt('#cid4')).includes(new URL(URL0).origin), 'setup shows the exact JavaScript origin to register');
   await page.fill('#cid', 'not-a-client-id');
@@ -700,10 +703,42 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   // 9. Forget this sheet.
   await page.click('#dBack');
   await page.waitForSelector('#app:not([hidden])');
+
+  // 8b. Several sheets: nickname at the top, add, switch, remove one.
+  const selText = () => page.$eval('#sheetSel', (s) => (s as HTMLSelectElement).selectedOptions[0]?.textContent ?? '');
+  ok((await page.isVisible('#sheetBar')) && (await selText()) === 'Home', 'the sheet nickname is shown at the top: ' + (await selText()));
+  await page.selectOption('#sheetSel', '__add');
+  await page.waitForSelector('#setupSheet:not([hidden])');
+  ok((await page.isVisible('#savedBox')) && (await txt('#savedSel')) === 'Home', 'adding a sheet lists the saved ones to go back to');
+  await page.fill('#sid', 'https://docs.google.com/spreadsheets/d/SECONDSHEET_abcdefghijklmnopqrstuvwxyz0/edit');
+  await page.fill('#snick', 'Parents');
+  await page.click('#sidGo');
+  await page.waitForSelector('#setupCheck:not([hidden])');
+  ok(true, 'a new sheet gets its own sheet check');
+  await page.click('#openApp');
+  await page.waitForSelector('#app:not([hidden])');
+  ok((await selText()) === 'Parents' && (await page.$$eval('#sheetSel option', (o) => o.map((x) => x.textContent).join('|'))) === 'Home|Parents|✏️ Rename this sheet|➕ Add a sheet', 'the new sheet is open; both nicknames are in the list');
+  await page.selectOption('#sheetSel', SHEET);
+  await page.waitForSelector('#app:not([hidden])');
+  await page.waitForFunction(() => (document.getElementById('sheetSel') as HTMLSelectElement).selectedOptions[0]?.textContent === 'Home');
+  ok(!(await page.isVisible('#setupCheck')), 'switching back opens Home straight away (already checked)');
+  const ids = await page.evaluate(() => JSON.parse(localStorage.getItem('fp_sheets')!) as { id: string; nick: string }[]);
+  ok(ids.length === 2 && ids.every((x) => !x.id.includes('/') && !x.id.includes('http')), 'the phone keeps sheet IDs and nicknames only: ' + JSON.stringify(ids.map((x) => x.nick)));
+  await page.evaluate(() => { (window as unknown as { prompt: () => string }).prompt = () => 'Family'; });
+  await page.selectOption('#sheetSel', '__rename');
+  ok((await selText()) === 'Family', 'rename the current sheet');
+  await page.selectOption('#sheetSel', ids[1].id);
+  await page.waitForFunction(() => (document.getElementById('sheetSel') as HTMLSelectElement).selectedOptions[0]?.textContent === 'Parents');
+  await page.click('#forget');
+  await page.waitForSelector('#setupSheet:not([hidden])');
+  ok((await txt('#savedSel')) === 'Family' && (await page.evaluate(() => localStorage.getItem('fp_client_id'))) !== null, 'Remove this sheet removes only that sheet; the rest stays');
+  await page.click('#savedGo');
+  await page.waitForSelector('#app:not([hidden])');
+  ok((await selText()) === 'Family', 'pick a saved sheet on the setup screen');
   await page.click('#forget');
   await page.waitForSelector('#setupSheet:not([hidden])');
   const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('fp_')));
-  ok(left.length === 0, 'Forget this sheet wipes everything stored (' + left.join(',') + ')');
+  ok(left.length === 0, 'removing the last sheet wipes everything stored (' + left.join(',') + ')');
 
   ok(badAuth === 0, 'every Sheets call carried the token');
   ok(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));
