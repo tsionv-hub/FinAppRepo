@@ -17,6 +17,8 @@ export const KEYS = {
   aiQuiet: 'fp_ai_quiet',
   /** Key setup in progress (the user went to AI Studio to create a key). */
   aiSetup: 'fp_ai_setup',
+  /** Ask AI "Don't send my data" (app questions only). */
+  aiPrivate: 'fp_ai_private',
 } as const;
 
 function ls(): Storage | null {

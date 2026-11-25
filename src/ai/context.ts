@@ -84,3 +84,24 @@ export function systemPrompt(s: AiSnapshot): string {
     s.guide,
   ].filter((l) => l !== null).join('\n');
 }
+
+/**
+ * "Don't send my data": only the question and the user guide go to the AI.
+ * No sheet data, no results, nothing about the user's finances.
+ */
+export function appOnlyPrompt(lang: 'en' | 'he', today: string, guide: string): string {
+  const l = lang === 'he' ? 'Hebrew' : 'English';
+  return [
+    'You are the assistant inside "Finance Planner", a personal finance planning app. Answer questions about how the app works, using the guide below.',
+    '',
+    'Rules:',
+    "- You do NOT have the user's data: they chose \"Don't send my data\". If they ask about their own numbers, holdings or goals, say you can't see them in this mode, and that they can untick \"Don't send my data\" in the chat to include their sheet.",
+    '- General explanations (what free money means, how a recurring goal works, what inflation adjustment changes) are fine.',
+    `- Today is ${today}.`,
+    `- Answer in ${l}, unless the user writes in another language. Be short and clear.`,
+    '- This is planning help, not financial, tax or legal advice.',
+    '',
+    'APP GUIDE:',
+    guide,
+  ].join('\n');
+}

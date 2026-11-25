@@ -238,3 +238,6 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .ai-in { display: flex; gap: 8px; align-items: flex-end; }
 .ai-in textarea { flex: 1; resize: none; padding: 8px; border: 1px solid var(--ln); border-radius: 10px; background: var(--bg); color: var(--tx); font: inherit; font-size: 16px; }
 .ai-foot { text-align: center; }
+.ai-priv { margin: 0; padding: 6px 8px; border-radius: 8px; background: var(--bg); font-size: 13.5px; }
+.ai-msg.note { align-self: stretch; background: var(--bg); color: var(--mu); font-size: 13px; text-align: center; }
+.ai-tip { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 13.5px; }

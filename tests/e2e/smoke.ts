@@ -368,6 +368,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const chatOpen = () => page.evaluate(() => (document.getElementById('aiChat') as HTMLDialogElement).open);
   ok(await page.isVisible('#aiBtn') && (await txt('#aiBtn')) === '💬 Ask AI', 'a floating 💬 Ask AI button is on the main screen');
   await page.click('#aiBtn');
+  ok((await txt('#dlgB .ai-tip')).includes('Don’t send my data'), 'the privacy warning explains the 🔒 Don’t send my data option');
   ok((await txt('#dlgT')) === '⚠️ Your data goes to Google’s AI' && (await page.isVisible('.ai-warn')) && /sheet’s numbers.*Google Gemini/.test(await txt('#dlgB')) && /developer never sees/.test(await txt('#dlgB')), 'first time: red privacy warning');
   await page.screenshot({ path: OUT + '/ai-warning.png' });
   await page.click('[data-ai=cancel]');
@@ -425,6 +426,26 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.waitForFunction(() => document.querySelectorAll('#aiLog .ai-msg.bot:not(.wait)').length === 2);
   ok(aiCalls[aiCalls.length - 1].body.contents.map((c) => c.role).join() === 'user,model,user', 'follow-up questions include the conversation so far');
   await page.screenshot({ path: OUT + '/ai-chat.png' });
+  // 🔒 Don't send my data.
+  ok(!(await page.isChecked('#aiPriv')), '🔒 Don’t send my data starts unticked');
+  await page.check('#aiPriv');
+  ok((await page.locator('#aiLog .ai-msg.bot').count()) === 0 && (await txt('#aiLog .ai-msg.note')).includes('Your data isn’t sent') && (await txt('#aiLog .ai-ex')).includes('How do I add a loan?'), 'ticking it starts a new conversation with app-only example questions');
+  await page.fill('#aiIn', 'How does free money work?');
+  await page.click('#aiSend');
+  await page.waitForSelector('#aiLog .ai-msg.bot:not(.wait)');
+  const priv = aiCalls[aiCalls.length - 1].body;
+  const ps = priv.systemInstruction.parts[0].text;
+  ok(!ps.includes('SHEET DATA') && !ps.includes('APP RESULTS') && !ps.includes('Vendor 2') && !ps.includes('Broker C') && ps.includes('APP GUIDE') && priv.contents.length === 1, 'with it ticked, only the question and the guide are sent: no sheet, no results, no earlier answers');
+  await page.screenshot({ path: OUT + '/ai-private.png' });
+  await page.click('#aiX');
+  await page.click('#aiBtn');
+  ok(await page.isChecked('#aiPriv'), 'the choice is remembered');
+  await page.uncheck('#aiPriv');
+  ok((await txt('#aiLog .ai-msg.note')).includes('sent with each question again'), 'unticking says the numbers are sent again');
+  await page.fill('#aiIn', 'Total?');
+  await page.click('#aiSend');
+  await page.waitForSelector('#aiLog .ai-msg.bot:not(.wait)');
+  ok(aiCalls[aiCalls.length - 1].body.systemInstruction.parts[0].text.includes('SHEET DATA'), 'unticked, the sheet is included again');
   const aiStored = await page.evaluate(() => JSON.stringify({ ...localStorage }));
   ok(!aiStored.includes('Vendor 2') && !aiStored.includes('Answer'), 'no questions or answers are saved on the phone');
   aiMode = 'limit';

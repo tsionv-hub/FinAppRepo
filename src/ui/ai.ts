@@ -4,7 +4,7 @@
 // The app stores no questions or answers; the conversation lives in memory
 // while the chat is open and is gone when it closes.
 
-import { systemPrompt } from '../ai/context';
+import { appOnlyPrompt, systemPrompt } from '../ai/context';
 import { AiError, ask, cleanKey, looksLikeKey, type ChatTurn } from '../ai/gemini';
 import { get, KEYS, remove, set } from '../storage';
 import { aiSnapshot, openDialog } from './app';
@@ -45,7 +45,7 @@ export function startAi(): void {
 
 function warning(): void {
   openDialog(t('aiWT'), '', `<div class="ai-warn"><p>${t('aiW1')}</p><p>${t('aiW2')}</p></div>`
-    + `<ul class="ai-ok"><li>${t('aiW3')}</li><li>${t('aiW4')}</li><li>${t('aiW5')}</li></ul>`
+    + `<ul class="ai-ok"><li>${t('aiW3')}</li><li>${t('aiW4')}</li><li>${t('aiW5')}</li></ul><p class="ai-tip">${t('aiW6')}</p>`
     + `<div class="ai-btns"><button class="s" data-ai="cancel">${t('aiCancel')}</button><button data-ai="agree">${t('aiAgree')}</button></div>`);
 }
 
@@ -133,13 +133,20 @@ function errText(e: unknown): string {
 
 function render(extra = ''): void {
   const log = $('aiLog');
-  const examples = history.length ? '' : `<div class="ai-ex">${['aiEx1', 'aiEx2', 'aiEx3'].map((k) => `<button class="s" data-ask="${esc(t(k as never))}">${t(k as never)}</button>`).join('')}</div>`;
+  const exKeys = privateMode() ? ['aiExA1', 'aiExA2', 'aiExA3'] : ['aiEx1', 'aiEx2', 'aiEx3'];
+  const examples = history.length ? '' : `<div class="ai-ex">${exKeys.map((k) => `<button class="s" data-ask="${esc(t(k as never))}">${t(k as never)}</button>`).join('')}</div>`;
   log.innerHTML = examples + history.map((h) => `<div class="ai-msg ${h.role === 'user' ? 'me' : 'bot'}">${h.role === 'user' ? esc(h.text) : fmt(h.text)}</div>`).join('') + extra;
   log.scrollTop = log.scrollHeight;
 }
 
+/** "Don't send my data" is ticked: only the question and the guide go to Google. */
+function privateMode(): boolean {
+  return $<HTMLInputElement>('aiPriv').checked;
+}
+
 function openChat(note = ''): void {
   history = [];
+  $<HTMLInputElement>('aiPriv').checked = get(KEYS.aiPrivate) === '1';
   $('aiDemo').hidden = !isDemo();
   render(note ? `<div class="ai-msg err">${esc(note)}</div>` : '');
   const d = $<HTMLDialogElement>('aiChat');
@@ -158,7 +165,8 @@ async function send(text: string): Promise<void> {
   history.push({ role: 'user', text: q });
   render(`<div class="ai-msg bot wait">${t('aiThinking')}</div>`);
   try {
-    const answer = await ask(key, systemPrompt(snap), history);
+    const prompt = privateMode() ? appOnlyPrompt(snap.lang, snap.today, snap.guide) : systemPrompt(snap);
+    const answer = await ask(key, prompt, history);
     history.push({ role: 'model', text: answer });
     render();
   } catch (e) {
@@ -222,6 +230,13 @@ export function initAi(demo: () => boolean): void {
     if (b) send(b.dataset.ask!);
   });
   $('aiX').addEventListener('click', () => $<HTMLDialogElement>('aiChat').close());
+  // Switching modes starts a new conversation: earlier answers may contain the
+  // user's numbers, and the whole conversation is sent with each question.
+  $('aiPriv').addEventListener('change', () => {
+    set(KEYS.aiPrivate, privateMode() ? '1' : '0');
+    history = [];
+    render(`<div class="ai-msg note">${esc(privateMode() ? t('aiPrivOn') : t('aiPrivOff'))}</div>`);
+  });
   // Closing the chat forgets the conversation: nothing is kept.
   $('aiChat').addEventListener('close', () => {
     history = [];
