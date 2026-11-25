@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { groupOf, impliedReturn, nextDepositId, nextId, parseDate, parseDeposits, parseGrants, parseHoldings, type Holding } from '../src/model';
-import { grantRow } from '../src/sheets/data';
+import { depositedAfter, grantRow } from '../src/sheets/data';
 
 describe('deposits', () => {
   it('read dates in the usual sheet formats', () => {
@@ -80,5 +80,15 @@ describe('holding groups and grants', () => {
     expect(grantRow(['notes', 'grant_id', 'holding_id', 'date', 'shares', 'other'], g, h, { date: '2026-01-02', shares: 40, notes: 'n' }))
       .toEqual(['n', 'GR3', 'H9', '2026-01-02', 40, '']);
     expect(nextId('GR', [])).toBe('GR1');
+  });
+});
+
+describe('deposited_amount after a deposit', () => {
+  it('adds to a typed number, fills a blank, and leaves a formula alone', () => {
+    expect(depositedAfter(40000, 60000, 1000)).toBe(41000);
+    expect(depositedAfter('40,000', 60000, 1000)).toBe(41000);
+    expect(depositedAfter('', 60000, 1000)).toBe(61000);
+    expect(depositedAfter(undefined, 60000, 1000)).toBe(61000);
+    expect(depositedAfter('=SUMIFS(Deposits!D:D,Deposits!B:B,A2)', 60000, 1000)).toBeNull();
   });
 });

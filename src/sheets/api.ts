@@ -80,6 +80,12 @@ export class SheetsClient {
     return j.valueRanges.map((v) => v.values ?? []);
   }
 
+  /** One cell as typed in the sheet: a formula comes back as its text, e.g. "=SUM(...)". */
+  async cellFormula(range: string): Promise<Rows[number][number]> {
+    const j = await this.call<{ values?: Rows }>('/values/' + encodeURIComponent(range) + '?valueRenderOption=FORMULA');
+    return j.values?.[0]?.[0];
+  }
+
   async update(range: string, values: Rows): Promise<void> {
     await this.call('/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED', {
       method: 'PUT',
