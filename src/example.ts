@@ -53,8 +53,8 @@ export const EXAMPLE_TABS: Tab[] = [
       hold({ id: 'H4', name: 'Kids savings plan', vendor: 'Provider C', owner: 'Sam', type: 'Savings plan', investment_track: 'Balanced', currency: 'ILS', current_amount: 60000, deposited_amount: 52000, return_5y_avg_pct: 5.1, management_fee_pct: 0.4, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-10-15' }),
       hold({ id: 'H5', name: 'Brokerage account', vendor: 'Broker D', owner: 'Alex', type: 'Brokerage', investment_style: 'Index ETFs', currency: 'USD', current_amount: 42000, deposited_amount: 30000, return_5y_avg_pct: 9.8, tax_type: 'capital_gain', include_in_total: 1, last_updated: '2026-11-20' }),
       hold({ id: 'H6', name: 'Checking and deposits', vendor: 'Bank E', owner: 'Joint', type: 'Cash', currency: 'ILS', current_amount: 65000, tax_type: 'none', include_in_total: 1, last_updated: '2026-11-20' }),
-      hold({ id: 'H7', name: 'Company shares (vested)', owner: 'Alex', type: 'Stocks', currency: 'USD', current_amount: 18000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1, notes: 'In your own sheet, current_amount can be quantity × GOOGLEFINANCE price.' }),
-      hold({ id: 'H8', name: 'Company shares (unvested)', owner: 'Alex', type: 'Stocks (unvested)', currency: 'USD', current_amount: 36000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1 }),
+      hold({ id: 'H7', name: 'Company shares (vested)', owner: 'Alex', type: 'Stocks', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 400, current_amount: 18000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1, notes: 'In your own sheet, current_amount can be quantity × GOOGLEFINANCE price.' }),
+      hold({ id: 'H8', name: 'Company shares (unvested)', owner: 'Alex', type: 'Stocks (unvested)', currency: 'USD', ticker: 'NASDAQ:INTC', quantity: 800, current_amount: 36000, return_5y_avg_pct: 3, tax_type: 'income', include_in_total: 1 }),
       hold({ id: 'H9', name: 'Old foreign account', vendor: 'Bank F', owner: 'Sam', type: 'Brokerage', currency: 'EUR', current_amount: 4000, deposited_amount: 4000, return_5y_avg_pct: 2, tax_type: 'capital_gain', include_in_total: 0, notes: 'include_in_total = 0: shown but not counted.' }),
     ],
   },
@@ -93,16 +93,20 @@ export const EXAMPLE_TABS: Tab[] = [
     name: 'Deposits',
     rows: [
       TEMPLATE_TABS[5].rows[0],
-      ['D1', 'H1', '2018-03-01', 100000, 'ILS', 'Opening balance'],
-      ['D2', 'H1', '2024-02-01', 40000, 'ILS', null],
+      ['D1', 'H4', '2020-03-01', 30000, 'ILS', 'Opening balance'],
+      ['D2', 'H4', '2024-02-01', 22000, 'ILS', null],
       ['D3', 'H3', '2021-03-01', 60000, 'ILS', null],
       ['D4', 'H3', '2023-06-15', 30000, 'ILS', null],
       ['D5', 'H3', '2025-09-01', 20000, 'ILS', null],
     ],
   },
   {
+    name: 'Grants',
+    rows: [TEMPLATE_TABS[6].rows[0], ['GR1', 'H8', '2024-03-15', 500, 'Yearly grant'], ['GR2', 'H8', '2025-03-15', 300, null]],
+  },
+  {
     name: 'ToDo',
-    rows: [TEMPLATE_TABS[6].rows[0], ['T1', 'Update balances from the provider sites', 'Holdings', 'open', 'Once a month']],
+    rows: [TEMPLATE_TABS[7].rows[0], ['T1', 'Update balances from the provider sites', 'Holdings', 'open', 'Once a month']],
   },
 ];
 

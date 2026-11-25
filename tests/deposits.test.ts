@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { impliedReturn, nextDepositId, parseDate, parseDeposits } from '../src/model';
+import { groupOf, impliedReturn, nextDepositId, nextId, parseDate, parseDeposits, parseGrants, parseHoldings, type Holding } from '../src/model';
+import { grantRow } from '../src/sheets/data';
 
 describe('deposits', () => {
   it('read dates in the usual sheet formats', () => {
@@ -42,5 +43,42 @@ describe('deposits', () => {
   it('continues deposit ids', () => {
     expect(nextDepositId(['D1', 'D15', 'X'])).toBe('D16');
     expect(nextDepositId([])).toBe('D1');
+  });
+});
+
+describe('holding groups and grants', () => {
+  it('uses the group column, else the type', () => {
+    expect(groupOf('bank', 'Investment fund')).toBe('bank');
+    expect(groupOf(' Study Fund ', 'Cash')).toBe('study_fund');
+    expect(groupOf('', 'Study fund')).toBe('study_fund');
+    expect(groupOf(null, 'Cash')).toBe('bank');
+    expect(groupOf('', 'Stocks (unvested)')).toBe('stocks');
+    expect(groupOf('', 'Brokerage')).toBe('trading');
+    expect(groupOf('nonsense', 'Savings plan')).toBe('fund');
+  });
+  it('reads group and fund_number from Holdings', () => {
+    const H = parseHoldings([
+      ['id', 'name', 'type', 'currency', 'current_amount', 'group', 'fund_number'],
+      ['H1', 'A', 'Investment fund', 'ILS', 100, '', 512],
+      ['H2', 'B', 'Cash', 'ILS', 50, 'bank', ''],
+    ], { ILS: 1 });
+    expect(H[0].group).toBe('fund');
+    expect(H[0].info?.fundNumber).toBe('512');
+    expect(H[1].group).toBe('bank');
+    expect(H[2].synthetic && H[2].group).toBe('fund');
+  });
+  it('parses grants and makes the next row in column order', () => {
+    const g = parseGrants([
+      ['grant_id', 'holding_id', 'date', 'shares', 'notes'],
+      ['GR2', 'H9', '15/3/2025', 300, ''],
+      ['GR1', 'H9', 45000, 500, 'first'],
+      ['', 'H9', '', 10, 'no date: skipped'],
+    ]);
+    expect(g.map((x) => x.id)).toEqual(['GR1', 'GR2']);
+    expect(g[1].date).toBe('2025-03-15');
+    const h = { id: 'H9', name: 'X' } as Holding;
+    expect(grantRow(['notes', 'grant_id', 'holding_id', 'date', 'shares', 'other'], g, h, { date: '2026-01-02', shares: 40, notes: 'n' }))
+      .toEqual(['n', 'GR3', 'H9', '2026-01-02', 40, '']);
+    expect(nextId('GR', [])).toBe('GR1');
   });
 });

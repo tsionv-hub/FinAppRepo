@@ -6,10 +6,10 @@ import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
   type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths,
-  impliedReturn, type Deposit,
+  impliedReturn, type Deposit, GROUPS, type Grant,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
-import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
+import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleRows } from '../example';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
@@ -385,7 +385,8 @@ export function tmView(): void {
   // Holdings at the selected month.
   const s = snaps[k];
   curK = k;
-  holdRows = s.S.filter((x) => !(x.h.synthetic && x.b < 1)).sort((a, b) => b.b - a.b);
+  const gi = (x: Slot) => GROUPS.indexOf(x.h.group ?? 'fund');
+  holdRows = s.S.filter((x) => !(x.h.synthetic && x.b < 1)).sort((a, b) => gi(a) - gi(b) || b.b - a.b);
   const rows = holdRows
     .map((x, i) => {
       const h = x.h;
@@ -403,7 +404,19 @@ export function tmView(): void {
   });
   $('hsT').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
   $('hsK').textContent = k === 0 ? t('atToday') : dateAt(k, 'short');
-  $('hl').innerHTML = rows.join('') + pens.join('');
+  // One sub-section per group, in GROUPS order, then pension funds.
+  const head = (name: string, n: number, sum: number) => `<div class="hgrp"><span>${name} (${n})</span><span>${f(sum / infl)}</span></div>`;
+  let html = '';
+  for (const g of GROUPS) {
+    const idx = holdRows.map((x, i) => (x.h.group ?? 'fund') === g ? i : -1).filter((i) => i >= 0);
+    if (!idx.length) continue;
+    html += head(t(('grp_' + g) as 'grp_fund'), idx.length, idx.reduce((a, i) => a + holdRows[i].b, 0)) + idx.map((i) => rows[i]).join('');
+  }
+  if (pens.length) {
+    const sum = data.pension.reduce((a, fd, i) => a + (pensionBalances[i] ? pensionBalances[i]![Math.min(k, pensionBalances[i]!.length - 1)] : fd.balance), 0);
+    html += head(t('grp_pension'), pens.length, sum) + pens.join('');
+  }
+  $('hl').innerHTML = html;
   loansView(s, infl);
 }
 
@@ -646,6 +659,7 @@ function holdingDetails(x: Slot): void {
   if (i) {
     body += sec(t('dSheet'));
     if (i.currency !== 'ILS') body += row(i.currency, `⁦${i.amount.toLocaleString('en-US')} ${t('dRate', { r: i.rate.toFixed(3) })}⁩`);
+    if (i.fundNumber && (h.group === 'study_fund' || h.group === 'fund')) body += row(t('dFundNo'), esc(i.fundNumber));
     if (i.ticker) body += row(t('dTicker'), esc(i.ticker));
     if (i.quantity != null) body += row(t('dQty'), i.quantity.toLocaleString('en-US'));
     if (i.track) body += row(t('dTrack'), esc(i.track));
@@ -658,10 +672,95 @@ function holdingDetails(x: Slot): void {
   if (h.synthetic) body += `<div class="dnote">${t('dSreN')}</div>`;
   if (h.type === 'Stocks (unvested)') body += `<div class="dnote">${t('dUnvN', { m: data.settings.vestEveryMonths })}</div>`;
   if (i?.notes) body += `<div class="dnote">${esc(i.notes)}</div>`;
-  if (h.id && !h.synthetic && data.deposits) body += depositsSection(h, data.deposits);
+  // What can be added from here depends on the group.
+  const g = h.group ?? 'fund';
+  const real = !!h.id && !h.synthetic && !!h.info;
+  const withDeposits = real && (g === 'fund' || g === 'trading') && !!data.deposits;
+  const target = real && g === 'stocks' ? grantTarget(h) : null;
+  if (withDeposits) body += depositsSection(h, data.deposits!);
+  if (real && g === 'bank') body += valueSection(h);
+  if (target && data.grants) body += grantsSection(target, data.grants);
+  else if (target) body += `<div class="dnote">${t('grNoTab')}</div>`;
   const sub = [ty(h.type), h.vendor, h.owner].filter(Boolean).map(esc).join(' · ');
   openDialog(h.synthetic ? t('sre') : h.name, sub, body);
-  if (h.id && !h.synthetic && data.deposits) $('dpS').addEventListener('click', () => addDeposit(h));
+  if (withDeposits) $('dpS').addEventListener('click', () => addDeposit(h));
+  if (real && g === 'bank') $('bvS').addEventListener('click', () => updateValue(h));
+  if (target && data.grants) $('grS').addEventListener('click', () => addGrant(h, target));
+}
+
+/** Grants go to the unvested holding with the same ticker, if there is one. */
+function grantTarget(h: Holding): Holding {
+  if (h.type === 'Stocks (unvested)' || !data) return h;
+  return data.holdings.find((x) => x.type === 'Stocks (unvested)' && x.info?.ticker === h.info?.ticker && x.id) ?? h;
+}
+
+/** Shows `msg`, runs the write, reloads and reopens this holding's popup. */
+async function popupSave(h: Holding, btn: string, msgId: string, fn: (c: SheetsClient) => Promise<void>, okText: string): Promise<void> {
+  if (deps.demo()) {
+    $(msgId).textContent = t('demoNoSave');
+    return;
+  }
+  const c = deps.client();
+  if (!c || !data) return;
+  inp(btn).disabled = true;
+  $(msgId).textContent = t('wr');
+  try {
+    await fn(c);
+    await load();
+    const again = holdRows.find((x) => x.h.id === h.id);
+    if (again && $<HTMLDialogElement>('dlg').open) holdingDetails(again);
+    $(msgId).textContent = okText;
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    $(msgId).textContent = errorText(e);
+    inp(btn).disabled = false;
+  }
+}
+
+/** Bank account: set today's balance. */
+function valueSection(h: Holding): string {
+  const cur = esc(h.info!.currency);
+  return `<div class="dpf"><div class="dsec">${t('bvT')}</div>`
+    + `<label>${t('bvAmt', { c: cur })}<input type="number" id="bvA" inputmode="decimal" step="any" value="${h.info!.amount}"></label>`
+    + `<button id="bvS">${t('bvSave')}</button><div class="dnote" id="bvM" aria-live="polite"></div></div>`;
+}
+
+function updateValue(h: Holding): Promise<void> {
+  const v = parseFloat(inp('bvA').value);
+  if (!(v >= 0)) {
+    $('bvM').textContent = t('bvNeed');
+    return Promise.resolve();
+  }
+  return popupSave(h, 'bvS', 'bvM', (c) => saveValue(c, data!, h, v), t('bvSaved'));
+}
+
+/** Share grants into `target` (the unvested holding) and a form to add one. */
+function grantsSection(target: Holding, all: Grant[]): string {
+  const gs = all.filter((g) => g.holdingId === target.id);
+  let body = sec(t('grT'));
+  if (gs.length) {
+    body += row(t('grSum', { n: gs.length }), gs.reduce((a, g) => a + g.shares, 0).toLocaleString('en-US'));
+    body += `<details class="dpl"><summary>${t('grList')}</summary>`
+      + gs.slice().reverse().map((g) => row(dayText(g.date) + (g.notes ? ` · ${esc(g.notes)}` : ''), g.shares.toLocaleString('en-US'))).join('')
+      + '</details>';
+  } else body += `<div class="dnote">${t('grNone')}</div>`;
+  body += `<div class="dpf"><div class="dsec">${t('grAdd')}</div>`
+    + `<label>${t('dpDate')}<input type="date" id="grD" value="${isoDate(new Date())}"></label>`
+    + `<label>${t('grShares')}<input type="number" id="grN" inputmode="numeric" step="1" min="1"></label>`
+    + `<label>${t('dpNote')}<input type="text" id="grO" maxlength="200"></label>`
+    + `<div class="dnote">${t('grTo', { h: esc(target.name), q: (target.info?.quantity ?? 0).toLocaleString('en-US') })}</div>`
+    + `<button id="grS">${t('grSave')}</button><div class="dnote" id="grM" aria-live="polite"></div></div>`;
+  return body;
+}
+
+function addGrant(h: Holding, target: Holding): Promise<void> {
+  const date = inp('grD').value;
+  const shares = Math.round(parseFloat(inp('grN').value));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !(shares > 0)) {
+    $('grM').textContent = t('grNeed');
+    return Promise.resolve();
+  }
+  return popupSave(h, 'grS', 'grM', (c) => saveGrant(c, data!, target, { date, shares, notes: inp('grO').value.trim() }), t('grSaved'));
 }
 
 const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -693,33 +792,15 @@ function depositsSection(h: Holding, all: Deposit[]): string {
   return body;
 }
 
-async function addDeposit(h: Holding): Promise<void> {
-  const msg = $('dpM');
+function addDeposit(h: Holding): Promise<void> {
   const date = inp('dpD').value;
   const amount = parseFloat(inp('dpA').value);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !amount) {
-    msg.textContent = t('dpNeed');
-    return;
+    $('dpM').textContent = t('dpNeed');
+    return Promise.resolve();
   }
-  if (deps.demo()) {
-    msg.textContent = t('demoNoSave');
-    return;
-  }
-  const c = deps.client();
-  if (!c || !data) return;
-  inp('dpS').disabled = true;
-  msg.textContent = t('wr');
-  try {
-    await saveDeposit(c, data, h, { date, amount, notes: inp('dpN').value.trim() }, inp('dpV').checked);
-    await load();
-    const again = holdRows.find((x) => x.h.id === h.id);
-    if (again && $<HTMLDialogElement>('dlg').open) holdingDetails(again);
-    $('dpM').textContent = t('dpSaved');
-  } catch (e) {
-    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
-    msg.textContent = errorText(e);
-    inp('dpS').disabled = false;
-  }
+  const add = inp('dpV').checked;
+  return popupSave(h, 'dpS', 'dpM', (c) => saveDeposit(c, data!, h, { date, amount, notes: inp('dpN').value.trim() }, add), t('dpSaved'));
 }
 
 function pensionDetails(idx: number): void {
@@ -985,6 +1066,7 @@ export function aiSnapshot(demo: boolean): AiSnapshot | null {
     rainyDayFund: w.reserve,
     loans: d.loans,
     deposits: d.deposits,
+    grants: d.grants,
     results: {
       postTax: Math.round(td.postTax), preTax: Math.round(td.preTax), afterDebts: Math.round(td.postTax - owed), freeToday: Math.round(fm.free), freeNote,
       scenario: w.scenario, inflation: w.inflationOn ? `on (${w.inflationRatePct}%/year): amounts in today's money` : 'off: amounts in future shekels',

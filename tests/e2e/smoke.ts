@@ -26,7 +26,7 @@ const depositsX = [
   ['D1', 'H3', 30000, 25000, 'USD', 'first', 'Broker C'],
   ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
 ];
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX };
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -138,7 +138,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 6, 'checklist lists the six tabs (Loans and Deposits included)');
+  ok((await page.locator('#chkList .ck').count()) === 9, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the two new optional Holdings columns');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -350,6 +350,34 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const vw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'"));
   ok(vw && vw.url.includes(hcol + '4') && JSON.stringify((vw.body as { values: unknown[][] }).values) === '[[61000]]', 'and the holding value goes up by the deposit: ' + vw?.url);
   ok((await dlgOpen()) && (await txt('#dlgT')) === 'Broker C', 'the popup stays open after saving');
+  await page.click('#dlgX');
+  const grps = await page.$$eval('#hl .hgrp span:first-child', (e) => e.map((x) => x.textContent));
+  ok(JSON.stringify(grps.slice(0, 5)) === JSON.stringify(['Study funds (1)', 'Funds and savings (2)', 'Trading accounts (2)', 'Bank (1)', 'Intel stocks (2)']) && grps[5]?.startsWith('Pension'), 'holdings are split into groups: ' + grps.join(', '));
+  ok(await page.$eval('#hl', (hl) => { const k = [...hl.children]; const b = k.findIndex((x) => x.classList.contains('hgrp') && x.textContent!.startsWith('Bank')); return k[b + 1]?.textContent?.includes('Checking'); }), 'rows sit under their group');
+  await page.click('#hl .g:has-text("Study A")');
+  ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Checking")');
+  ok((await page.inputValue('#bvA')) === '80000' && (await page.locator('#dpS').count()) === 0, 'bank popup offers a balance update (no deposits), prefilled');
+  let n0 = writes.length;
+  await page.fill('#bvA', '85000');
+  await page.click('#bvS');
+  await page.waitForFunction(() => document.getElementById('bvM')?.textContent === 'Balance saved to the Holdings tab.');
+  const bw = writes.slice(n0).find((w) => w.method === 'PUT');
+  ok(bw && bw.url.includes("'Holdings'!" + hcol + '6') && JSON.stringify((bw.body as { values: unknown[][] }).values) === '[[85000]]', 'bank balance written to current_amount: ' + bw?.url);
+  await page.click('#dlgX');
+  await page.click('#hl .g:has-text("Intel vested")');
+  ok((await page.locator('#grS').count()) === 1 && (await txt('#dlgB')).includes('“Intel unvested”'), 'stocks popup offers a grant, added to the unvested holding');
+  n0 = writes.length;
+  await page.fill('#grN', '120');
+  await page.click('#grS');
+  await page.waitForFunction(() => document.getElementById('grM')?.textContent === 'Grant saved to the Grants tab.');
+  const gw = writes.slice(n0);
+  const gRow = (gw.find((w) => w.url.includes("'Grants'") && w.url.endsWith(':append'))?.body as { values: unknown[][] } | undefined)?.values[0];
+  ok(gRow && /^\["GR1","H7","\d{4}-\d{2}-\d{2}",120,""\]$/.test(JSON.stringify(gRow)), 'grant appended in the Grants column order: ' + JSON.stringify(gRow));
+  const qcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('quantity'));
+  const qw = gw.find((w) => w.method === 'PUT');
+  ok(qw && qw.url.includes("'Holdings'!" + qcol + '8') && JSON.stringify((qw.body as { values: unknown[][] }).values) === '[[120]]', 'and the shares are added to the unvested quantity: ' + qw?.url);
   await page.mouse.click(5, 5);
   ok(!(await dlgOpen()), 'tapping outside closes the popup');
   await page.click('#hl .g:has-text("Pension 1")');

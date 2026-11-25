@@ -241,3 +241,6 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .dpf { margin-top: 8px; display: grid; gap: 8px; }
 .dpf input[type=date] { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 8px; border: 1px solid var(--ln); border-radius: 8px; background: var(--bg); color: var(--tx); }
 .dpck { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tx); }
+.hgrp { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; font-weight: 600; color: var(--mu); text-transform: uppercase; letter-spacing: .03em; margin: 14px 0 2px; padding-bottom: 4px; border-bottom: 2px solid var(--ln); }
+.hgrp:first-child { margin-top: 4px; }
+.hgrp span:last-child { font-variant-numeric: tabular-nums; text-transform: none; }

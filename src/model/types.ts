@@ -10,10 +10,16 @@ export const REINVEST_TYPE = 'Stock reinvestment';
 /** Holding types whose value-weighted 5y return drives the Stock reinvestment holding. */
 export const INVEST_TYPES = ['Study fund', 'Investment fund', 'Savings plan', 'Brokerage'];
 
+/** Sub-sections of the Holdings panel; each has its own actions in the holding popup. */
+export type HoldingGroup = 'study_fund' | 'fund' | 'trading' | 'bank' | 'stocks';
+export const GROUPS: HoldingGroup[] = ['study_fund', 'fund', 'trading', 'bank', 'stocks'];
+
 export interface Holding {
   /** The sheet's id (e.g. H9) and row, for deposits and writes. */
   id?: string;
   row?: number;
+  /** Holdings `group` column; blank = worked out from the type. */
+  group?: HoldingGroup;
   name: string;
   vendor: string;
   owner: string;
@@ -47,6 +53,8 @@ export interface HoldingInfo {
   quantity: number | null;
   lastUpdated: string;
   notes: string;
+  /** fund_number column (study funds and funds only). */
+  fundNumber: string;
 }
 
 export interface PensionFund {

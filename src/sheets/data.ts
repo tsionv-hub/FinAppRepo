@@ -1,8 +1,9 @@
 // Reads the whole sheet into model objects, and the three explicit writes:
-// new goals, rainy day fund amount, retirement age and allowance.
+// new goals, rainy day fund amount, retirement age and allowance, deposits,
+// a bank balance, and share grants.
 
 import { parseGoals, parseHoldings, parseLoans, parsePension, parseSettings, type GoalsTab } from '../model/parse';
-import { nextDepositId, parseDeposits, type Deposit } from '../model/deposits';
+import { nextDepositId, nextId, parseDeposits, parseGrants, type Deposit, type Grant } from '../model/deposits';
 import type { Goal, Holding, Loan, PensionFund, Settings, StartMonth } from '../model/types';
 import type { Cell, Rows } from '../model/parse';
 import { a1, columnLetter, SheetsClient, SheetsError } from './api';
@@ -17,8 +18,10 @@ export interface SheetData {
   loans: Loan[];
   /** Null when the sheet has no Deposits tab. */
   deposits: Deposit[] | null;
+  /** Null when the sheet has no Grants tab. */
+  grants: Grant[] | null;
   /** Column order of the tabs the app writes to. */
-  headers: { holdings: string[]; deposits: string[] };
+  headers: { holdings: string[]; deposits: string[]; grants: string[] };
   fetchedAt: number;
 }
 
@@ -55,9 +58,11 @@ export function fromRows(title: string, tabs: string[], rows: Record<string, Row
       goals: parseGoals(rows.Goals, start.year),
       loans: rows.Loans ? parseLoans(rows.Loans) : [],
       deposits: rows.Deposits ? parseDeposits(rows.Deposits) : null,
+      grants: rows.Grants ? parseGrants(rows.Grants) : null,
       headers: {
         holdings: (rows.Holdings[0] ?? []).map((h) => String(h ?? '').trim()),
         deposits: (rows.Deposits?.[0] ?? []).map((h) => String(h ?? '').trim()),
+        grants: (rows.Grants?.[0] ?? []).map((h) => String(h ?? '').trim()),
       },
       fetchedAt: Date.now(),
     },
@@ -161,9 +166,42 @@ export async function saveDeposit(c: SheetsClient, data: SheetData, h: Holding, 
   const need = ['holding_id', 'date', 'amount'].filter((k) => !data.headers.deposits.includes(k));
   if (need.length) throw new MissingColumnError('Deposits', need);
   await c.append(a1('Deposits', 'A1'), [depositRow(data.headers.deposits, data.deposits, h, d)]);
-  if (addToValue && h.row && h.info) {
-    const ci = data.headers.holdings.indexOf('current_amount');
-    if (ci < 0) throw new MissingColumnError('Holdings', ['current_amount']);
-    await c.update(a1('Holdings', columnLetter(ci) + h.row), [[Math.round((h.info.amount + d.amount) * 100) / 100]]);
-  }
+  if (addToValue && h.info) await saveValue(c, data, h, h.info.amount + d.amount);
+}
+
+/** One Holdings cell of this holding's row. */
+async function setHoldingCell(c: SheetsClient, data: SheetData, h: Holding, col: string, v: number): Promise<void> {
+  const ci = data.headers.holdings.indexOf(col);
+  if (ci < 0) throw new MissingColumnError('Holdings', [col]);
+  if (!h.row) throw new SheetsError('other', 0, 'holding has no row');
+  await c.update(a1('Holdings', columnLetter(ci) + h.row), [[Math.round(v * 100) / 100]]);
+}
+
+/** Sets the holding's current_amount (in its own currency), e.g. a bank balance. */
+export function saveValue(c: SheetsClient, data: SheetData, h: Holding, amount: number): Promise<void> {
+  return setHoldingCell(c, data, h, 'current_amount', amount);
+}
+
+export interface NewGrant {
+  /** YYYY-MM-DD */
+  date: string;
+  shares: number;
+  notes: string;
+}
+
+/** The new Grants row, in the tab's own column order. */
+export function grantRow(header: string[], existing: Grant[], h: Holding, g: NewGrant): Cell[] {
+  const v: Record<string, Cell> = { grant_id: nextId('GR', existing.map((x) => x.id)), holding_id: h.id ?? '', date: g.date, shares: g.shares, notes: g.notes };
+  return header.map((k) => (k in v ? v[k] : ''));
+}
+
+/**
+ * Records a share grant: a row in the Grants tab, and the shares added to the
+ * holding's quantity (its value is usually quantity × GOOGLEFINANCE price).
+ */
+export async function saveGrant(c: SheetsClient, data: SheetData, h: Holding, g: NewGrant): Promise<void> {
+  const need = ['holding_id', 'date', 'shares'].filter((k) => !data.headers.grants.includes(k));
+  if (!data.grants || need.length) throw new MissingColumnError('Grants', need.length ? need : ['holding_id', 'date', 'shares']);
+  await c.append(a1('Grants', 'A1'), [grantRow(data.headers.grants, data.grants, h, g)]);
+  await setHoldingCell(c, data, h, 'quantity', (h.info?.quantity ?? 0) + g.shares);
 }
