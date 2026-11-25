@@ -144,6 +144,21 @@ function privateMode(): boolean {
   return $<HTMLInputElement>('aiPriv').checked;
 }
 
+/**
+ * Fit the chat into the part of the screen that is actually visible. On a phone
+ * the keyboard covers the bottom; visualViewport tells how much is left.
+ */
+function fitChat(): void {
+  const d = $<HTMLDialogElement>('aiChat');
+  const vv = window.visualViewport;
+  const h = vv ? vv.height : window.innerHeight;
+  const top = vv ? vv.offsetTop : 0;
+  d.style.setProperty('--ai-top', `${Math.round(top + 8)}px`);
+  d.style.setProperty('--ai-h', `${Math.round(Math.min(h - 16, 720))}px`);
+  const log = $('aiLog');
+  log.scrollTop = log.scrollHeight;
+}
+
 function openChat(note = ''): void {
   history = [];
   $<HTMLInputElement>('aiPriv').checked = get(KEYS.aiPrivate) === '1';
@@ -151,7 +166,8 @@ function openChat(note = ''): void {
   render(note ? `<div class="ai-msg err">${esc(note)}</div>` : '');
   const d = $<HTMLDialogElement>('aiChat');
   if (!d.open) d.showModal();
-  $<HTMLTextAreaElement>('aiIn').focus();
+  fitChat();
+  // No automatic focus: on a phone it would pop the keyboard up straight away.
 }
 
 async function send(text: string): Promise<void> {
@@ -230,6 +246,11 @@ export function initAi(demo: () => boolean): void {
     if (b) send(b.dataset.ask!);
   });
   $('aiX').addEventListener('click', () => $<HTMLDialogElement>('aiChat').close());
+  // Keyboard opening/closing (or rotating the phone) changes the visible area.
+  const refit = () => $<HTMLDialogElement>('aiChat').open && fitChat();
+  window.visualViewport?.addEventListener('resize', refit);
+  window.visualViewport?.addEventListener('scroll', refit);
+  window.addEventListener('resize', refit);
   // Switching modes starts a new conversation: earlier answers may contain the
   // user's numbers, and the whole conversation is sent with each question.
   $('aiPriv').addEventListener('change', () => {
