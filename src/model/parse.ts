@@ -97,6 +97,8 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
       const rate = fx[String(x.currency ?? 'ILS').trim()] ?? 1;
       const value = num(x.current_amount) * rate;
       return {
+        id: String(x.id).trim(),
+        row: x._row,
         name: String(x.name ?? ''),
         vendor: String(x.vendor ?? ''),
         owner: String(x.owner ?? ''),

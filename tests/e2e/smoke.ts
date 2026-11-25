@@ -21,7 +21,12 @@ const loansX = [
   ['L1', 'Car loan', 'P1', 'installments', 36000, 4, 1500, '', '', ''],
   ['L2', 'Loan from parents', 'P2', 'lump_sum', 50000, 0, '', 2029, 9, ''],
 ];
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX };
+const depositsX = [
+  ['deposit_id', 'holding_id', 'date', 'amount', 'currency', 'notes', 'holding_name'],
+  ['D1', 'H3', 30000, 25000, 'USD', 'first', 'Broker C'],
+  ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
+];
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsRows, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -133,7 +138,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 5, 'checklist lists the five tabs (Loans included)');
+  ok((await page.locator('#chkList .ck').count()) === 6, 'checklist lists the six tabs (Loans and Deposits included)');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -328,7 +333,23 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(await dlgOpen(), 'tapping a holding opens its details');
   ok((await txt('#dlgT')) === 'Broker C' && /USD.*60,000 at 3\.700/.test(await txt('#dlgB')), 'holding popup shows the sheet amount in USD and the rate');
   ok((await txt('#dlgB')).includes('Return used (Moderate)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
+  const dB = await txt('#dlgB');
+  ok(dB.includes('Total deposited (2)') && /40,000 USD/.test(dB) && dB.includes('Yearly return so far'), 'holding popup lists its deposits (serial and ISO dates), the total and the return so far');
   await page.screenshot({ path: OUT + '/popup-holding.png' });
+  await page.click('#dpS');
+  ok((await txt('#dpM')) === 'Enter a date and an amount.', 'add deposit needs an amount');
+  const nw = writes.length;
+  await page.fill('#dpA', '1000');
+  await page.fill('#dpN', 'test');
+  await page.click('#dpS');
+  await page.waitForFunction(() => document.getElementById('dpM')?.textContent === 'Deposit saved to the Deposits tab.');
+  const dw = writes.slice(nw);
+  const dRow = (dw.find((w) => w.url.includes("'Deposits'") && w.url.endsWith(':append'))?.body as { values: unknown[][] } | undefined)?.values[0];
+  ok(dRow && /^\["D3","H3","\d{4}-\d{2}-\d{2}",1000,"USD","test","Broker C"\]$/.test(JSON.stringify(dRow)), 'deposit appended in the Deposits column order: ' + JSON.stringify(dRow));
+  const hcol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('current_amount'));
+  const vw = dw.find((w) => w.method === 'PUT' && w.url.includes("'Holdings'"));
+  ok(vw && vw.url.includes(hcol + '4') && JSON.stringify((vw.body as { values: unknown[][] }).values) === '[[61000]]', 'and the holding value goes up by the deposit: ' + vw?.url);
+  ok((await dlgOpen()) && (await txt('#dlgT')) === 'Broker C', 'the popup stays open after saving');
   await page.mouse.click(5, 5);
   ok(!(await dlgOpen()), 'tapping outside closes the popup');
   await page.click('#hl .g:has-text("Pension 1")');

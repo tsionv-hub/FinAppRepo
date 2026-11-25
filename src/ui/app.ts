@@ -6,9 +6,10 @@ import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
   type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths,
+  impliedReturn, type Deposit,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
-import { appendGoals, fromRows, loadSheet, MissingColumnError, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
+import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleRows } from '../example';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
@@ -657,8 +658,68 @@ function holdingDetails(x: Slot): void {
   if (h.synthetic) body += `<div class="dnote">${t('dSreN')}</div>`;
   if (h.type === 'Stocks (unvested)') body += `<div class="dnote">${t('dUnvN', { m: data.settings.vestEveryMonths })}</div>`;
   if (i?.notes) body += `<div class="dnote">${esc(i.notes)}</div>`;
+  if (h.id && !h.synthetic && data.deposits) body += depositsSection(h, data.deposits);
   const sub = [ty(h.type), h.vendor, h.owner].filter(Boolean).map(esc).join(' · ');
   openDialog(h.synthetic ? t('sre') : h.name, sub, body);
+  if (h.id && !h.synthetic && data.deposits) $('dpS').addEventListener('click', () => addDeposit(h));
+}
+
+const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const dayText = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
+
+/** The holding's deposits from the Deposits tab, the return they imply, and a form to add one. */
+function depositsSection(h: Holding, all: Deposit[]): string {
+  const ds = all.filter((d) => d.holdingId === h.id);
+  const cur = h.info?.currency ?? 'ILS';
+  const money = (v: number) => (cur === 'ILS' ? f(v) : `⁦${v.toLocaleString('en-US')} ${esc(cur)}⁩`);
+  let body = sec(t('dpT'));
+  if (ds.length) {
+    const sum = ds.reduce((a, d) => a + d.amount, 0);
+    body += row(t('dpSum', { n: ds.length }), money(sum));
+    if (ds.length > 1) body += row(t('dpRange'), `${dayText(ds[0].date)} – ${dayText(ds[ds.length - 1].date)}`);
+    const r = impliedReturn(ds, h.info?.amount ?? h.value / (h.info?.rate || 1), new Date());
+    if (r != null) body += row(t('dpRet'), pct(r * 100, 1)) + row(t('dpRet5'), pct(h.ret));
+    body += `<details class="dpl"><summary>${t('dpList')}</summary>`
+      + ds.slice().reverse().map((d) => row(dayText(d.date) + (d.notes ? ` · ${esc(d.notes)}` : ''), money(d.amount))).join('')
+      + '</details>';
+    if (r != null) body += `<div class="dnote">${t('dpRetN')}</div>`;
+  } else body += `<div class="dnote">${t('dpNone')}</div>`;
+  body += `<div class="dpf"><div class="dsec">${t('dpAdd')}</div>`
+    + `<label>${t('dpDate')}<input type="date" id="dpD" value="${isoDate(new Date())}"></label>`
+    + `<label>${t('dpAmt', { c: esc(cur) })}<input type="number" id="dpA" inputmode="decimal" step="any"></label>`
+    + `<label>${t('dpNote')}<input type="text" id="dpN" maxlength="200"></label>`
+    + `<label class="dpck"><input type="checkbox" id="dpV" checked> ${t('dpVal')}</label>`
+    + `<button id="dpS">${t('dpSave')}</button><div class="dnote" id="dpM" aria-live="polite"></div></div>`;
+  return body;
+}
+
+async function addDeposit(h: Holding): Promise<void> {
+  const msg = $('dpM');
+  const date = inp('dpD').value;
+  const amount = parseFloat(inp('dpA').value);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !amount) {
+    msg.textContent = t('dpNeed');
+    return;
+  }
+  if (deps.demo()) {
+    msg.textContent = t('demoNoSave');
+    return;
+  }
+  const c = deps.client();
+  if (!c || !data) return;
+  inp('dpS').disabled = true;
+  msg.textContent = t('wr');
+  try {
+    await saveDeposit(c, data, h, { date, amount, notes: inp('dpN').value.trim() }, inp('dpV').checked);
+    await load();
+    const again = holdRows.find((x) => x.h.id === h.id);
+    if (again && $<HTMLDialogElement>('dlg').open) holdingDetails(again);
+    $('dpM').textContent = t('dpSaved');
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    msg.textContent = errorText(e);
+    inp('dpS').disabled = false;
+  }
 }
 
 function pensionDetails(idx: number): void {
@@ -923,6 +984,7 @@ export function aiSnapshot(demo: boolean): AiSnapshot | null {
     goals: allGoals(),
     rainyDayFund: w.reserve,
     loans: d.loans,
+    deposits: d.deposits,
     results: {
       postTax: Math.round(td.postTax), preTax: Math.round(td.preTax), afterDebts: Math.round(td.postTax - owed), freeToday: Math.round(fm.free), freeNote,
       scenario: w.scenario, inflation: w.inflationOn ? `on (${w.inflationRatePct}%/year): amounts in today's money` : 'off: amounts in future shekels',

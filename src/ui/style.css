@@ -235,3 +235,9 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .ai-tip { margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--bg); font-size: 13.5px; }
 .ver-top { font-size: 13px; font-weight: 500; color: var(--mu); }
 .ver-top.beta { color: #b45309; font-weight: 700; }
+
+/* Holding popup: deposits */
+.dpl summary { font-size: 13px; color: var(--ac); cursor: pointer; padding: 6px 0; }
+.dpf { margin-top: 8px; display: grid; gap: 8px; }
+.dpf input[type=date] { width: 100%; box-sizing: border-box; font: inherit; font-size: 16px; padding: 8px; border: 1px solid var(--ln); border-radius: 8px; background: var(--bg); color: var(--tx); }
+.dpck { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--tx); }

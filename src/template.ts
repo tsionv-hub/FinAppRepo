@@ -93,6 +93,14 @@ export const TEMPLATE_TABS: Tab[] = [
     ],
   },
   {
+    name: 'Deposits',
+    rows: [
+      ['deposit_id', 'holding_id', 'date', 'amount', 'currency', 'notes'],
+      ['D1', 'H1', '2020-01-15', 50000, 'ILS', EX + 'Optional tab: one row per deposit. holding_id = the id in Holdings; amount in the holding\'s currency. The app shows them when you tap a holding, and can add new ones.'],
+      ['D2', 'H1', '2023-06-01', 30000, 'ILS', EX],
+    ],
+  },
+  {
     name: 'ToDo',
     rows: [
       ['id', 'item', 'area', 'status', 'notes'],
