@@ -76,7 +76,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     const q = new URL(route.request().url()).searchParams;
     const ids = JSON.parse(q.get('filters')!).FUND_ID as number[];
     const db = q.get('resource_id')!.startsWith('c6c6') ? 'bituach' : 'gemel';
-    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12 };
+    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12, 'gemel:33': 10 };
     const records = ids.filter((id) => known[db + ':' + id] != null).map((id) => ({
       FUND_ID: id, FUND_NAME: 'Mock fund ' + id, REPORT_PERIOD: 202610, AVG_ANNUAL_YIELD_TRAILING_5YRS: known[db + ':' + id], AVG_ANNUAL_YIELD_TRAILING_3YRS: 11,
       YEAR_TO_DATE_YIELD: 6.5, AVG_ANNUAL_MANAGEMENT_FEE: 0.66, TOTAL_ASSETS: 1000, STOCK_MARKET_EXPOSURE: 480, FOREIGN_EXPOSURE: 520,
@@ -387,7 +387,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#dlgX');
   await page.click('#hl .g:has-text("Savings D")');
   const sb = await txt('#dlgB');
-  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('50% of this holding') && sb.includes('not found in Bituach-Net') && sb.includes('Return used: 8.5%'), 'two tracks split evenly; one not found uses the sheet (12 and 5 → 8.5%)');
+  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('50% of this holding') && sb.includes('Mock fund 33 · 50% of this holding · Gemel-Net') && sb.includes('Return used: 11%'), 'a policy track missing from Bituach-Net is found in Gemel-Net; split evenly (12 and 10 → 11%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
   await page.click('#dlgX');
   await page.click('#hl .g:has-text("Study A")');
   ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');

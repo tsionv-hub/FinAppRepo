@@ -56,12 +56,18 @@ describe('official fund data', () => {
       urls.push(u);
       const q = new URL(u).searchParams;
       const ids = JSON.parse(q.get('filters')!).FUND_ID as number[];
-      return new Response(JSON.stringify({ success: true, result: { records: ids.map((id) => rec(id, 202610, 6)) } }));
+      // Bituach-Net knows 222 only; 333 is another company's provident fund (Gemel-Net).
+      const has = q.get('resource_id')!.startsWith('c6c6') ? ids.filter((id) => id === 222) : ids;
+      return new Response(JSON.stringify({ success: true, result: { records: has.map((id) => rec(id, 202610, id === 333 ? 9 : 6)) } }));
     }) as typeof fetch;
-    const map = await fetchOfficial(holdings(), fake);
+    const H = holdings();
+    const map = await fetchOfficial(H, fake);
     expect(urls.length).toBe(2);
-    expect(JSON.parse(new URL(urls[0]).searchParams.get('filters')!)).toEqual({ FUND_ID: [111] });
-    expect(JSON.parse(new URL(urls[1]).searchParams.get('filters')!)).toEqual({ FUND_ID: [222, 333] });
-    expect([...map.keys()].sort()).toEqual(['bituach:222', 'bituach:333', 'gemel:111']);
+    expect(JSON.parse(new URL(urls[0]).searchParams.get('filters')!)).toEqual({ FUND_ID: [222, 333] });
+    expect(JSON.parse(new URL(urls[1]).searchParams.get('filters')!)).toEqual({ FUND_ID: [111, 333] });
+    expect([...map.keys()].sort()).toEqual(['bituach:222', 'gemel:111', 'gemel:333']);
+    applyOfficial(H, map);
+    expect(H[1].official!.map((x) => x.o?.db)).toEqual(['bituach', 'gemel']);
+    expect(H[1].ret).toBe((6 + 9) / 2);
   });
 });

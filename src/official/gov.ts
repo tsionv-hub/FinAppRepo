@@ -23,7 +23,11 @@ export function fundIds(s: string): number[] {
     .filter((n) => n > 0);
 }
 
-/** Insurance savings policies are in Bituach-Net; study funds and provident funds in Gemel-Net. */
+/**
+ * Insurance savings policies are in Bituach-Net; study funds and provident funds in Gemel-Net.
+ * A policy can also invest through another company's provident fund (a Gemel-Net number),
+ * so a policy track not found in Bituach-Net is looked up in Gemel-Net too.
+ */
 export function dbFor(h: Holding): Db {
   return h.type === 'Savings plan' ? 'bituach' : 'gemel';
 }
@@ -74,7 +78,8 @@ export async function fetchOfficial(H: Holding[], fetchFn: typeof fetch = fetch)
   const want: Record<Db, Set<number>> = { gemel: new Set(), bituach: new Set() };
   for (const h of lookupHoldings(H)) for (const id of fundIds(h.info!.fundNumber)) want[dbFor(h)].add(id);
   const out = new Map<string, Official>();
-  for (const db of Object.keys(want) as Db[]) {
+  // Bituach-Net first, so policy tracks it doesn't have can join the Gemel-Net request.
+  for (const db of ['bituach', 'gemel'] as Db[]) {
     const ids = [...want[db]];
     if (!ids.length) continue;
     const q = new URLSearchParams({
@@ -89,6 +94,7 @@ export async function fetchOfficial(H: Holding[], fetchFn: typeof fetch = fetch)
     const j = (await r.json()) as { success?: boolean; result?: { records?: Rec[] } };
     if (!j.success) throw new Error('data.gov.il: no result');
     for (const [id, o] of latest(db, j.result?.records ?? [])) out.set(key(db, id), o);
+    if (db === 'bituach') for (const id of ids) if (!out.has(key(db, id))) want.gemel.add(id);
   }
   return out;
 }
@@ -106,7 +112,7 @@ export function applyOfficial(H: Holding[], map: Map<string, Official>): void {
   }
   for (const h of lookupHoldings(H)) {
     const ids = fundIds(h.info!.fundNumber);
-    const tracks = ids.map((id) => ({ id, o: map.get(key(dbFor(h), id)) ?? null }));
+    const tracks = ids.map((id) => ({ id, o: map.get(key(dbFor(h), id)) ?? map.get(key('gemel', id)) ?? null }));
     h.retSheet = h.ret;
     h.official = tracks;
     h.ret = tracks.reduce((a, x) => a + (x.o?.avg5 ?? h.retSheet!), 0) / tracks.length;
