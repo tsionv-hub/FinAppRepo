@@ -125,7 +125,8 @@ function fillInputs(d: SheetData): void {
   set('ir', s.inflationRatePct);
   set('cg', s.capitalGainsTaxPct);
   set('it', s.incomeTaxPct);
-  setInflation(s.inflationEnabled, false);
+  // Inflation is on by default (SPEC 12.18); turning it off asks first.
+  setInflation(true, false);
   set('ra', s.retirementAge);
   set('al', s.retirementAllowance);
   set('rd', d.goals.reserve);
@@ -1131,6 +1132,21 @@ function setInflation(on: boolean, redraw = true): void {
   if (redraw) render();
 }
 
+/** Turning inflation off: explain why it misleads, and only switch after a second tap. */
+function askInflationOff(): void {
+  const r = N('ir');
+  const y = (start?.year ?? new Date().getFullYear()) + 25;
+  const a = f(100000 / Math.pow(1 + r / 100, 25));
+  openDialog(t('ioffT'), '', `<p>${t('ioff1', { r: String(Math.round(r * 10) / 10), y, a })}</p><ul class="hwl"><li>${t('ioff2')}</li><li>${t('ioff3')}</li><li>${t('ioff4')}</li></ul>`
+    + `<div class="dlg-btns"><button type="button" id="ioffKeep">${t('ioffKeep')}</button><button type="button" class="s" id="ioffGo">${t('ioffGo')}</button></div>`);
+  const close = () => $<HTMLDialogElement>('dlg').close();
+  $('ioffKeep').addEventListener('click', close);
+  $('ioffGo').addEventListener('click', () => {
+    close();
+    setInflation(false);
+  });
+}
+
 /** Off: a yellow warning that the real picture is worse. On: a calm note. */
 function inflationBar(): void {
   const on = inflationOn();
@@ -1176,7 +1192,7 @@ function inflationHelp(): void {
 export function initApp(d: AppDeps): void {
   deps = d;
   ['sc', 'uv'].forEach((i) => $(i).addEventListener('change', render));
-  $('infl').addEventListener('click', () => setInflation(!inflationOn()));
+  $('infl').addEventListener('click', () => (inflationOn() ? askInflationOff() : setInflation(true)));
   ['ms', 'fc', 'gr', 'ir', 'cg', 'it', 'rd', 'ra', 'al', 'pg', 'pt', 'po'].forEach((i) => $(i).addEventListener('input', renderSoon));
   $('tm').addEventListener('input', tmView);
   $('inflHelp').addEventListener('click', inflationHelp);

@@ -261,3 +261,8 @@ A holding with deposits in the Deposits tab shows its own yearly return so far n
 - Withdrawals are proportional, not the most tax-efficient order.
 - An investment provident fund taken as an annuity after 60 is tax free; the model treats it as a lump-sum sale.
 - Projected returns: a fund with no official 5-year figure (a track under 5 years old) uses `return_5y_avg_pct`, not its 1–3-year history, which would overstate long-term growth.
+
+### 12.18 Inflation on by default; tax document (v1.22)
+- **Inflation:** the app always starts with inflation on, whatever `inflation_enabled` says (blank now also means on). Turning it off opens a dialog that explains why: savings look bigger, pension tax is too high, and capital gains are taxed in full. It offers "Keep it on" as the main button and "Turn off anyway". Turning it back on is one tap. Off is a what-if for the session and is never saved.
+- **Example household:** retires at 57 on ₪16,000 a month and saves ₪5,500 a month, so with inflation on the moderate scenario is still funded but limited by early retirement, and the pessimistic one is short.
+- **`docs/TAXES.md`** and **`TAXES.he.md`** explain every return and tax rule, the assumptions and what isn't modelled. They're linked from the manuals and READMEs.

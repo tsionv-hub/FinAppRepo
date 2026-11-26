@@ -28,7 +28,7 @@ export const TEMPLATE_TABS: Tab[] = [
       ['key', 'value', 'notes'],
       ['base_currency', 'ILS', 'All amounts are converted to this'],
       ['display_currency', 'ILS', 'ILS, USD or EUR; bottom-line totals only'],
-      ['inflation_enabled', 0, '1 = show amounts in today’s money'],
+      ['inflation_enabled', 1, 'Not used by the app any more: it always starts in today’s money (inflation on)'],
       ['inflation_rate_pct', 2.5, 'Yearly inflation %'],
       ['start_date', null, 'Informational; the app starts from the current month'],
       ['USD', { f: 'GOOGLEFINANCE("CURRENCY:USDILS")' }, 'Live rate to ILS'],
