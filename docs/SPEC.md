@@ -201,8 +201,7 @@ At the bottom of the Holdings panel, an "Official returns" chart compares every 
 
 Each column is labelled with a short name:
 - the optional Holdings `short_name`, if filled;
-- otherwise a short form of the vendor (a fixed list of public company names, e.g. Migdal → MG, Hachshara → HAC) plus the last 4 digits at the end of the holding name;
-- otherwise the owner's initial instead of the digits.
+- otherwise the holding name itself. (v1.24: the label used to be built from a vendor short form plus the last digits; now name your holdings short, e.g. `GL.ABC...1234`.)
 
 Tapping a column picks it:
 - the other columns dim;

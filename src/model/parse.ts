@@ -133,25 +133,9 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
   return H;
 }
 
-/** Common Israeli fund and insurance companies → short labels. Public company names only. */
-const VENDOR_SHORT: [RegExp, string][] = [
-  [/migdal|מגדל/i, 'MG'], [/hachshara|הכשרה/i, 'HAC'], [/phoenix|פניקס/i, 'PHX'], [/analyst|אנליסט/i, 'ANL'],
-  [/\bmor\b|^מור/i, 'MOR'], [/yelin|ילין/i, 'YL'], [/meitav|מיטב/i, 'MTV'], [/altshuler|אלטשולר/i, 'ALT'],
-  [/psagot|פסגות/i, 'PSG'], [/harel|הראל/i, 'HRL'], [/clal|כלל/i, 'CLL'], [/menora|מנורה/i, 'MNR'],
-  [/more|מור/i, 'MOR'], [/infinity|אינפיניטי/i, 'INF'], [/ibi|אי בי אי/i, 'IBI'], [/excellence|אקסלנס/i, 'EXL'],
-];
-
-/**
- * A short chart label: the short_name column, else the vendor's short form plus
- * the last digits shown in the name (e.g. "Fund ...6256" → "PHX 6256"), else the owner's initial.
- */
+/** A short chart label: the short_name column if filled, else the holding's own name. */
 export function shortName(h: Holding): string {
-  if (h.info?.short) return h.info.short;
-  const v = h.vendor.trim();
-  const ab = VENDOR_SHORT.find(([re]) => re.test(v))?.[1] ?? (v ? v.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 3).toUpperCase() : '');
-  const digits = /(\d{3,})\s*$/.exec(h.name)?.[1]?.slice(-4) ?? '';
-  const tail = digits || (h.owner ? h.owner.trim().charAt(0).toUpperCase() : '');
-  return [ab || h.name.slice(0, 6), tail].filter(Boolean).join(' ');
+  return h.info?.short || h.name;
 }
 
 /** The holding's group: the `group` column if it names one, else from the type. */
