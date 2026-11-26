@@ -74,7 +74,7 @@ Google can take a few minutes (rarely longer) before a new client ID works.
 
 | What you see | What to do |
 |---|---|
-| Sign-in window doesn't open, or comes back without signing in | Tap **Sign-in test** (bottom of the screen) → try **1. Sign in (popup)**. If it fails, try **2. Sign in (redirect)**; if that works, tap the button that says *switch to redirect*, then **Back to app**. |
+| Sign-in window doesn't open, or comes back without signing in | On the sign-in screen, tap **Sign-in test** (bottom of the screen, or open the app link with `?diag`) → try **1. Sign in (popup)**. If it fails, try **2. Sign in (redirect)**; if that works, tap the button that says *switch to redirect*, then **Back to app**. |
 | `Error 400: origin_mismatch` or `redirect_uri_mismatch` | In Google Cloud → Clients, check the two addresses from B6 exactly (origin without slash, redirect with slash). Wait 5 minutes, try again. |
 | `Error 403: access_denied` | Your Gmail isn't a test user: redo B5. |
 | "This Google account cannot open the sheet" | You signed in with a different Google account than the sheet owner's. |

@@ -99,7 +99,7 @@ function runPort(w: WI, goalsRowsIn: Rows) {
   const pen = projectPension(parsePension(pensionRows), {
     start: START, birthYear: s.birthYear!, pensionStartAge: s.pensionStartAge, retirementYear: retirementYear(goals),
     depositGrowthPct: wi.pensionDepositGrowthPct, exemptPct: s.pensionExemptPct, exemptCeiling: s.pensionExemptCeiling,
-    taxRatePct: wi.pensionTaxRatePct, oldAgeAllowance: wi.oldAgeAllowance, allowance: wi.allowance,
+    creditPoints: wi.pensionCreditPoints, oldAgeAllowance: wi.oldAgeAllowance, allowance: wi.allowance,
     inflationOn: wi.inflationOn, inflationRate: wi.inflationRatePct / 100,
   });
   return {
@@ -128,11 +128,20 @@ describe('parity with reference/prototype.html', () => {
       const port = runPort(w, gr);
 
       expect(port.r.pts.length).toBe(proto.pts.length);
+      // With inflation on, values match until the first money is taken out (a goal, a loan
+      // payment or the retirement allowance): from then on less tax means less is sold.
+      const firstOut = w.infl ? Math.min(...port.r.res.map((x) => x.k)) : Infinity;
       port.r.pts.forEach((pt, i) => {
         expect(pt[0]).toBe(proto.pts[i][0]);
+        if (pt[0] >= firstOut) return;
         close(pt[1], proto.pts[i][1]);
-        close(pt[2], proto.pts[i][2]);
+        if (!w.infl) close(pt[2], proto.pts[i][2]);
       });
+      // Deliberate improvements over the prototype (SPEC 12.17), so not compared:
+      // - with inflation on, capital gains tax is on the real gain (post-tax values, goals, free money);
+      // - pension tax uses the income tax brackets and credit points (after-tax pension, coverage).
+      expect([Math.round(port.pen.total), Math.round(port.pen.monthlyPreTax)]).toEqual(proto.pension.slice(0, 2));
+      if (w.infl) return;
 
       expect(port.r.res.map((x) => [x.g.name, x.k, x.ok])).toEqual(proto.res.map((x) => [x.n, x.k, x.ok]));
       port.r.res.forEach((x, i) => {
@@ -153,8 +162,6 @@ describe('parity with reference/prototype.html', () => {
       });
       close(port.freeAt30, proto.freeAt30);
 
-      expect([Math.round(port.pen.total), Math.round(port.pen.monthlyPreTax), Math.round(port.pen.monthlyAfterTax)]).toEqual(proto.pension);
-      expect(`${Math.round(port.pen.coverage! * 100)}%`).toBe(proto.coverage);
     });
   }
 });

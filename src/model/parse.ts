@@ -79,7 +79,7 @@ export function parseSettings(rows: Rows): Settings {
     pensionDepositGrowthPct: num(S.pension_deposit_growth_pct),
     pensionExemptPct: numOr(S.pension_exempt_pct, 67),
     pensionExemptCeiling: numOr(S.pension_exempt_ceiling_ILS, 9430),
-    pensionTaxRatePct: numOr(S.pension_tax_rate_pct, 20),
+    pensionCreditPoints: numOr(S.pension_tax_credit_points, 2.25),
     oldAgeAllowance: num(S.old_age_allowance_ILS),
   };
 }
@@ -105,6 +105,7 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
         owner: String(x.owner ?? ''),
         type: String(x.type).trim(),
         ret: num(x.return_5y_avg_pct),
+        feePct: num(x.management_fee_pct),
         tax: taxType(x.tax_type),
         include: blank(x.include_in_total) ? true : num(x.include_in_total) === 1 || /^true$/i.test(String(x.include_in_total)),
         value,
@@ -170,7 +171,7 @@ export function reinvestmentHolding(H: Holding[]): Holding {
   for (const h of H) {
     if (INVEST_TYPES.includes(h.type) && h.value > 0) {
       w += h.value;
-      wr += h.value * h.ret;
+      wr += h.value * (h.ret - (h.feePct ?? 0));
     }
   }
   return {

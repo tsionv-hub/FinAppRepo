@@ -373,7 +373,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#hl .g:has-text("Broker C")');
   ok(await dlgOpen(), 'tapping a holding opens its details');
   ok((await txt('#dlgT')) === 'Broker C' && /USD.*60,000 at 3\.700/.test(await txt('#dlgB')), 'holding popup shows the sheet amount in USD and the rate');
-  ok((await txt('#dlgB')).includes('Return used (Moderate)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
+  ok((await txt('#dlgB')).includes('Return used (Moderate, after your fee)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
   const dB = await txt('#dlgB');
   ok(dB.includes('Total deposited (2)') && /40,000 USD/.test(dB) && dB.includes('Yearly return so far'), 'holding popup lists its deposits (serial and ISO dates), the total and the return so far');
   await page.screenshot({ path: OUT + '/popup-holding.png' });

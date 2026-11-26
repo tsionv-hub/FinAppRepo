@@ -318,7 +318,6 @@ function wire(): void {
     history.replaceState(null, '', location.pathname + '?diag');
     route();
   };
-  $('toDiag').addEventListener('click', toDiag);
   $('setupDiag').addEventListener('click', toDiag);
 
   $('dPopup').addEventListener('click', async () => {

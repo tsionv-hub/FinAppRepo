@@ -5,7 +5,7 @@
 import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
-  type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths,
+  type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths, netReturn,
   impliedReturn, type Deposit, GROUPS, type Grant, shortName,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
@@ -130,7 +130,7 @@ function fillInputs(d: SheetData): void {
   set('al', s.retirementAllowance);
   set('rd', d.goals.reserve);
   set('pg', s.pensionDepositGrowthPct);
-  set('pt', s.pensionTaxRatePct);
+  set('pt', s.pensionCreditPoints);
   set('po', s.oldAgeAllowance);
 }
 
@@ -383,7 +383,7 @@ function whatIf(): WhatIf {
     retirementAge: ra === '' ? null : parseFloat(ra),
     allowance: N('al'),
     pensionDepositGrowthPct: N('pg'),
-    pensionTaxRatePct: N('pt'),
+    pensionCreditPoints: N('pt'),
     oldAgeAllowance: N('po'),
   };
 }
@@ -521,7 +521,7 @@ function pensionView(w: WhatIf, goals: Goal[]): void {
   const pr = projectPension(data!.pension, {
     start, birthYear: S.birthYear!, pensionStartAge: S.pensionStartAge, retirementYear: rety,
     depositGrowthPct: w.pensionDepositGrowthPct, exemptPct: S.pensionExemptPct, exemptCeiling: S.pensionExemptCeiling,
-    taxRatePct: w.pensionTaxRatePct, oldAgeAllowance: w.oldAgeAllowance, allowance: w.allowance,
+    creditPoints: w.pensionCreditPoints, oldAgeAllowance: w.oldAgeAllowance, allowance: w.allowance,
     inflationOn: w.inflationOn, inflationRate: w.inflationRatePct / 100,
   });
   pensionBalances = pr.funds.map((x) => x.balances);
@@ -538,7 +538,7 @@ function pensionView(w: WhatIf, goals: Goal[]): void {
   lastPension = { total: pr.total, monthlyPreTax: pr.monthlyPreTax, monthlyAfterTax: pr.monthlyAfterTax };
   $('pn5').textContent = t('pnote', {
     n: f(pr.today), d: f(pr.deposits), f: f(pr.fees), y: rety ?? S.birthYear! + S.pensionStartAge, p: S.pensionStartAge,
-    x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), m: w.inflationOn ? '' : t('pnom'),
+    x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), z: w.pensionCreditPoints, m: w.inflationOn ? '' : t('pnom'),
   });
 }
 
@@ -844,7 +844,7 @@ function holdingDetails(x: Slot): void {
     body += sec(t('dAt', { d: dateAt(curK, 'long') })) + valueLines(x, infl, p);
   }
   body += sec(t('dRT'))
-    + row(t('dRet'), pct(h.ret)) + row(t('dEff', { s: scen }), pct(h.ret * p.returnFactor))
+    + row(t('dRet'), pct(h.ret)) + row(t('dEff', { s: scen }), pct(netReturn(h, p.returnFactor)))
     + row(t('dTaxT'), taxName) + row(t('dInTot'), yn(inc)) + row(t('dSpendable'), yn(inc && h.type !== 'Stocks (unvested)'));
   if (i) {
     body += sec(t('dSheet'));

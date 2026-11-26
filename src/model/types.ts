@@ -31,6 +31,8 @@ export interface Holding {
   include: boolean;
   /** Current value in ILS. */
   value: number;
+  /** management_fee_pct: taken off the yearly return in the projection (official returns are before it). */
+  feePct?: number;
   /** Cost basis in ILS (deposited_amount; blank = value). */
   deposited: number;
   /** True for the app-generated Stock reinvestment holding. */
@@ -181,7 +183,8 @@ export interface Settings {
   pensionDepositGrowthPct: number;
   pensionExemptPct: number;
   pensionExemptCeiling: number;
-  pensionTaxRatePct: number;
+  /** Income tax credit points per pension owner (pension_tax_credit_points, default 2.25). */
+  pensionCreditPoints: number;
   oldAgeAllowance: number;
 }
 
