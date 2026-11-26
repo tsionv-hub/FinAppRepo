@@ -293,3 +293,10 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .rp.strong { color: #fff; }
 .dlg-btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
 .dlg-btns button { flex: 1; }
+.dlg-top { display: flex; justify-content: flex-end; margin-bottom: 4px; }
+.hform { display: grid; gap: 8px; margin: 6px 0; }
+.hform label { margin-bottom: 2px; }
+.hform select, .hform input[type=text], .hform input[type=number] { width: 100%; }
+button.bad { color: var(--bad); border-color: var(--bad); }
+.addb { margin-top: 10px; width: 100%; padding: 9px; }
+.dnote.ok { color: var(--ok); }
