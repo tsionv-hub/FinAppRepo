@@ -8,7 +8,7 @@ export type Tab = { name: string; rows: Val[][] };
 const HOLDINGS_HEAD = [
   'id', 'name', 'vendor', 'account_number', 'owner', 'type', 'investment_style', 'investment_track', 'currency',
   'current_amount', 'deposited_amount', 'return_5y_avg_pct', 'deposit_fee_pct', 'management_fee_pct', 'tax_type',
-  'include_in_total', 'ticker', 'quantity', 'available_from', 'opened_date', 'last_updated', 'notes', 'group', 'fund_number', 'short_name',
+  'include_in_total', 'ticker', 'quantity', 'available_from', 'opened_date', 'last_updated', 'notes', 'group', 'fund_number', 'short_name', 'expected_yearly_cost',
 ];
 
 /** One generic example row per holding type (SPEC 3.6). Stock values come from GOOGLEFINANCE in the sheet. */
@@ -58,7 +58,7 @@ export const TEMPLATE_TABS: Tab[] = [
     name: 'Holdings',
     rows: [
       HOLDINGS_HEAD,
-      holdingRow(1, { name: 'Study fund A', vendor: 'Provider', owner: 'Person 1', type: 'Study fund', currency: 'ILS', current_amount: 100000, deposited_amount: 80000, return_5y_avg_pct: 7, tax_type: 'none', group: 'study_fund', fund_number: 1001, notes: EX + 'group (app panel section): study_fund, fund, trading, bank, stocks; blank = from type. fund_number: the fund\'s number, for study funds and funds. short_name: optional chart label. type: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). tax_type: none, capital_gain, income. include_in_total: 1 or 0. Pension goes in the Pension tab.' }),
+      holdingRow(1, { name: 'Study fund A', vendor: 'Provider', owner: 'Person 1', type: 'Study fund', currency: 'ILS', current_amount: 100000, deposited_amount: 80000, return_5y_avg_pct: 7, tax_type: 'none', group: 'study_fund', fund_number: 1001, notes: EX + 'group (app panel section): study_fund, fund, trading, bank, stocks; blank = from type. fund_number: the fund\'s number, for study funds and funds. short_name: optional chart label. Several funds in one holding: fund_number (1001,40%),(1002,60%) and expected_yearly_cost in the same form, e.g. (0.8,40%),(0.7,60%); ? = not known yet. type: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). tax_type: none, capital_gain, income. include_in_total: 1 or 0. Pension goes in the Pension tab.' }),
       holdingRow(2, { name: 'Investment fund A', vendor: 'Provider', owner: 'Person 1', type: 'Investment fund', currency: 'ILS', current_amount: 50000, deposited_amount: 40000, return_5y_avg_pct: 6, tax_type: 'capital_gain', group: 'fund', fund_number: 1002, notes: EX }),
       holdingRow(3, { name: 'Savings plan A', vendor: 'Provider', owner: 'Person 2', type: 'Savings plan', currency: 'ILS', current_amount: 30000, deposited_amount: 30000, return_5y_avg_pct: 4, tax_type: 'capital_gain', group: 'fund', fund_number: 1003, notes: EX }),
       holdingRow(4, { name: 'Brokerage A', vendor: 'Broker', owner: 'Person 2', type: 'Brokerage', currency: 'USD', current_amount: 10000, deposited_amount: 8000, return_5y_avg_pct: 9, tax_type: 'capital_gain', group: 'trading', notes: EX + 'Amounts are in the row’s currency.' }),
@@ -70,8 +70,8 @@ export const TEMPLATE_TABS: Tab[] = [
   {
     name: 'Pension',
     rows: [
-      ['id', 'name', 'owner', 'current_amount_ILS', 'monthly_deposit_ILS', 'deposit_fee_pct', 'accumulation_fee_pct', 'yearly_return_pct', 'conversion_coefficient', 'stops_at_early_retirement', 'notes'],
-      ['P1', 'Pension fund A', 'Person 1', 300000, 3000, 1.5, 0.2, 5, 200, 1, EX + 'One row per fund. stops_at_early_retirement: 1 = deposits stop when you retire early.'],
+      ['id', 'name', 'owner', 'current_amount_ILS', 'monthly_deposit_ILS', 'deposit_fee_pct', 'accumulation_fee_pct', 'yearly_return_pct', 'conversion_coefficient', 'stops_at_early_retirement', 'notes', 'fund_number', 'expected_yearly_cost'],
+      ['P1', 'Pension fund A', 'Person 1', 300000, 3000, 1.5, 0.2, 5, 200, 1, EX + 'One row per fund. stops_at_early_retirement: 1 = deposits stop when you retire early. fund_number (optional): the fund\'s official number(s), like in Holdings; the official 5-year return then replaces yearly_return_pct.', null, null],
     ],
   },
   {

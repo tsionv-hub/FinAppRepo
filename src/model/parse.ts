@@ -123,6 +123,7 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
           notes: String(x.notes ?? '').trim(),
           fundNumber: String(x.fund_number ?? '').trim(),
           short: String(x.short_name ?? '').trim(),
+          expectedCost: String(x.expected_yearly_cost ?? '').trim(),
         },
       };
     });
@@ -200,6 +201,8 @@ export function parsePension(rows: Rows): PensionFund[] {
       returnPct: num(x.yearly_return_pct),
       coefficient: num(x.conversion_coefficient) || 200,
       stopsAtEarlyRetirement: blank(x.stops_at_early_retirement) ? true : num(x.stops_at_early_retirement) === 1 || /^true$/i.test(String(x.stops_at_early_retirement)),
+      fundNumber: String(x.fund_number ?? '').trim(),
+      expectedCost: String(x.expected_yearly_cost ?? '').trim(),
     }));
 }
 

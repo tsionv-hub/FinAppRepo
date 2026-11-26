@@ -11,7 +11,7 @@ import {
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleOfficialRecords, exampleRows } from '../example';
-import { applyOfficial, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, dbFor } from '../official/gov';
+import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, lookupPension, dbFor } from '../official/gov';
 import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
@@ -178,13 +178,16 @@ export async function load(): Promise<void> {
 let official: { ids: string; map: Map<string, Official> } | null = null;
 let officialState: 'none' | 'loading' | 'ok' | 'error' = 'none';
 
-const officialIds = (d: SheetData) => lookupHoldings(d.holdings).map((h) => dbFor(h) + ':' + fundIds(h.info!.fundNumber).join('+')).sort().join(',');
+const officialIds = (d: SheetData) => [
+  ...lookupHoldings(d.holdings).map((h) => dbFor(h) + ':' + fundIds(h.info!.fundNumber).join('+')),
+  ...lookupPension(d.pension).map((p) => 'pensia:' + fundIds(p.fundNumber!).join('+')),
+].sort().join(',');
 
 /** Example mode: made-up official figures, nothing fetched. */
 function exampleOfficial(d: SheetData): void {
   const map = new Map<string, Official>();
   for (const { db, records } of exampleOfficialRecords(new Date())) for (const [id, o] of latest(db, records)) map.set(offKey(db, id), o);
-  applyOfficial(d.holdings, map);
+  applyOfficial(d.holdings, map, d.pension);
   officialState = 'ok';
 }
 
@@ -196,17 +199,17 @@ function officialFor(d: SheetData): void {
     return;
   }
   if (official?.ids === ids) {
-    applyOfficial(d.holdings, official.map);
+    applyOfficial(d.holdings, official.map, d.pension);
     officialState = 'ok';
     return;
   }
   officialState = 'loading';
-  fetchOfficial(d.holdings)
+  fetchOfficial(d.holdings, fetch, d.pension)
     .then((map) => {
       official = { ids, map };
       officialState = 'ok';
       if (data !== d) return;
-      applyOfficial(d.holdings, map);
+      applyOfficial(d.holdings, map, d.pension);
       cache = null;
       if (!$('app').hidden) render();
       else officialChart();
@@ -244,10 +247,11 @@ function officialChart(): void {
   }
   if (ofcSel && !H.some((h) => h.id === ofcSel)) ofcSel = null;
   const k = ofcPeriod();
-  // A holding split between tracks gets the plain average of its tracks (equal shares).
+  // A holding split between tracks: the tracks' figures weighted by their share (tracks without one left out).
   const val = (h: Holding) => {
-    const v = h.official!.map((x) => x.o?.[k]).filter((x): x is number => x != null);
-    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    const v = h.official!.filter((x) => x.o?.[k] != null);
+    const w = v.reduce((a, x) => a + x.w, 0);
+    return w ? v.reduce((a, x) => a + x.w * x.o![k]!, 0) / w : null;
   };
   const cols = H.map((h) => ({ h, v: val(h) })).sort((a, b) => (b.v ?? -1e9) - (a.v ?? -1e9));
   const vs = cols.map((c) => c.v).filter((x): x is number => x != null);
@@ -305,26 +309,43 @@ function markSelected(go = false): void {
 
 const period = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
 
-/** Holding popup: official figures per track, and where the return used comes from. */
-function officialSection(h: Holding): string {
-  if (!h.info?.fundNumber || !(h.group === 'study_fund' || h.group === 'fund')) return '';
-  const src = dbFor(h) === 'bituach' ? 'Bituach-Net' : 'Gemel-Net';
+const DBNAME = { gemel: 'Gemel-Net', bituach: 'Bituach-Net', pensia: 'Pensia-Net' } as const;
+
+/** Official figures per track, and where the return used comes from (holding or pension fund popup). */
+function tracksSection(x: { db: 'gemel' | 'bituach' | 'pensia'; official?: { id: number; w: number; o: Official | null }[]; ret: number; retSheet?: number; feeYours: number | null; feeLabel: 'ofFee' | 'ofFeeP' }): string {
+  const src = DBNAME[x.db];
   let body = sec(t('ofT', { s: src }));
   if (officialState === 'loading') return body + `<div class="dnote">${t('ofLoading')}</div>`;
-  if (officialState === 'error' || !h.official) return body + `<div class="dnote">${t('ofErr')}</div>`;
-  const many = h.official.length > 1;
-  for (const { id, o } of h.official) {
+  if (officialState === 'error' || !x.official) return body + `<div class="dnote">${t('ofErr')}</div>`;
+  const many = x.official.length > 1;
+  for (const { id, w, o } of x.official) {
+    const share = many ? ' · ' + t('ofShare', { p: Math.round(w * 100) }) : '';
     if (!o) {
-      body += row(t('ofTrack', { n: id }), `<span class="bad">${t('ofNF', { s: src === 'Bituach-Net' ? 'Bituach-Net / Gemel-Net' : src })}</span>`);
+      body += row(t('ofTrack', { n: id }) + share, `<span class="bad">${t('ofNF', { s: x.db === 'bituach' ? 'Bituach-Net / Gemel-Net' : src })}</span>`);
       continue;
     }
-    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${many ? ' · ' + t('ofShare', { p: Math.round(100 / h.official.length) }) : ''}${o.db !== dbFor(h) ? ' · ' + (o.db === 'gemel' ? 'Gemel-Net' : 'Bituach-Net') : ''}</div>`
-      + row(t('ofAvg5'), o.avg5 == null ? t('ofNo5', { r: pct(h.retSheet) }) : pct(o.avg5))
+    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${share}${o.db !== x.db ? ' · ' + DBNAME[o.db] : ''}</div>`
+      + row(t('ofAvg5'), o.avg5 == null ? t('ofNo5', { r: pct(x.retSheet) }) : pct(o.avg5))
       + row(t('ofAvg3'), pct(o.avg3)) + row(t('ofYtd', { d: period(o.period) }), pct(o.ytd))
-      + row(t('ofFee'), pct(o.fee) + (h.info.managementFeePct != null ? ' · ' + t('ofYours', { f: pct(h.info.managementFeePct) }) : ''))
+      + row(t(x.feeLabel), pct(o.fee) + (x.feeYours != null ? ' · ' + t('ofYours', { f: pct(x.feeYours) }) : ''))
       + row(t('ofStocks'), pct(o.stocksPct, 1)) + row(t('ofAbroad'), pct(o.foreignPct, 1));
   }
-  return body + `<div class="dnote">${t('ofN', { r: pct(h.ret), s: pct(h.retSheet) })}${deps.demo() ? ' ' + t('ofDemo') : ''}</div>`;
+  return body + `<div class="dnote">${t(many ? 'ofNw' : 'ofN', { r: pct(x.ret), s: pct(x.retSheet) })}${deps.demo() ? ' ' + t('ofDemo') : ''}</div>`;
+}
+
+function officialSection(h: Holding): string {
+  if (!h.info?.fundNumber || !(h.group === 'study_fund' || h.group === 'fund')) return '';
+  return tracksSection({ db: dbFor(h), official: h.official, ret: h.ret, retSheet: h.retSheet, feeYours: h.info.managementFeePct, feeLabel: 'ofFee' });
+}
+
+/** expected_yearly_cost row(s): the total, and each fund's part when there are several. */
+function costRows(raw: string | undefined): string {
+  const ps = costParts(raw);
+  if (!ps.length) return '';
+  const tot = costTotal(raw);
+  let out = row(t('ecL'), tot == null ? `<span class="lbl">${t('ecUnknown')}</span>` : pct(tot, 2));
+  if (ps.length > 1) out += ps.map((p, i) => row(`<span class="lbl">· ${t('ecPart', { n: i + 1, p: Math.round(p.w * 100) })}</span>`, `<span class="lbl">${p.v == null ? '?' : pct(p.v, 2)}</span>`)).join('');
+  return out + `<div class="dnote">${t('ecN')}</div>`;
 }
 
 /** Opens the main screen once the sheet has been read (and checked on first run). */
@@ -835,6 +856,7 @@ function holdingDetails(x: Slot): void {
     if (i.style) body += row(t('dStyle'), esc(i.style));
     if (i.depositFeePct != null) body += row(t('dDepF'), pct(i.depositFeePct));
     if (i.managementFeePct != null) body += row(t('dMgmF'), pct(i.managementFeePct));
+    body += costRows(i.expectedCost);
     if (i.lastUpdated) body += row(t('dUpd'), esc(i.lastUpdated));
   }
   if (i?.depositFeePct != null || i?.managementFeePct != null) body += `<div class="dnote">${t('dFeesN')}</div>`;
@@ -1002,7 +1024,9 @@ function pensionDetails(idx: number): void {
   const w = whatIf();
   let body = sec(t('dToday')) + row(t('dBal'), f(fd.balance)) + row(t('dMDep'), f(fd.monthlyDeposit))
     + row(t('dDepF'), pct(fd.depositFeePct)) + row(t('dAccF'), pct(fd.accumulationFeePct)) + row(t('dYRet'), pct(fd.returnPct))
+    + costRows(fd.expectedCost)
     + row(t('dCoef'), String(fd.coefficient)) + row(t('dStops'), yn(fd.stopsAtEarlyRetirement));
+  if (fd.fundNumber && fundIds(fd.fundNumber).length) body += tracksSection({ db: 'pensia', official: fd.official, ret: fd.returnPct, retSheet: fd.returnSheet, feeYours: fd.accumulationFeePct, feeLabel: 'ofFeeP' });
   if (bs) {
     const kEnd = bs.length - 1;
     const inf = (k: number) => (w.inflationOn ? Math.pow(1 + w.inflationRatePct / 100, k / 12) : 1);
