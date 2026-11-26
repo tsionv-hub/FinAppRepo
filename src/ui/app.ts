@@ -1086,7 +1086,7 @@ function ownReturn(h: Holding): number | null {
   return ds.length ? impliedReturn(ds, h.info.amount, new Date()) : null;
 }
 
-/** Row title: the return as a pill, greener the higher, redder the lower. */
+/** The return as a pill on its own line under the name, greener the higher, redder the lower. */
 function retPill(h: Holding): string {
   const r = ownReturn(h);
   if (r == null) return '';
@@ -1094,7 +1094,7 @@ function retPill(h: Holding): string {
   // Strength 0.15–1: full green at +15%/year or more, full red at −10% or less.
   const k = Math.min(1, Math.max(0.15, p >= 0 ? p / 15 : -p / 10));
   const cls = (p >= 0 ? 'up' : 'down') + (k >= 0.55 ? ' strong' : '');
-  return ` <span class="rp ${cls}" style="--k:${k.toFixed(2)}" title="${esc(t('rpT'))}">${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(1)}%</span>`;
+  return `<div class="rpl"><span class="rp ${cls}" style="--k:${k.toFixed(2)}" title="${esc(t('rpT'))}">${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(1)}%</span></div>`;
 }
 
 const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
