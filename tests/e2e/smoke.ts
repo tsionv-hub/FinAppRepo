@@ -210,14 +210,16 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
   ok(!(await page.$('#pNext')) && !(await page.$('#pBk')), 'no separate Next goals or by-type panels');
   ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).map((d) => d.id).join()) === 'pProj', 'only the projection graph starts open');
-  ok(/Yourmoneytoday🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Afterdebts₪[\d,]+Freetospendtoday₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
+  ok(/Currentstatus🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Freetospendtoday₪[\d,]+Afterdebts₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
   ok(await page.evaluate(() => {
     const s = document.querySelector('#pToday > summary')!;
     const r = s.getBoundingClientRect();
     const fl = s.querySelector('.freeline')!.getBoundingClientRect();
     const after = getComputedStyle(s, '::after');
-    return after.content === '"➕"' && after.order === '9' && fl.bottom < r.bottom && fl.height < 60;
-  }), 'the ➕ sits at the bottom of the closed "today" card, and the free-money line stays on one line');
+    const pre = s.querySelector('.today-stats .stat')!.getBoundingClientRect();
+    return after.content === '"➕"' && after.order === '9' && fl.bottom < r.bottom && Math.abs(fl.top - pre.top) < 2 && fl.left !== pre.left;
+  }), 'the ➕ sits at the bottom of the closed "Current status" card; pre-tax and free money sit side by side');
+  ok(await page.evaluate(() => document.getElementById('reload')!.parentElement!.id === 'sheetBar' && !!(document.querySelector('.hint')!.compareDocumentPosition(document.getElementById('inflBar')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'Reload ends the sheet selector line; the tip comes before the inflation warning');
   ok(await page.evaluate(() => !!(document.getElementById('chart')!.compareDocumentPosition(document.getElementById('sc')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'the return scenario is below the graph');
   const marker = (id: string) => page.evaluate((i) => getComputedStyle(document.querySelector(`#${i} > summary`)!, '::after').content, id);
   ok((await marker('pGoals')) === '"➕"' && (await marker('pProj')) === '"➖"', 'closed panels show ➕, open ones ➖');

@@ -154,7 +154,7 @@ When every eligible account is empty, monthly saving and yearly cash are split e
 - Every panel has a 🤔 button with a short explanation (it never opens or closes the panel). Panels are grouped as Today / Your plans / Details & settings, with a sticky jump bar; closed panels show a key value in their header (status badge, total, next date).
 
 ### 12.6 Sections (v1.8)
-Quick look (your money today, projection) · Your money & goals (holdings with money by type on top, goals, loans) · Retirement & pension (early retirement, pension) · Settings (assumptions). The Next goals panel was removed. Only the projection starts open.
+Quick look (current status, projection) · Your money & goals (holdings with money by type on top, goals, loans) · Retirement & pension (early retirement, pension) · Settings (assumptions). The Next goals panel was removed. Only the projection starts open.
 
 ### 12.7 Ask AI (v1.9, optional, opt-in)
 A floating 💬 Ask AI button opens a chat with Google Gemini, using each user's own free Gemini API key (stored on the phone only; Remove AI key and Forget this sheet delete it). First use: a red privacy warning that must be accepted (question and sheet numbers go to Google; free-tier data may be used to improve Google's AI; the developer sees nothing; account numbers are never sent), then step-by-step key setup with a test call (any key format is accepted; Google's answer decides; the setup screen reopens when the user returns from AI Studio). Later: a short 🥱🧑‍⚖️ reminder once per app opening, with "Don't show again" from the 4th time. Each question sends the sheet data, the app's own results and the user guide; the conversation lives in memory only while the chat is open and nothing is stored. This is the one exception to section 1's "data only travels between the phone and the sheet", made at the user's explicit choice.
@@ -213,7 +213,7 @@ Tapping the column again clears the pick. Redraws take the groups' open state fr
 ### 12.14 Several sheets on one phone (v1.18)
 The phone keeps a list of sheets in `sheets`: `[{id, nick}]`, holding only the sheet ID taken from the link and the user's nickname. It is meant for one person per phone. Access is still Google's: the signed-in account must be able to open the sheet.
 - **Adding a sheet:** a new link needs a nickname, up to 40 characters.
-- **Main screen:** the open sheet's nickname is shown at the top as a dropdown. It switches sheets, renames the current one (`prompt`) or adds one (setup screen).
+- **Main screen:** the open sheet's nickname is shown at the top as a dropdown. It switches sheets, renames the current one (`prompt`) or adds one (setup screen). Reload sits at the end of that line (v1.25); when the dropdown is not shown (example mode), Reload stays on the "Updated" line.
 - **Setup screen:** lists the saved sheets to open.
 - **Sheet check:** shown once per sheet. `checked` is a list of sheet IDs; the older value `"1"` means the sheet that was current.
 - **Sheets from before v1.18:** a sheet already set up gets its sheet title as its nickname on the first load.
@@ -277,3 +277,5 @@ The holding popup has **✏️ Edit**, and the Holdings panel has **➕ Add hold
 - Example mode saves nothing.
 
 **Next:** the same for goals, loans, pension funds, and saving Settings what-ifs.
+
+**v1.25 (first panel):** renamed "Current status" (Hebrew "מצב נוכחי"). Post-tax stays the big figure; below it, pre-tax and free to spend today sit side by side as two tiles (free in green); "after debts", when there are loans, takes a full-width tile under them. The ➕/➖ and 🤔 tip now comes before the inflation warning.

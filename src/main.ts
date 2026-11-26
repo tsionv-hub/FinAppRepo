@@ -75,11 +75,20 @@ function renderSheetBar(): void {
   const cur = sheetId();
   const bar = $('sheetBar');
   bar.hidden = demo || !cur || $('app').hidden;
+  placeReload();
   if (bar.hidden) return;
   const sel = $<HTMLSelectElement>('sheetSel');
   sel.setAttribute('aria-label', t('sheetSelL'));
   sel.innerHTML = savedSheets().map((x) => `<option value="${esc(x.id)}"${x.id === cur ? ' selected' : ''}>${esc(x.nick || t('noNick'))}</option>`).join('')
     + `<option value="__rename">✏️ ${esc(t('nickRen'))}</option><option value="__add">➕ ${esc(t('sheetAdd'))}</option>`;
+}
+
+/** Reload sits at the end of the sheet selector's line when that line shows, else on the "Updated" line. */
+function placeReload(): void {
+  const bar = $('sheetBar');
+  const home = bar.hidden ? $('upd').parentElement! : bar;
+  const r = $('reload');
+  if (r.parentElement !== home) home.appendChild(r);
 }
 
 function useSheet(id: string): void {
@@ -109,6 +118,7 @@ function showStep(step: Step, err?: string | null): void {
   $('setupCheck').hidden = step !== 'check';
   if (step !== 'check') $('reload').hidden = true;
   $('sheetBar').hidden = true;
+  placeReload();
   if (step === 'sheet') fillSavedPicker();
   if (step === 'client') {
     $('cid4').textContent = t('cid4', { o: location.origin });
