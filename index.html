@@ -82,15 +82,14 @@
 </section>
 
 <div id="app" hidden>
+<div class="hint" data-t="hint"></div>
 <div class="infl-bar warn" id="inflBar" role="status"><span class="infl-ic" id="inflIc" aria-hidden="true">!</span><div class="infl-txt" id="inflTxt"></div><div class="infl-act"><button class="infl-btn" id="infl" aria-pressed="false"></button><button type="button" class="hq" id="inflHelp" aria-label="?">🤔</button></div></div>
 
-<div class="hint" data-t="hint"></div>
 <div class="grp" data-t="gQuick"></div>
 <details class="card tot" id="pToday"><summary>
 <span class="today-h"><span class="ttl"><span class="pi">💰</span><h2 data-t="todayT"></h2></span><button type="button" class="hq" data-help="today" aria-label="?">🤔</button></span>
 <span class="today-main"><span class="lbl" data-t="legPost"></span><span class="big" id="post"></span></span>
-<span class="today-stats"><span class="stat"><span class="lbl" data-t="legPre"></span><b id="pre"></b></span><span class="stat" id="debtW" hidden><span class="lbl" data-t="debtL"></span><b id="debt"></b></span></span>
-<span class="freeline"><span class="lbl" data-t="freeShort"></span><span class="big free" id="fm"></span></span>
+<span class="today-stats"><span class="stat"><span class="lbl" data-t="legPre"></span><b id="pre"></b></span><span class="stat freeline"><span class="lbl" data-t="freeShort"></span><b class="free" id="fm"></b></span><span class="stat debtw" id="debtW" hidden><span class="lbl" data-t="debtL"></span><b id="debt"></b></span></span>
 </summary>
 <div class="lbl" id="fn"></div>
 <div class="cm" id="cm"></div><div id="cl" style="margin-top:8px"></div>
