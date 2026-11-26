@@ -279,3 +279,9 @@ The holding popup has **✏️ Edit**, and the Holdings panel has **➕ Add hold
 **Next:** the same for goals, loans, pension funds, and saving Settings what-ifs.
 
 **v1.25 (first panel):** renamed "Current status" (Hebrew "מצב נוכחי"). Post-tax stays the big figure; below it, pre-tax and free to spend today sit side by side as two tiles (free in green); "after debts", when there are loans, takes a full-width tile under them. The ➕/➖ and 🤔 tip now comes before the inflation warning.
+
+**v1.26 (Holdings overview, vendor colours, inflation bar):**
+- Holdings panel, top, inside the panel (seen only when open): **Overview**. A donut of money by type (included holdings, before tax) with its list as legend and table; slices and list in a fixed type order, each type a fixed palette slot (8-slot categorical palette checked for colour-blind and normal-vision separation, light and dark; past 8 → grey "Other"). Then **Exposure**: two 100% bars, *Stocks* (in / not in / unknown) and *Abroad* (abroad or foreign currency / Israel / unknown), in money. Per holding: the official `STOCK_MARKET_EXPOSURE` / `FOREIGN_EXPOSURE` share (weighted by track) when there is one; else shares count as 100% stocks, cash as 0%; shares and cash count as abroad when their currency is not ILS; anything else is unknown. Pension is not included (`src/model/exposure.ts`).
+- Official returns chart: columns coloured **by vendor**. Vendors take slots in the order they first appear in the Holdings tab (among holdings with a fund number), so a vendor keeps its colour; from the 9th on, and holdings without a vendor, are grey "Other". The legend lists vendors.
+- Inflation bar, when on: "Turn off" and 🤔 sit side by side, so the bar is one line.
+

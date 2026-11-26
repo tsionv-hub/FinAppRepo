@@ -6,7 +6,7 @@ import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
   type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths, netReturn,
-  impliedReturn, type Deposit, GROUPS, type Grant, shortName,
+  impliedReturn, type Deposit, GROUPS, type Grant, shortName, exposure, included, type Split,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
@@ -233,9 +233,18 @@ type OfcPeriod = 'avg5' | 'avg3' | 'ytd';
 const OFC: [OfcPeriod, 'ofc5' | 'ofc3' | 'ofcY'][] = [['avg5', 'ofc5'], ['avg3', 'ofc3'], ['ytd', 'ofcY']];
 const ofcPeriod = (): OfcPeriod => (OFC.some(([k]) => k === get(KEYS.ofcPeriod)) ? (get(KEYS.ofcPeriod) as OfcPeriod) : 'avg5');
 
-/** Chart colour class per holding type (legend in the same order). */
-const TYPE_COLOR: [string, string][] = [['Study fund', 'tc-study'], ['Investment fund', 'tc-invest'], ['Savings plan', 'tc-save'], ['Brokerage', 'tc-broker']];
-const typeColor = (type: string) => TYPE_COLOR.find(([t0]) => t0 === type)?.[1] ?? 'tc-other';
+/**
+ * Official returns chart: one colour per vendor. Vendors take palette slots in the order they first
+ * appear in the Holdings tab, so a vendor keeps its colour; from the 9th on (or no vendor) → "Other".
+ */
+function vendorSlots(all: Holding[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const h of all) {
+    const v = h.vendor.trim();
+    if (v && !m.has(v.toLowerCase())) m.set(v.toLowerCase(), m.size < 8 ? 'c' + (m.size + 1) : 'cO');
+  }
+  return m;
+}
 /** Holding id picked in the official returns chart (its list row is highlighted). */
 let ofcSel: string | null = null;
 
@@ -265,6 +274,8 @@ function officialChart(): void {
   const y = (v: number) => top + ((hi - v) / (hi - lo)) * plotH;
   const y0 = y(0);
   const rtl = document.documentElement.dir === 'rtl';
+  const slots = vendorSlots((data?.holdings ?? []).filter((h) => h.official?.length));
+  const vc = (h: Holding) => slots.get(h.vendor.trim().toLowerCase()) ?? 'cO';
   let svg = `<line x1="${L}" x2="${W}" y1="${y0}" y2="${y0}" class="ofax"/>`;
   cols.forEach(({ h, v }, i) => {
     // Best first, in reading order (right to left in Hebrew).
@@ -274,7 +285,7 @@ function officialChart(): void {
     svg += `<rect x="${(cx - slot / 2).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${top + plotH + labH}" class="ofhit"/>`;
     if (v != null) {
       const y1 = Math.min(y(v), y0), hgt = Math.max(1, Math.abs(y(v) - y0));
-      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="${typeColor(h.type)}"/>`;
+      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="${vc(h)}"/>`;
       svg += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? y1 - 4 : y1 + hgt + 11).toFixed(1)}" class="ofvl${v < 0 ? ' neg' : ''}">${v.toFixed(1)}</text>`;
     } else svg += `<text x="${cx.toFixed(1)}" y="${(y0 - 4).toFixed(1)}" class="ofvl na">–</text>`;
     const ly = top + plotH + (lo < 0 ? 22 : 12);
@@ -282,8 +293,10 @@ function officialChart(): void {
   });
   const last = Math.max(...H.flatMap((h) => h.official!.map((x) => x.o?.period ?? 0)));
   const missing = cols.filter((c) => c.v == null).length;
-  const types = TYPE_COLOR.filter(([t0]) => H.some((h) => h.type === t0)).map(([t0, c]) => `<span><i class="sw ${c}"></i>${esc(ty(t0))}</span>`)
-    .concat(H.some((h) => typeColor(h.type) === 'tc-other') ? [`<span><i class="sw tc-other"></i>${t('ofcOther')}</span>`] : []);
+  const seen = new Map<string, string>();
+  for (const h of H) { const v = h.vendor.trim(); if (v && vc(h) !== 'cO' && !seen.has(vc(h))) seen.set(vc(h), v); }
+  const types = [...seen].sort((a, b) => Number(a[0].slice(1)) - Number(b[0].slice(1))).map(([c, v]) => `<span><i class="sw ${c}"></i>${esc(v)}</span>`)
+    .concat(H.some((h) => vc(h) === 'cO') ? [`<span><i class="sw cO"></i>${t('ofcOther')}</span>`] : []);
   const sel = cols.find((c) => c.h.id === ofcSel);
   el.innerHTML = `<div class="addh" style="margin-top:14px">${t('ofcT')} <span class="lbl">${t(k === 'ytd' ? 'ofcSubY' : 'ofcSub')}</span></div>`
     + `<div class="seg" role="group" aria-label="${t('ofcT')}">${OFC.map(([p, l]) => `<button type="button" data-ofp="${p}" aria-pressed="${p === k}" class="${p === k ? 'on' : ''}">${t(l)}</button>`).join('')}</div>`
@@ -451,11 +464,50 @@ export function render(): void {
   // Use the cached goal objects: results point at them (the retirement goal is rebuilt each render).
   goalsView(cache.r, cache.goals, td.liquidPostTax, w.reserve);
 
-  const bk = td.byType;
-  const tt = Object.values(bk).reduce((a, x) => a + x, 0);
-  $('bk').innerHTML = Object.keys(bk)
-    .map((k) => `<div class="bk"><span>${esc(ty(k))}</span><span>${f(bk[k])} · ${Math.round((bk[k] / tt) * 100)}%</span></div>`)
-    .join('');
+  overview(td.byType, d.holdings.filter((h) => included(h, p)));
+}
+
+/** Pie colour per holding type: a fixed slot per type, so a type keeps its colour whatever else is there. */
+const TYPE_SLOT = ['Study fund', 'Investment fund', 'Savings plan', 'Brokerage', 'Cash', 'Stocks', 'Stocks (unvested)', 'Stock reinvestment'];
+const typeSlot = (type: string) => { const i = TYPE_SLOT.indexOf(type); return i < 0 ? 'cO' : 'c' + (i + 1); };
+
+/** Holdings panel, top (seen when open): a donut of money by type with its list, then stock and foreign exposure. */
+function overview(bk: Record<string, number>, H: Holding[]): void {
+  // Fixed type order (not by size): neighbouring slices are then always neighbouring palette slots, which are checked to tell apart.
+  const rank = (k: string) => { const i = TYPE_SLOT.indexOf(k); return i < 0 ? 99 : i; };
+  const items = Object.keys(bk).map((k) => ({ k, v: bk[k] })).sort((a, b) => rank(a.k) - rank(b.k));
+  const tt = items.reduce((a, x) => a + x.v, 0);
+  const pc = (v: number) => (tt ? Math.round((v / tt) * 100) : 0);
+  // Donut: slices clockwise from 12 o'clock; a 2px card-coloured stroke separates them.
+  const R = 50, r0 = 31, C = 56;
+  let a0 = -Math.PI / 2, svg = '';
+  const pt = (a: number, rr: number) => `${(C + rr * Math.cos(a)).toFixed(2)} ${(C + rr * Math.sin(a)).toFixed(2)}`;
+  for (const x of items) {
+    const share = tt ? x.v / tt : 0;
+    const a1 = a0 + share * 2 * Math.PI - (share >= 1 ? 1e-4 : 0);
+    const big = a1 - a0 > Math.PI ? 1 : 0;
+    svg += `<path class="${typeSlot(x.k)}" d="M${pt(a0, R)} A${R} ${R} 0 ${big} 1 ${pt(a1, R)} L${pt(a1, r0)} A${r0} ${r0} 0 ${big} 0 ${pt(a0, r0)}Z"><title>${esc(ty(x.k))}: ${f(x.v)} · ${pc(x.v)}%</title></path>`;
+    a0 = a1;
+  }
+  svg += `<text x="${C}" y="${C - 2}" class="ovc v">${(tt / 1e6).toFixed(tt >= 1e7 ? 0 : 1)}M</text><text x="${C}" y="${C + 12}" class="ovc">₪</text>`;
+  $('bk').innerHTML = items.length
+    ? `<div class="ov"><svg viewBox="0 0 112 112" role="img" aria-label="${esc(t('byType'))}">${svg}</svg><div class="ovl">`
+      + items.map((x) => `<div class="bk"><span><i class="sw ${typeSlot(x.k)}"></i>${esc(ty(x.k))}</span><span>${f(x.v)} · ${pc(x.v)}%</span></div>`).join('')
+      + '</div></div>'
+    : '';
+  const e = exposure(H);
+  const row = (title: string, s: Split, yes: string, no: string, cls: string) => {
+    const all = s.yes + s.no + s.unknown;
+    if (!all) return '';
+    const p0 = (v: number) => Math.round((v / all) * 100);
+    const seg = (v: number, c: string, lbl: string) => (v / all >= 0.005 ? `<i class="${c}" style="width:${((v / all) * 100).toFixed(2)}%" title="${esc(lbl)}: ${f(v)} · ${p0(v)}%"></i>` : '');
+    const key = (v: number, c: string, lbl: string) => (v / all >= 0.005 ? `<span><i class="sw ${c}"></i>${esc(lbl)} ${p0(v)}%</span>` : '');
+    return `<div class="exr"><div class="exh"><span>${esc(title)}</span><b>${p0(s.yes)}%</b></div>`
+      + `<div class="exbar" role="img" aria-label="${esc(title)}: ${p0(s.yes)}%">${seg(s.yes, cls, yes)}${seg(s.no, 'no', no)}${seg(s.unknown, 'unk', t('exUnk'))}</div>`
+      + `<div class="exk">${key(s.yes, cls, yes)}${key(s.no, 'no', no)}${key(s.unknown, 'unk', t('exUnk'))}</div></div>`;
+  };
+  $('ex').innerHTML = row(t('exStocks'), e.stocks, t('exYesS'), t('exNoS'), 'c1') + row(t('exAbroad'), e.foreign, t('exYesF'), t('exNoF'), 'c7')
+    + `<div class="dnote">${esc(t('exN'))}</div>`;
 }
 
 function freeView(fm: FreeMoney): void {

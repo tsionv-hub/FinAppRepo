@@ -148,6 +148,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const pill = (name: string) => page.$eval(`#hl .g:has(b:text-is("${name}")) .rp`, (e) => e.className + ' ' + e.textContent).catch(() => 'none');
   ok(/^rp up( strong)? \+\d+\.\d%$/.test(await pill('Investment fund ...4821')) && /^rp down( strong)? −\d+\.\d%$/.test(await pill('Old foreign account')), 'holding titles show their own yearly return: green when up, red when down: ' + (await pill('Investment fund ...4821')) + ' / ' + (await pill('Old foreign account')));
   ok((await pill('Study fund (Alex)')) === 'none', 'no return shown without deposits');
+  ok((await page.locator('#bk .ov svg path').count()) === (await page.locator('#bk .bk').count()) && (await page.locator('#bk .bk').count()) >= 3 && (await page.locator('#ex .exr').count()) === 2, 'holdings overview: a donut slice per type in the list, and stock and foreign exposure: ' + (await txt('#ex .exk')));
   await page.locator('#pHold').screenshot({ path: OUT + '/example-holdings.png' });
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
   await page.click('#demoExit');
@@ -436,7 +437,8 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#ofc [data-ofp=ytd]');
   ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
   await page.click('#ofc [data-ofp=avg5]');
-  ok((await page.locator('#ofc svg rect.tc-invest').count()) === 1 && (await page.locator('#ofc svg rect.tc-save').count()) === 1 && (await txt('#ofc .leg')) === 'Investment fundSavings plan' && (await page.$eval('#ofc .leg .sw.tc-invest', (e) => e.getBoundingClientRect().width)) >= 8, 'columns are coloured by holding type, with a legend: ' + (await txt('#ofc .leg')));
+  ok((await page.locator('#ofc svg .ofc-col rect[rx]').evaluateAll((r) => new Set(r.map((x) => x.getAttribute('class'))).size)) === 2 && (await txt('#ofc .leg')) === 'Vendor 2Vendor 4' && (await page.$eval('#ofc .leg .sw', (e) => e.getBoundingClientRect().width)) >= 8, 'columns are coloured by vendor, with a legend: ' + (await txt('#ofc .leg')));
+  ok(await page.evaluate(() => { const el = document.getElementById('inflBar')!; const b = document.getElementById('infl')!.getBoundingClientRect(), q = document.getElementById('inflHelp')!.getBoundingClientRect(); return el.classList.contains('warn') || Math.abs(b.top + b.height / 2 - (q.top + q.height / 2)) < 3; }), 'inflation on: Turn off and 🤔 sit on one line');
   await page.click('#ofc [data-oh=H2] .ofhit');
   ok((await txt('#hl .g.hsel b')) === 'Invest B' && (await page.locator('#ofc .ofc-col.dim').count()) === 1 && (await txt('#ofc .ofsel')).startsWith('INV-B · Invest B · Investment fund'), 'tapping a column highlights its holding in the list and names it under the chart');
   await page.locator('#pHold').screenshot({ path: OUT + '/ofc-selected.png' });
