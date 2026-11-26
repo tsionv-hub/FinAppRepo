@@ -57,6 +57,11 @@ export function liquid(h: Holding, p: Pick<Params, 'countUnvested'>): boolean {
 }
 
 /** Tax due if balance b (basis d) were cashed out now. */
+/** Yearly return used in the projection, %: the scenario's share of the return less the management fee. */
+export function netReturn(h: Holding, factor: number): number {
+  return h.ret * factor - (h.feePct ?? 0);
+}
+
 export function taxOf(h: Holding, b: number, d: number, cg: number, it: number): number {
   if (h.tax === 'capital_gain') return Math.max(0, b - d) * cg;
   if (h.tax === 'income') return b * it;
@@ -234,6 +239,7 @@ export function run(
   const rv = S.find((s) => s.h.type === REINVEST_TYPE);
   const infl = (k: number) => (p.inflationOn ? Math.pow(1 + p.inflationRate, k / 12) : 1);
   const stopYear = p.stopYear ?? Infinity;
+  const cpiMonth = Math.pow(1 + p.inflationRate, 1 / 12);
 
   // Adds money to the matching included holdings, in proportion to their balance.
   // If they are all empty (everything was spent), it is split evenly instead of
@@ -270,11 +276,14 @@ export function run(
   for (let k = k0 + 1; k <= last; k++) {
     const { year: yr, month0: mo } = monthAt(p.start, k);
 
-    // 1. Growth.
+    // 1. Growth: the scenario's share of the return, less the holding's own management fee.
+    //    With inflation on, the cost basis of capital-gain holdings rises with prices,
+    //    because Israeli capital gains tax is on the real gain.
     for (const s of S) {
-      const g = Math.pow(1 + (s.h.ret * p.returnFactor) / 100, 1 / 12);
+      const g = Math.pow(1 + netReturn(s.h, p.returnFactor) / 100, 1 / 12);
       s.b *= g;
       s.lots?.forEach((l) => (l.b *= g));
+      if (p.inflationOn && s.h.tax === 'capital_gain') s.d *= cpiMonth;
     }
 
     // 2. Intel: vested shares are sold, unvested tranches are sold as they vest.

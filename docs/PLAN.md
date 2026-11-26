@@ -1,35 +1,40 @@
-# Implementation plan
+# Design notes
 
-Source of truth: `docs/SPEC.md` (merged). Where it is silent, `reference/prototype.html`.
+The source of truth is `docs/SPEC.md`. These notes cover how the app is built and the decisions behind it.
 
 ## Stack
-- Vite + TypeScript, vanilla DOM UI (the prototype is plain DOM; a 1:1 port), hand-built SVG chart.
-- Vitest. PWA: manifest + build-generated service worker (app shell only, never data).
-- No backend, no analytics. Google Identity Services token popup (SPEC 7) with an OAuth
-  redirect fallback for installed PWAs where popups fail. Token in memory only.
-- The OAuth client ID is entered on first run (guided setup) and kept on the phone.
+- Vite + TypeScript, vanilla DOM, a hand-built SVG chart. No framework, no backend, no analytics.
+- A PWA: the manifest and a service worker generated at build time. The service worker keeps the app shell only, never data.
+- Google sign-in uses the Identity Services popup, with a redirect fallback for installed apps. The token is kept in memory only.
+- External reads, all made from the phone:
+  - Google Sheets.
+  - data.gov.il (official fund data): only fund numbers are sent.
+  - Gemini (Ask AI): only with the user's own key and consent.
 
-## Stages
-1. **Sign-in test** (`?diag`): both methods, test read, from home-screen installs.
-2. **Model** (`src/model`, pure): unit tests per rule, section 10 acceptance tests, and a parity
-   test that runs the prototype script itself against a fictional fixture.
-3. **Sheets layer**: one batch read, sheet check, writes only on explicit save, columns by header.
-4. **UI**: panels in SPEC 6 order, English/Hebrew + RTL, first-run screens, Forget this sheet.
-5. **Template** `.xlsx` with example rows, GOOGLEFINANCE formulas and notes.
+## Code layout
+| Path | What |
+|---|---|
+| `src/model/` | Pure calculation: simulation, goals, loans, free money, pension, deposits, sheet parsing. No DOM, no network, no clock. |
+| `src/official/` | Official fund data: the fetch, the `(id,share%)` parsing, applying returns. |
+| `src/sheets/` | Sign-in, the Sheets client, the sheet check, and every write (each behind a Save button); `edit.ts` adds, edits and removes rows without touching formulas. |
+| `src/ui/` | Panels, chart, popups, Ask AI, English and Hebrew strings. |
+| `src/storage.ts` | What the phone keeps: saved sheets (ID and nickname), client ID, language, UI choices, Gemini key. |
 
-## Behaviour kept from the prototype (worth a decision)
-- A goal is paid at the step before its due month (end of the previous month), so January
-  inflows (free cash, grant) do not fund a January goal. Displayed due dates are the 1st of the month.
-- Monthly saving is spread over all included liquid holdings by value, including Cash and vested
-  Intel (which is then sold the next month), as SPEC 5.4 says.
-- Holdings with include_in_total = 0 still count toward the Stock reinvestment return weighting.
-- Horizon floor is 10 years from now (= 2036 today, as SPEC 5.2 says).
+## Tests
+- **`tests/*.test.ts`:** unit tests per rule, the SPEC section 10 acceptance cases, and the docs.
+- **`tests/parity.test.ts`:** runs `reference/prototype.html` itself and compares. The deliberate improvements in SPEC section 12.17 are excluded.
+- **`tests/e2e/smoke.ts`:** drives the built app with Google, Gemini and data.gov.il mocked.
+- **`tests/e2e/channels.ts`:** checks that the stable and beta apps stay separate.
 
-## Performance (SPEC 6.7)
-Panels: ~30 ms on a laptop CPU. The free-money curve (~150 ms) is drawn right after the panels,
-so the screen never waits for it. Free-money searches stop at the first short goal. Move to a
-Web Worker if the phone test shows lag.
+## Model decisions (kept from the prototype)
+- A goal is paid at the end of the month before it's due, so January inflows don't fund a January goal.
+- Monthly saving is spread over all included liquid holdings by value.
+- Holdings with `include_in_total` = 0 still count toward the Stock reinvestment return.
+- The projection runs at least 10 years from now.
+- Saving continues after early retirement, and unvested Intel keeps vesting.
+- The scenario factor is not applied to pension.
 
-## Pending (SPEC 11, defaults applied)
-Saving after retirement continues; unvested Intel keeps vesting; fees unused; scenario factor not
-applied to pension; stock tax model as 5.5; pension at 67.
+The model corrections and known simplifications are in SPEC section 12.17.
+
+## Performance
+The panels take about 30 ms on a laptop CPU. The free-money curve takes about 150 ms and is drawn just after the panels. The free-money searches stop at the first goal that is short.

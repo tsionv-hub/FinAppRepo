@@ -27,9 +27,14 @@ const depositsX = [
   ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
 ];
 // fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
-const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '22, 33' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
+const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '(22,25%),(33,75%)' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
 let govCalls = 0;
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
+// Cells that are formulas in the mock sheet (as typed): Broker C's deposited_amount.
+const depCol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('deposited_amount'));
+const formulaCells: Record<string, string> = { ['Holdings!' + depCol + '4']: '=SUMIFS(Deposits!D:D,Deposits!B:B,A4)' };
+// Pension 1 has two funds: 44 is in the Pensia-Net mock (7.5%), 55 is not (falls back to the sheet's 5%).
+const pensionX = pensionRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'P1' ? '(44,50%),(55,50%)' : '', i === 0 ? 'expected_yearly_cost' : r[0] === 'P1' ? '(0.3,50%),(?,50%)' : r[0] === 'P2' ? 0.42 : '']);
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionX, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -79,8 +84,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     govCalls++;
     const q = new URL(route.request().url()).searchParams;
     const ids = JSON.parse(q.get('filters')!).FUND_ID as number[];
-    const db = q.get('resource_id')!.startsWith('c6c6') ? 'bituach' : 'gemel';
-    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12, 'gemel:33': 10 };
+    const rid = q.get('resource_id')!;
+    const db = rid.startsWith('c6c6') ? 'bituach' : rid.startsWith('6d47') ? 'pensia' : 'gemel';
+    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12, 'gemel:33': 10, 'pensia:44': 7.5 };
     const records = ids.filter((id) => known[db + ':' + id] != null).map((id) => ({
       FUND_ID: id, FUND_NAME: 'Mock fund ' + id, REPORT_PERIOD: 202610, AVG_ANNUAL_YIELD_TRAILING_5YRS: known[db + ':' + id], AVG_ANNUAL_YIELD_TRAILING_3YRS: 11,
       YEAR_TO_DATE_YIELD: 6.5, AVG_ANNUAL_MANAGEMENT_FEE: 0.66, TOTAL_ASSETS: 1000, STOCK_MARKET_EXPOSURE: 480, FOREIGN_EXPOSURE: 520,
@@ -101,6 +107,13 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     }
     // Single-cell formula read (deposited_amount before a deposit): the mock sheet has no formulas.
     const one = /\/values\/'([^']+)'!([A-Z]+)(\d+)$/.exec(decodeURIComponent(u.pathname));
+    const rowR = /\/values\/'([^']+)'!A(\d+):[A-Z]+\d+$/.exec(decodeURIComponent(u.pathname));
+    if (rowR && u.searchParams.get('valueRenderOption') === 'FORMULA') {
+      const t = tabs[rowR[1]] ?? [];
+      const r = +rowR[2];
+      const vals = [...((t[r - 1] as unknown[]) ?? [])].map((v, i) => formulaCells[`${rowR[1]}!${String.fromCharCode(65 + i)}${r}`] ?? v);
+      return route.fulfill({ json: { values: [vals] } });
+    }
     if (one && u.searchParams.get('valueRenderOption') === 'FORMULA') {
       const t = tabs[one[1]] ?? [];
       const ci = one[2].charCodeAt(0) - 65;
@@ -130,8 +143,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
   ok((await page.locator('#ofc svg .ofc-col').count()) === 4 && (await txt('#ofc')).includes('Example: these official figures are made up.'), 'example mode shows the official returns chart with made-up figures (no network): ' + (await page.locator('#ofc svg .ofc-col').count()));
   ok(govCalls === 0, 'example mode does not call data.gov.il');
-  ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'KIDS,PRO 4821,PRO A,PRO S', 'example chart labels: short_name and vendor short forms');
+  ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'Investment fund ...4821,KIDS,Study fund (Alex),Study fund (Sam)', 'example chart labels: short_name, else the holding name: ' + (await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))));
   ok((await page.locator('#hl details.hgd').count()) === 6, 'example shows all six holding groups');
+  const pill = (name: string) => page.$eval(`#hl .g:has(b:text-is("${name}")) .rp`, (e) => e.className + ' ' + e.textContent).catch(() => 'none');
+  ok(/^rp up( strong)? \+\d+\.\d%$/.test(await pill('Investment fund ...4821')) && /^rp down( strong)? −\d+\.\d%$/.test(await pill('Old foreign account')), 'holding titles show their own yearly return: green when up, red when down: ' + (await pill('Investment fund ...4821')) + ' / ' + (await pill('Old foreign account')));
+  ok((await pill('Study fund (Alex)')) === 'none', 'no return shown without deposits');
+  ok((await page.locator('#bk .ov svg path').count()) === (await page.locator('#bk .bk').count()) && (await page.locator('#bk .bk').count()) >= 3 && (await page.locator('#ex .exr').count()) === 2, 'holdings overview: a donut slice per type in the list, and stock and foreign exposure: ' + (await txt('#ex .exk')));
   await page.locator('#pHold').screenshot({ path: OUT + '/example-holdings.png' });
   await page.screenshot({ path: OUT + '/example.png', fullPage: true });
   await page.click('#demoExit');
@@ -158,6 +175,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await txt('#sidErr')).length > 0, 'rejects a non-Sheets link');
   await page.fill('#sid', `https://docs.google.com/spreadsheets/d/${SHEET}/edit#gid=0`);
   await page.click('#sidGo');
+  ok((await txt('#sidErr')) === 'Give this sheet a short nickname.' && (await page.isVisible('#setupSheet')), 'a new sheet link needs a nickname');
+  await page.fill('#snick', 'Home');
+  await page.click('#sidGo');
   ok(await page.isVisible('#setupClient'), 'then shows the guided sign-in setup');
   ok((await txt('#cid4')).includes(new URL(URL0).origin), 'setup shows the exact JavaScript origin to register');
   await page.fill('#cid', 'not-a-client-id');
@@ -170,7 +190,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 8, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the missing optional group column');
+  ok((await page.locator('#chkList .ck').count()) === 9, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the missing optional group and expected_yearly_cost columns');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -191,14 +211,16 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
   ok(!(await page.$('#pNext')) && !(await page.$('#pBk')), 'no separate Next goals or by-type panels');
   ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).map((d) => d.id).join()) === 'pProj', 'only the projection graph starts open');
-  ok(/Yourmoneytoday🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Afterdebts₪[\d,]+Freetospendtoday₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
+  ok(/Currentstatus🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Freetospendtoday₪[\d,]+Afterdebts₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
   ok(await page.evaluate(() => {
     const s = document.querySelector('#pToday > summary')!;
     const r = s.getBoundingClientRect();
     const fl = s.querySelector('.freeline')!.getBoundingClientRect();
     const after = getComputedStyle(s, '::after');
-    return after.content === '"➕"' && after.order === '9' && fl.bottom < r.bottom && fl.height < 60;
-  }), 'the ➕ sits at the bottom of the closed "today" card, and the free-money line stays on one line');
+    const pre = s.querySelector('.today-stats .stat')!.getBoundingClientRect();
+    return after.content === '"➕"' && after.order === '9' && fl.bottom < r.bottom && Math.abs(fl.top - pre.top) < 2 && fl.left !== pre.left;
+  }), 'the ➕ sits at the bottom of the closed "Current status" card; pre-tax and free money sit side by side');
+  ok(await page.evaluate(() => document.getElementById('reload')!.parentElement!.id === 'sheetBar' && !!(document.querySelector('.hint')!.compareDocumentPosition(document.getElementById('inflBar')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'Reload ends the sheet selector line; the tip comes before the inflation warning');
   ok(await page.evaluate(() => !!(document.getElementById('chart')!.compareDocumentPosition(document.getElementById('sc')!) & Node.DOCUMENT_POSITION_FOLLOWING)), 'the return scenario is below the graph');
   const marker = (id: string) => page.evaluate((i) => getComputedStyle(document.querySelector(`#${i} > summary`)!, '::after').content, id);
   ok((await marker('pGoals')) === '"➕"' && (await marker('pProj')) === '"➖"', 'closed panels show ➕, open ones ➖');
@@ -217,19 +239,29 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(!/\{\w+\}/.test(await txt('#dlgB')), 'no unfilled {placeholders} in the explanation');
   await page.screenshot({ path: OUT + '/popup-inflation.png' });
   await page.click('#dlgX');
-  ok(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn')), 'inflation off: the bar is a yellow warning');
-  ok((await txt('#inflTxt')) === 'Not adjusted for inflation' && (await txt('#infl')) === 'Adjust for inflation', 'the warning is just its title, with the button and 🤔: ' + (await txt('#inflTxt')));
-  await page.screenshot({ path: OUT + '/infl-off.png' });
-  const fmOff = await txt('#fm');
-  await page.click('#infl');
-  ok(!(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'))) && (await txt('#inflTxt')) === 'Shown in today’s money' && (await txt('#infl')) === 'Turn off', 'inflation on: calm note and a Turn off button');
+  const warn = () => page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'));
+  ok(!(await warn()) && (await txt('#inflTxt')) === 'Shown in today’s money' && (await txt('#infl')) === 'Turn off', 'inflation is on by default (the sheet says 0): calm note and a Turn off button');
   await page.screenshot({ path: OUT + '/infl-on.png' });
-  await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOff);
-  ok(true, 'turning inflation on recomputes free money: ' + fmOff + ' -> ' + (await txt('#fm')));
+  const fmOn = await txt('#fm');
+  await page.click('#infl');
+  ok((await txt('#dlgT')) === 'Turn off inflation?' && (await txt('#dlgB')).includes('Pension tax is worked out as if') && !(await warn()), 'turning it off first explains why that misleads');
+  await page.screenshot({ path: OUT + '/infl-ask.png' });
+  await page.click('#ioffKeep');
+  ok(!(await warn()) && !(await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)), '"Keep it on" keeps it on');
+  await page.click('#infl');
+  await page.click('#ioffGo');
+  ok((await warn()) && (await txt('#inflTxt')) === 'Not adjusted for inflation' && (await txt('#infl')) === 'Adjust for inflation', '"Turn off anyway" turns it off: yellow warning');
+  await page.screenshot({ path: OUT + '/infl-off.png' });
+  await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOn);
+  ok(true, 'turning inflation off recomputes free money: ' + fmOn + ' -> ' + (await txt('#fm')));
+  await page.click('#infl');
+  ok(!(await warn()) && !(await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)), 'turning it back on needs no confirmation');
   await page.click('#inflHelp');
   ok((await txt('#dlgB')).includes('Now: on'), 'the explanation shows the switch is on');
   await page.click('#dlgX');
+  // The rest of the checks were written with inflation off.
   await page.click('#infl');
+  await page.click('#ioffGo');
 
   // 2c. Feedback link.
   const fbHref = await page.getAttribute('#fbBtn', 'href');
@@ -364,7 +396,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#hl .g:has-text("Broker C")');
   ok(await dlgOpen(), 'tapping a holding opens its details');
   ok((await txt('#dlgT')) === 'Broker C' && /USD.*60,000 at 3\.700/.test(await txt('#dlgB')), 'holding popup shows the sheet amount in USD and the rate');
-  ok((await txt('#dlgB')).includes('Return used (Moderate)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
+  ok((await txt('#dlgB')).includes('Return used (Moderate, after your fee)7.5%'), 'holding popup shows the scenario return: ' + (await txt('#dlgB')).match(/Return used[^%]*%/)?.[0]);
   const dB = await txt('#dlgB');
   ok(dB.includes('Total deposited (2)') && /40,000 USD/.test(dB) && dB.includes('Yearly return so far'), 'holding popup lists its deposits (serial and ISO dates), the total and the return so far');
   await page.screenshot({ path: OUT + '/popup-holding.png' });
@@ -389,7 +421,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const grps = await page.$$eval('#hl .hgrp span:first-child', (e) => e.map((x) => x.textContent));
   ok(JSON.stringify(grps.slice(0, 5)) === JSON.stringify(['Study funds (1)', 'Funds and savings (2)', 'Trading accounts (2)', 'Bank (1)', 'Intel stocks (2)']) && grps[5]?.startsWith('Pension'), 'holdings are split into groups: ' + grps.join(', '));
   ok(await page.$eval('#hl details.hgd[data-g=bank]', (d) => !!d.querySelector('.g') && d.querySelector('.g')!.textContent!.includes('Checking')), 'rows sit under their group');
-  ok(govCalls === 2, 'official data: one request per database (Gemel-Net, Bituach-Net): ' + govCalls);
+  ok(govCalls === 3, 'official data: one request per database (Gemel-Net, Bituach-Net, Pensia-Net): ' + govCalls);
   ok((await txt('#hl .g:has-text("Invest B")')).includes('5y avg 9.4% (official)'), 'a holding with a fund number uses the official 5-year average: ' + (await txt('#hl .g:has-text("Invest B") .lbl')));
   const bankG = '#hl details.hgd[data-g=bank]';
   await page.click(bankG + ' > summary');
@@ -401,11 +433,12 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click(bankG + ' > summary');
   ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
   const cols = () => page.$$eval('#ofc svg', (s) => [...s[0].querySelectorAll('text')].map((x) => x.textContent!.replace(/^(.+?)\1$/, '$1')).join('|'));
-  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '11.0|VEN P|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else vendor + owner): ' + (await cols()));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '10.5|Savings D|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else the holding name): ' + (await cols()));
   await page.click('#ofc [data-ofp=ytd]');
   ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
   await page.click('#ofc [data-ofp=avg5]');
-  ok((await page.locator('#ofc svg rect.tc-invest').count()) === 1 && (await page.locator('#ofc svg rect.tc-save').count()) === 1 && (await txt('#ofc .leg')) === 'Investment fundSavings plan' && (await page.$eval('#ofc .leg .sw.tc-invest', (e) => e.getBoundingClientRect().width)) >= 8, 'columns are coloured by holding type, with a legend: ' + (await txt('#ofc .leg')));
+  ok((await page.locator('#ofc svg .ofc-col rect[rx]').evaluateAll((r) => new Set(r.map((x) => x.getAttribute('class'))).size)) === 2 && (await txt('#ofc .leg')) === 'Vendor 2Vendor 4' && (await page.$eval('#ofc .leg .sw', (e) => e.getBoundingClientRect().width)) >= 8, 'columns are coloured by vendor, with a legend: ' + (await txt('#ofc .leg')));
+  ok(await page.evaluate(() => { const el = document.getElementById('inflBar')!; const b = document.getElementById('infl')!.getBoundingClientRect(), q = document.getElementById('inflHelp')!.getBoundingClientRect(); return el.classList.contains('warn') || Math.abs(b.top + b.height / 2 - (q.top + q.height / 2)) < 3; }), 'inflation on: Turn off and 🤔 sit on one line');
   await page.click('#ofc [data-oh=H2] .ofhit');
   ok((await txt('#hl .g.hsel b')) === 'Invest B' && (await page.locator('#ofc .ofc-col.dim').count()) === 1 && (await txt('#ofc .ofsel')).startsWith('INV-B · Invest B · Investment fund'), 'tapping a column highlights its holding in the list and names it under the chart');
   await page.locator('#pHold').screenshot({ path: OUT + '/ofc-selected.png' });
@@ -420,8 +453,45 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#dlgX');
   await page.click('#hl .g:has-text("Savings D")');
   const sb = await txt('#dlgB');
-  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('50% of this holding') && sb.includes('Mock fund 33 · 50% of this holding · Gemel-Net') && sb.includes('Return used: 11%'), 'a policy track missing from Bituach-Net is found in Gemel-Net; split evenly (12 and 10 → 11%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
+  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('25% of this holding') && sb.includes('Mock fund 33 · 75% of this holding · Gemel-Net') && sb.includes('Return used: 10.5%'), 'funds weighted by their share; a policy track missing from Bituach-Net is found in Gemel-Net (25% × 12 + 75% × 10 = 10.5%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
   await page.click('#dlgX');
+  // Edit, add and remove holdings from the app.
+  const bu = (from: number) => writes.slice(from).filter((w) => w.url.endsWith('/values:batchUpdate')).flatMap((w) => (w.body as { data: { range: string; values: unknown[][] }[] }).data);
+  const cur = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('current_amount'));
+  await page.click('#hl .g:has-text("Broker C")');
+  await page.click('#hEdit');
+  await page.waitForSelector('#hfSave');
+  ok((await page.inputValue('#hf_name')) === 'Broker C' && (await page.inputValue('#hf_current_amount')) === '60000' && (await page.isDisabled('#hf_deposited_amount')), 'edit form: filled from the sheet; a formula cell is locked');
+  await page.screenshot({ path: OUT + '/edit-holding.png' });
+  let w0 = writes.length;
+  await page.fill('#hf_current_amount', '62000');
+  await page.click('#hfSave');
+  await page.waitForFunction(() => document.querySelector('#dlgB .dnote.ok')?.textContent === 'Saved to the Holdings tab.');
+  let d = bu(w0);
+  ok(d.some((x) => x.range === `'Holdings'!${cur}4` && x.values[0][0] === 62000) && !d.some((x) => x.range === `'Holdings'!${depCol}4`), 'saving writes the changed fields, never the formula cell');
+  ok((await txt('#dlgT')) === 'Broker C', 'and reopens the holding');
+  await page.click('#dlgX');
+  await page.click('#hAdd');
+  await page.waitForSelector('#hfSave');
+  await page.click('#hfSave');
+  ok((await txt('#hfMsg')) === 'Fill in: Name.', 'a new holding needs a name');
+  await page.fill('#hf_name', 'New fund');
+  await page.fill('#hf_current_amount', '5000');
+  w0 = writes.length;
+  await page.click('#hfSave');
+  await page.waitForFunction(() => !(document.getElementById('dlg') as HTMLDialogElement).open || /Saved|Holdings/.test(document.getElementById('hfMsg')?.textContent ?? ''));
+  d = bu(w0);
+  const at = (c: string) => d.find((x) => x.range === `'Holdings'!${c}`)?.values[0][0];
+  const taxCol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('tax_type'));
+  ok(at('A10') === 'H9' && at('B10') === 'New fund' && at(cur + '10') === 5000 && at(taxCol + '10') === 'capital_gain', 'adding writes the next free row with the next id and a default tax: ' + JSON.stringify(d.map((x) => x.range + '=' + x.values[0][0])));
+  await page.click('#hl .g:has-text("Old account")');
+  await page.click('#hEdit');
+  await page.waitForSelector('#hfRemove');
+  w0 = writes.length;
+  await page.click('#hfRemove');
+  await page.waitForFunction(() => !(document.getElementById('dlg') as HTMLDialogElement).open);
+  d = bu(w0);
+  ok(d.length > 3 && d.every((x) => x.range.endsWith('9') && x.values[0][0] === ''), 'removing clears that row\'s typed cells only');
   await page.click('#hl .g:has-text("Study A")');
   ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');
   await page.click('#dlgX');
@@ -450,6 +520,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(!(await dlgOpen()), 'tapping outside closes the popup');
   await page.click('#hl .g:has-text("Pension 1")');
   ok((await txt('#dlgB')).includes('At pension age (67)'), 'pension fund popup shows the pension-age projection');
+  const pb = await txt('#dlgB');
+  ok(pb.includes('Official data (Pensia-Net)') && pb.includes('Mock fund 44 · 50% of this holding') && pb.includes('not found in Pensia-Net') && pb.includes('Yearly return6.25%'), 'pension fund: official Pensia-Net data, weighted (50% × 7.5 + 50% × sheet 5 = 6.25%): ' + pb.match(/Yearly return[\d.]+%/)?.[0]);
+  ok(pb.includes('Expected yearly costnot known yet (?)') && pb.includes('fund 1 (50%)0.3%') && pb.includes('fund 2 (50%)?'), 'expected yearly cost per fund, "?" shown as not known');
   await page.click('#dlgX');
   await page.click('#goals .g:has-text("Car")');
   ok((await txt('#dlgB')).includes('Due1 June 2028'), 'goal popup shows the due date on the 1st: ' + (await txt('#dlgB')).match(/Due[^A-Z]*\d{4}/)?.[0]);
@@ -700,10 +773,42 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   // 9. Forget this sheet.
   await page.click('#dBack');
   await page.waitForSelector('#app:not([hidden])');
+
+  // 8b. Several sheets: nickname at the top, add, switch, remove one.
+  const selText = () => page.$eval('#sheetSel', (s) => (s as HTMLSelectElement).selectedOptions[0]?.textContent ?? '');
+  ok((await page.isVisible('#sheetBar')) && (await selText()) === 'Home', 'the sheet nickname is shown at the top: ' + (await selText()));
+  await page.selectOption('#sheetSel', '__add');
+  await page.waitForSelector('#setupSheet:not([hidden])');
+  ok((await page.isVisible('#savedBox')) && (await txt('#savedSel')) === 'Home', 'adding a sheet lists the saved ones to go back to');
+  await page.fill('#sid', 'https://docs.google.com/spreadsheets/d/SECONDSHEET_abcdefghijklmnopqrstuvwxyz0/edit');
+  await page.fill('#snick', 'Parents');
+  await page.click('#sidGo');
+  await page.waitForSelector('#setupCheck:not([hidden])');
+  ok(true, 'a new sheet gets its own sheet check');
+  await page.click('#openApp');
+  await page.waitForSelector('#app:not([hidden])');
+  ok((await selText()) === 'Parents' && (await page.$$eval('#sheetSel option', (o) => o.map((x) => x.textContent).join('|'))) === 'Home|Parents|✏️ Rename this sheet|➕ Add a sheet', 'the new sheet is open; both nicknames are in the list');
+  await page.selectOption('#sheetSel', SHEET);
+  await page.waitForSelector('#app:not([hidden])');
+  await page.waitForFunction(() => (document.getElementById('sheetSel') as HTMLSelectElement).selectedOptions[0]?.textContent === 'Home');
+  ok(!(await page.isVisible('#setupCheck')), 'switching back opens Home straight away (already checked)');
+  const ids = await page.evaluate(() => JSON.parse(localStorage.getItem('fp_sheets')!) as { id: string; nick: string }[]);
+  ok(ids.length === 2 && ids.every((x) => !x.id.includes('/') && !x.id.includes('http')), 'the phone keeps sheet IDs and nicknames only: ' + JSON.stringify(ids.map((x) => x.nick)));
+  await page.evaluate(() => { (window as unknown as { prompt: () => string }).prompt = () => 'Family'; });
+  await page.selectOption('#sheetSel', '__rename');
+  ok((await selText()) === 'Family', 'rename the current sheet');
+  await page.selectOption('#sheetSel', ids[1].id);
+  await page.waitForFunction(() => (document.getElementById('sheetSel') as HTMLSelectElement).selectedOptions[0]?.textContent === 'Parents');
+  await page.click('#forget');
+  await page.waitForSelector('#setupSheet:not([hidden])');
+  ok((await txt('#savedSel')) === 'Family' && (await page.evaluate(() => localStorage.getItem('fp_client_id'))) !== null, 'Remove this sheet removes only that sheet; the rest stays');
+  await page.click('#savedGo');
+  await page.waitForSelector('#app:not([hidden])');
+  ok((await selText()) === 'Family', 'pick a saved sheet on the setup screen');
   await page.click('#forget');
   await page.waitForSelector('#setupSheet:not([hidden])');
   const left = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('fp_')));
-  ok(left.length === 0, 'Forget this sheet wipes everything stored (' + left.join(',') + ')');
+  ok(left.length === 0, 'removing the last sheet wipes everything stored (' + left.join(',') + ')');
 
   ok(badAuth === 0, 'every Sheets call carried the token');
   ok(errors.length === 0, 'no console errors' + (errors.length ? ': ' + errors.join(' | ') : ''));

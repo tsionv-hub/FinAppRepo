@@ -28,12 +28,12 @@ export const RULES: Record<string, TabRule> = {
   Holdings: {
     required: true,
     columns: ['id', 'name', 'type', 'currency', 'current_amount'],
-    optionalColumns: ['vendor', 'owner', 'deposited_amount', 'return_5y_avg_pct', 'tax_type', 'include_in_total', 'group', 'fund_number', 'short_name'],
+    optionalColumns: ['vendor', 'owner', 'deposited_amount', 'return_5y_avg_pct', 'tax_type', 'include_in_total', 'group', 'fund_number', 'short_name', 'expected_yearly_cost'],
   },
   Pension: {
     required: false,
     columns: ['name', 'current_amount_ILS'],
-    optionalColumns: ['owner', 'monthly_deposit_ILS', 'deposit_fee_pct', 'accumulation_fee_pct', 'yearly_return_pct', 'conversion_coefficient', 'stops_at_early_retirement'],
+    optionalColumns: ['owner', 'monthly_deposit_ILS', 'deposit_fee_pct', 'accumulation_fee_pct', 'yearly_return_pct', 'conversion_coefficient', 'stops_at_early_retirement', 'fund_number', 'expected_yearly_cost'],
   },
   Goals: {
     required: true,

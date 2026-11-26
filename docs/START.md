@@ -44,7 +44,7 @@ From now on, **always open it from the icon**.
 ## Step 5. Connect your sheet
 
 1. In Google Sheets, open your sheet → **Share** → **Copy link**.
-2. In the app, paste the link → **Continue**.
+2. In the app, paste the link and give the sheet a nickname (e.g. *Home*) → **Continue**.
 3. Tap **Continue with Google** and choose your account.
 4. Google says **"Google hasn't verified this app"**. That's expected for a private app: tap **Advanced** → **Go to Finance Planner (unsafe)** → **Continue**.
 5. The **Sheet check** shows what was found. When everything has a ✓, tap **Open the planner**.
@@ -68,7 +68,7 @@ From now on, **always open it from the icon**.
 | **"This file is an Excel file"** | In Google Sheets: **File** → **Save as Google Sheets**, and use the new link. |
 | **"This Google account cannot open the sheet"** | Sign in with the account that owns the sheet. |
 | A **✗** in the sheet check | Fix that tab or column name exactly as shown, then **Check again**. |
-| The sign-in window doesn't open | Tap **Sign-in test** at the bottom, then **2. Sign in (redirect)**. |
+| The sign-in window doesn't open | On the sign-in screen, tap **Sign-in test** at the bottom, then **2. Sign in (redirect)**. |
 | An old version | Close the app completely and open it again while online: it updates itself. The version is shown at the top, next to the name. |
 
 More detail: the [full user guide](MANUAL.md).

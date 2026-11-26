@@ -31,6 +31,8 @@ export interface Holding {
   include: boolean;
   /** Current value in ILS. */
   value: number;
+  /** management_fee_pct: taken off the yearly return in the projection (official returns are before it). */
+  feePct?: number;
   /** Cost basis in ILS (deposited_amount; blank = value). */
   deposited: number;
   /** True for the app-generated Stock reinvestment holding. */
@@ -40,12 +42,12 @@ export interface Holding {
   /** return_5y_avg_pct from the sheet, kept when `ret` comes from official data. */
   retSheet?: number;
   /** Official data per track (fund_number may hold several; the money is split evenly). */
-  official?: { id: number; o: Official | null }[];
+  official?: { id: number; w: number; o: Official | null }[];
 }
 
 /** One fund or track's latest month in Gemel-Net / Bituach-Net (data.gov.il). Percent values. */
 export interface Official {
-  db: 'gemel' | 'bituach';
+  db: 'gemel' | 'bituach' | 'pensia';
   id: number;
   name: string;
   /** YYYYMM */
@@ -77,8 +79,10 @@ export interface HoldingInfo {
   notes: string;
   /** fund_number column (study funds and funds only). */
   fundNumber: string;
-  /** short_name column: a label for charts (blank = made from the vendor). */
+  /** short_name column: a label for charts (blank = the holding name). */
   short: string;
+  /** expected_yearly_cost as typed: "0.94", "?" or "(0.41,38%),(0.34,62%)". */
+  expectedCost: string;
 }
 
 export interface PensionFund {
@@ -91,6 +95,12 @@ export interface PensionFund {
   returnPct: number;
   coefficient: number;
   stopsAtEarlyRetirement: boolean;
+  /** fund_number and expected_yearly_cost as typed (same formats as Holdings). */
+  fundNumber?: string;
+  expectedCost?: string;
+  /** yearly_return_pct from the sheet, kept when returnPct comes from official data. */
+  returnSheet?: number;
+  official?: { id: number; w: number; o: Official | null }[];
 }
 
 export interface Goal {
@@ -173,7 +183,8 @@ export interface Settings {
   pensionDepositGrowthPct: number;
   pensionExemptPct: number;
   pensionExemptCeiling: number;
-  pensionTaxRatePct: number;
+  /** Income tax credit points per pension owner (pension_tax_credit_points, default 2.25). */
+  pensionCreditPoints: number;
   oldAgeAllowance: number;
 }
 

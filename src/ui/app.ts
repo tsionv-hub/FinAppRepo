@@ -5,17 +5,18 @@
 import {
   buildParams, freeAt, freeCurve, freeMoney, goalOrder, monthAt, projectPension, resolveGoals, retirementYear,
   simulate, startFromDate, stepOf, taxOf, today, type FreeMoney, type Goal, type Params, type Scenario, type SimResult,
-  type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths,
-  impliedReturn, type Deposit, GROUPS, type Grant, shortName,
+  type GoalResult, type Holding, type Loan, type Slot, type Snapshot, type StartMonth, type WhatIf, loanMonths, netReturn,
+  impliedReturn, type Deposit, GROUPS, type Grant, shortName, exposure, included, type Split,
 } from '../model';
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleOfficialRecords, exampleRows } from '../example';
-import { applyOfficial, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, dbFor } from '../official/gov';
+import { addHolding, defaultTax, formulaKeys, HOLDING_FIELDS, HOLDING_TYPES, removeHolding, saveHolding, type Field } from '../sheets/edit';
+import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, lookupPension, dbFor } from '../official/gov';
 import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
-import { get, KEYS, set } from '../storage';
+import { get, isChecked, KEYS, markChecked, nickOf, saveSheet, set } from '../storage';
 import { chartSvg } from './chart';
 import { docsUrl } from '../docs';
 import type { AiSnapshot } from '../ai/context';
@@ -125,12 +126,13 @@ function fillInputs(d: SheetData): void {
   set('ir', s.inflationRatePct);
   set('cg', s.capitalGainsTaxPct);
   set('it', s.incomeTaxPct);
-  setInflation(s.inflationEnabled, false);
+  // Inflation is on by default (SPEC 12.18); turning it off asks first.
+  setInflation(true, false);
   set('ra', s.retirementAge);
   set('al', s.retirementAllowance);
   set('rd', d.goals.reserve);
   set('pg', s.pensionDepositGrowthPct);
-  set('pt', s.pensionTaxRatePct);
+  set('pt', s.pensionCreditPoints);
   set('po', s.oldAgeAllowance);
 }
 
@@ -158,7 +160,9 @@ export async function load(): Promise<void> {
     fillInputs(data);
     cache = null;
     updatedLine();
-    if (!demo && !get(KEYS.checked)) deps.onCheck(res.check, true);
+    // A sheet without a nickname (set up before nicknames existed) is named after its title.
+    if (!demo && c && !nickOf(c.id)) saveSheet(c.id, res.title);
+    if (!demo && c && !isChecked(c.id)) deps.onCheck(res.check, true);
     else showApp();
   } catch (e) {
     if (e instanceof SheetsError && e.code === 'auth') {
@@ -176,13 +180,16 @@ export async function load(): Promise<void> {
 let official: { ids: string; map: Map<string, Official> } | null = null;
 let officialState: 'none' | 'loading' | 'ok' | 'error' = 'none';
 
-const officialIds = (d: SheetData) => lookupHoldings(d.holdings).map((h) => dbFor(h) + ':' + fundIds(h.info!.fundNumber).join('+')).sort().join(',');
+const officialIds = (d: SheetData) => [
+  ...lookupHoldings(d.holdings).map((h) => dbFor(h) + ':' + fundIds(h.info!.fundNumber).join('+')),
+  ...lookupPension(d.pension).map((p) => 'pensia:' + fundIds(p.fundNumber!).join('+')),
+].sort().join(',');
 
 /** Example mode: made-up official figures, nothing fetched. */
 function exampleOfficial(d: SheetData): void {
   const map = new Map<string, Official>();
   for (const { db, records } of exampleOfficialRecords(new Date())) for (const [id, o] of latest(db, records)) map.set(offKey(db, id), o);
-  applyOfficial(d.holdings, map);
+  applyOfficial(d.holdings, map, d.pension);
   officialState = 'ok';
 }
 
@@ -194,17 +201,17 @@ function officialFor(d: SheetData): void {
     return;
   }
   if (official?.ids === ids) {
-    applyOfficial(d.holdings, official.map);
+    applyOfficial(d.holdings, official.map, d.pension);
     officialState = 'ok';
     return;
   }
   officialState = 'loading';
-  fetchOfficial(d.holdings)
+  fetchOfficial(d.holdings, fetch, d.pension)
     .then((map) => {
       official = { ids, map };
       officialState = 'ok';
       if (data !== d) return;
-      applyOfficial(d.holdings, map);
+      applyOfficial(d.holdings, map, d.pension);
       cache = null;
       if (!$('app').hidden) render();
       else officialChart();
@@ -226,9 +233,18 @@ type OfcPeriod = 'avg5' | 'avg3' | 'ytd';
 const OFC: [OfcPeriod, 'ofc5' | 'ofc3' | 'ofcY'][] = [['avg5', 'ofc5'], ['avg3', 'ofc3'], ['ytd', 'ofcY']];
 const ofcPeriod = (): OfcPeriod => (OFC.some(([k]) => k === get(KEYS.ofcPeriod)) ? (get(KEYS.ofcPeriod) as OfcPeriod) : 'avg5');
 
-/** Chart colour class per holding type (legend in the same order). */
-const TYPE_COLOR: [string, string][] = [['Study fund', 'tc-study'], ['Investment fund', 'tc-invest'], ['Savings plan', 'tc-save'], ['Brokerage', 'tc-broker']];
-const typeColor = (type: string) => TYPE_COLOR.find(([t0]) => t0 === type)?.[1] ?? 'tc-other';
+/**
+ * Official returns chart: one colour per vendor. Vendors take palette slots in the order they first
+ * appear in the Holdings tab, so a vendor keeps its colour; from the 9th on (or no vendor) → "Other".
+ */
+function vendorSlots(all: Holding[]): Map<string, string> {
+  const m = new Map<string, string>();
+  for (const h of all) {
+    const v = h.vendor.trim();
+    if (v && !m.has(v.toLowerCase())) m.set(v.toLowerCase(), m.size < 8 ? 'c' + (m.size + 1) : 'cO');
+  }
+  return m;
+}
 /** Holding id picked in the official returns chart (its list row is highlighted). */
 let ofcSel: string | null = null;
 
@@ -242,10 +258,11 @@ function officialChart(): void {
   }
   if (ofcSel && !H.some((h) => h.id === ofcSel)) ofcSel = null;
   const k = ofcPeriod();
-  // A holding split between tracks gets the plain average of its tracks (equal shares).
+  // A holding split between tracks: the tracks' figures weighted by their share (tracks without one left out).
   const val = (h: Holding) => {
-    const v = h.official!.map((x) => x.o?.[k]).filter((x): x is number => x != null);
-    return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null;
+    const v = h.official!.filter((x) => x.o?.[k] != null);
+    const w = v.reduce((a, x) => a + x.w, 0);
+    return w ? v.reduce((a, x) => a + x.w * x.o![k]!, 0) / w : null;
   };
   const cols = H.map((h) => ({ h, v: val(h) })).sort((a, b) => (b.v ?? -1e9) - (a.v ?? -1e9));
   const vs = cols.map((c) => c.v).filter((x): x is number => x != null);
@@ -257,6 +274,8 @@ function officialChart(): void {
   const y = (v: number) => top + ((hi - v) / (hi - lo)) * plotH;
   const y0 = y(0);
   const rtl = document.documentElement.dir === 'rtl';
+  const slots = vendorSlots((data?.holdings ?? []).filter((h) => h.official?.length));
+  const vc = (h: Holding) => slots.get(h.vendor.trim().toLowerCase()) ?? 'cO';
   let svg = `<line x1="${L}" x2="${W}" y1="${y0}" y2="${y0}" class="ofax"/>`;
   cols.forEach(({ h, v }, i) => {
     // Best first, in reading order (right to left in Hebrew).
@@ -266,7 +285,7 @@ function officialChart(): void {
     svg += `<rect x="${(cx - slot / 2).toFixed(1)}" y="0" width="${slot.toFixed(1)}" height="${top + plotH + labH}" class="ofhit"/>`;
     if (v != null) {
       const y1 = Math.min(y(v), y0), hgt = Math.max(1, Math.abs(y(v) - y0));
-      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="${typeColor(h.type)}"/>`;
+      svg += `<rect x="${(cx - bw / 2).toFixed(1)}" y="${y1.toFixed(1)}" width="${bw.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" class="${vc(h)}"/>`;
       svg += `<text x="${cx.toFixed(1)}" y="${(v >= 0 ? y1 - 4 : y1 + hgt + 11).toFixed(1)}" class="ofvl${v < 0 ? ' neg' : ''}">${v.toFixed(1)}</text>`;
     } else svg += `<text x="${cx.toFixed(1)}" y="${(y0 - 4).toFixed(1)}" class="ofvl na">–</text>`;
     const ly = top + plotH + (lo < 0 ? 22 : 12);
@@ -274,8 +293,10 @@ function officialChart(): void {
   });
   const last = Math.max(...H.flatMap((h) => h.official!.map((x) => x.o?.period ?? 0)));
   const missing = cols.filter((c) => c.v == null).length;
-  const types = TYPE_COLOR.filter(([t0]) => H.some((h) => h.type === t0)).map(([t0, c]) => `<span><i class="sw ${c}"></i>${esc(ty(t0))}</span>`)
-    .concat(H.some((h) => typeColor(h.type) === 'tc-other') ? [`<span><i class="sw tc-other"></i>${t('ofcOther')}</span>`] : []);
+  const seen = new Map<string, string>();
+  for (const h of H) { const v = h.vendor.trim(); if (v && vc(h) !== 'cO' && !seen.has(vc(h))) seen.set(vc(h), v); }
+  const types = [...seen].sort((a, b) => Number(a[0].slice(1)) - Number(b[0].slice(1))).map(([c, v]) => `<span><i class="sw ${c}"></i>${esc(v)}</span>`)
+    .concat(H.some((h) => vc(h) === 'cO') ? [`<span><i class="sw cO"></i>${t('ofcOther')}</span>`] : []);
   const sel = cols.find((c) => c.h.id === ofcSel);
   el.innerHTML = `<div class="addh" style="margin-top:14px">${t('ofcT')} <span class="lbl">${t(k === 'ytd' ? 'ofcSubY' : 'ofcSub')}</span></div>`
     + `<div class="seg" role="group" aria-label="${t('ofcT')}">${OFC.map(([p, l]) => `<button type="button" data-ofp="${p}" aria-pressed="${p === k}" class="${p === k ? 'on' : ''}">${t(l)}</button>`).join('')}</div>`
@@ -303,32 +324,50 @@ function markSelected(go = false): void {
 
 const period = (p: number) => new Date(Math.floor(p / 100), (p % 100) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
 
-/** Holding popup: official figures per track, and where the return used comes from. */
-function officialSection(h: Holding): string {
-  if (!h.info?.fundNumber || !(h.group === 'study_fund' || h.group === 'fund')) return '';
-  const src = dbFor(h) === 'bituach' ? 'Bituach-Net' : 'Gemel-Net';
+const DBNAME = { gemel: 'Gemel-Net', bituach: 'Bituach-Net', pensia: 'Pensia-Net' } as const;
+
+/** Official figures per track, and where the return used comes from (holding or pension fund popup). */
+function tracksSection(x: { db: 'gemel' | 'bituach' | 'pensia'; official?: { id: number; w: number; o: Official | null }[]; ret: number; retSheet?: number; feeYours: number | null; feeLabel: 'ofFee' | 'ofFeeP' }): string {
+  const src = DBNAME[x.db];
   let body = sec(t('ofT', { s: src }));
   if (officialState === 'loading') return body + `<div class="dnote">${t('ofLoading')}</div>`;
-  if (officialState === 'error' || !h.official) return body + `<div class="dnote">${t('ofErr')}</div>`;
-  const many = h.official.length > 1;
-  for (const { id, o } of h.official) {
+  if (officialState === 'error' || !x.official) return body + `<div class="dnote">${t('ofErr')}</div>`;
+  const many = x.official.length > 1;
+  for (const { id, w, o } of x.official) {
+    const share = many ? ' · ' + t('ofShare', { p: Math.round(w * 100) }) : '';
     if (!o) {
-      body += row(t('ofTrack', { n: id }), `<span class="bad">${t('ofNF', { s: src === 'Bituach-Net' ? 'Bituach-Net / Gemel-Net' : src })}</span>`);
+      body += row(t('ofTrack', { n: id }) + share, `<span class="bad">${t('ofNF', { s: x.db === 'bituach' ? 'Bituach-Net / Gemel-Net' : src })}</span>`);
       continue;
     }
-    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${many ? ' · ' + t('ofShare', { p: Math.round(100 / h.official.length) }) : ''}${o.db !== dbFor(h) ? ' · ' + (o.db === 'gemel' ? 'Gemel-Net' : 'Bituach-Net') : ''}</div>`
-      + row(t('ofAvg5'), o.avg5 == null ? t('ofNo5', { r: pct(h.retSheet) }) : pct(o.avg5))
+    body += `<div class="oft"><b>${t('ofTrack', { n: id })}</b> · ${esc(o.name)}${share}${o.db !== x.db ? ' · ' + DBNAME[o.db] : ''}</div>`
+      + row(t('ofAvg5'), o.avg5 == null ? t('ofNo5', { r: pct(x.retSheet) }) : pct(o.avg5))
       + row(t('ofAvg3'), pct(o.avg3)) + row(t('ofYtd', { d: period(o.period) }), pct(o.ytd))
-      + row(t('ofFee'), pct(o.fee) + (h.info.managementFeePct != null ? ' · ' + t('ofYours', { f: pct(h.info.managementFeePct) }) : ''))
+      + row(t(x.feeLabel), pct(o.fee) + (x.feeYours != null ? ' · ' + t('ofYours', { f: pct(x.feeYours) }) : ''))
       + row(t('ofStocks'), pct(o.stocksPct, 1)) + row(t('ofAbroad'), pct(o.foreignPct, 1));
   }
-  return body + `<div class="dnote">${t('ofN', { r: pct(h.ret), s: pct(h.retSheet) })}${deps.demo() ? ' ' + t('ofDemo') : ''}</div>`;
+  return body + `<div class="dnote">${t(many ? 'ofNw' : 'ofN', { r: pct(x.ret), s: pct(x.retSheet) })}${deps.demo() ? ' ' + t('ofDemo') : ''}</div>`;
+}
+
+function officialSection(h: Holding): string {
+  if (!h.info?.fundNumber || !(h.group === 'study_fund' || h.group === 'fund')) return '';
+  return tracksSection({ db: dbFor(h), official: h.official, ret: h.ret, retSheet: h.retSheet, feeYours: h.info.managementFeePct, feeLabel: 'ofFee' });
+}
+
+/** expected_yearly_cost row(s): the total, and each fund's part when there are several. */
+function costRows(raw: string | undefined): string {
+  const ps = costParts(raw);
+  if (!ps.length) return '';
+  const tot = costTotal(raw);
+  let out = row(t('ecL'), tot == null ? `<span class="lbl">${t('ecUnknown')}</span>` : pct(tot, 2));
+  if (ps.length > 1) out += ps.map((p, i) => row(`<span class="lbl">· ${t('ecPart', { n: i + 1, p: Math.round(p.w * 100) })}</span>`, `<span class="lbl">${p.v == null ? '?' : pct(p.v, 2)}</span>`)).join('');
+  return out + `<div class="dnote">${t('ecN')}</div>`;
 }
 
 /** Opens the main screen once the sheet has been read (and checked on first run). */
 export function showApp(): void {
   if (!data) return;
-  if (!deps.demo()) set(KEYS.checked, '1');
+  const c = deps.client();
+  if (!deps.demo() && c) markChecked(c.id);
   deps.onReady();
   render();
 }
@@ -359,7 +398,7 @@ function whatIf(): WhatIf {
     retirementAge: ra === '' ? null : parseFloat(ra),
     allowance: N('al'),
     pensionDepositGrowthPct: N('pg'),
-    pensionTaxRatePct: N('pt'),
+    pensionCreditPoints: N('pt'),
     oldAgeAllowance: N('po'),
   };
 }
@@ -425,11 +464,50 @@ export function render(): void {
   // Use the cached goal objects: results point at them (the retirement goal is rebuilt each render).
   goalsView(cache.r, cache.goals, td.liquidPostTax, w.reserve);
 
-  const bk = td.byType;
-  const tt = Object.values(bk).reduce((a, x) => a + x, 0);
-  $('bk').innerHTML = Object.keys(bk)
-    .map((k) => `<div class="bk"><span>${esc(ty(k))}</span><span>${f(bk[k])} · ${Math.round((bk[k] / tt) * 100)}%</span></div>`)
-    .join('');
+  overview(td.byType, d.holdings.filter((h) => included(h, p)));
+}
+
+/** Pie colour per holding type: a fixed slot per type, so a type keeps its colour whatever else is there. */
+const TYPE_SLOT = ['Study fund', 'Investment fund', 'Savings plan', 'Brokerage', 'Cash', 'Stocks', 'Stocks (unvested)', 'Stock reinvestment'];
+const typeSlot = (type: string) => { const i = TYPE_SLOT.indexOf(type); return i < 0 ? 'cO' : 'c' + (i + 1); };
+
+/** Holdings panel, top (seen when open): a donut of money by type with its list, then stock and foreign exposure. */
+function overview(bk: Record<string, number>, H: Holding[]): void {
+  // Fixed type order (not by size): neighbouring slices are then always neighbouring palette slots, which are checked to tell apart.
+  const rank = (k: string) => { const i = TYPE_SLOT.indexOf(k); return i < 0 ? 99 : i; };
+  const items = Object.keys(bk).map((k) => ({ k, v: bk[k] })).sort((a, b) => rank(a.k) - rank(b.k));
+  const tt = items.reduce((a, x) => a + x.v, 0);
+  const pc = (v: number) => (tt ? Math.round((v / tt) * 100) : 0);
+  // Donut: slices clockwise from 12 o'clock; a 2px card-coloured stroke separates them.
+  const R = 50, r0 = 31, C = 56;
+  let a0 = -Math.PI / 2, svg = '';
+  const pt = (a: number, rr: number) => `${(C + rr * Math.cos(a)).toFixed(2)} ${(C + rr * Math.sin(a)).toFixed(2)}`;
+  for (const x of items) {
+    const share = tt ? x.v / tt : 0;
+    const a1 = a0 + share * 2 * Math.PI - (share >= 1 ? 1e-4 : 0);
+    const big = a1 - a0 > Math.PI ? 1 : 0;
+    svg += `<path class="${typeSlot(x.k)}" d="M${pt(a0, R)} A${R} ${R} 0 ${big} 1 ${pt(a1, R)} L${pt(a1, r0)} A${r0} ${r0} 0 ${big} 0 ${pt(a0, r0)}Z"><title>${esc(ty(x.k))}: ${f(x.v)} · ${pc(x.v)}%</title></path>`;
+    a0 = a1;
+  }
+  svg += `<text x="${C}" y="${C - 2}" class="ovc v">${(tt / 1e6).toFixed(tt >= 1e7 ? 0 : 1)}M</text><text x="${C}" y="${C + 12}" class="ovc">₪</text>`;
+  $('bk').innerHTML = items.length
+    ? `<div class="ov"><svg viewBox="0 0 112 112" role="img" aria-label="${esc(t('byType'))}">${svg}</svg><div class="ovl">`
+      + items.map((x) => `<div class="bk"><span><i class="sw ${typeSlot(x.k)}"></i>${esc(ty(x.k))}</span><span>${f(x.v)} · ${pc(x.v)}%</span></div>`).join('')
+      + '</div></div>'
+    : '';
+  const e = exposure(H);
+  const row = (title: string, s: Split, yes: string, no: string, cls: string) => {
+    const all = s.yes + s.no + s.unknown;
+    if (!all) return '';
+    const p0 = (v: number) => Math.round((v / all) * 100);
+    const seg = (v: number, c: string, lbl: string) => (v / all >= 0.005 ? `<i class="${c}" style="width:${((v / all) * 100).toFixed(2)}%" title="${esc(lbl)}: ${f(v)} · ${p0(v)}%"></i>` : '');
+    const key = (v: number, c: string, lbl: string) => (v / all >= 0.005 ? `<span><i class="sw ${c}"></i>${esc(lbl)} ${p0(v)}%</span>` : '');
+    return `<div class="exr"><div class="exh"><span>${esc(title)}</span><b>${p0(s.yes)}%</b></div>`
+      + `<div class="exbar" role="img" aria-label="${esc(title)}: ${p0(s.yes)}%">${seg(s.yes, cls, yes)}${seg(s.no, 'no', no)}${seg(s.unknown, 'unk', t('exUnk'))}</div>`
+      + `<div class="exk">${key(s.yes, cls, yes)}${key(s.no, 'no', no)}${key(s.unknown, 'unk', t('exUnk'))}</div></div>`;
+  };
+  $('ex').innerHTML = row(t('exStocks'), e.stocks, t('exYesS'), t('exNoS'), 'c1') + row(t('exAbroad'), e.foreign, t('exYesF'), t('exNoF'), 'c7')
+    + `<div class="dnote">${esc(t('exN'))}</div>`;
 }
 
 function freeView(fm: FreeMoney): void {
@@ -497,7 +575,7 @@ function pensionView(w: WhatIf, goals: Goal[]): void {
   const pr = projectPension(data!.pension, {
     start, birthYear: S.birthYear!, pensionStartAge: S.pensionStartAge, retirementYear: rety,
     depositGrowthPct: w.pensionDepositGrowthPct, exemptPct: S.pensionExemptPct, exemptCeiling: S.pensionExemptCeiling,
-    taxRatePct: w.pensionTaxRatePct, oldAgeAllowance: w.oldAgeAllowance, allowance: w.allowance,
+    creditPoints: w.pensionCreditPoints, oldAgeAllowance: w.oldAgeAllowance, allowance: w.allowance,
     inflationOn: w.inflationOn, inflationRate: w.inflationRatePct / 100,
   });
   pensionBalances = pr.funds.map((x) => x.balances);
@@ -514,7 +592,7 @@ function pensionView(w: WhatIf, goals: Goal[]): void {
   lastPension = { total: pr.total, monthlyPreTax: pr.monthlyPreTax, monthlyAfterTax: pr.monthlyAfterTax };
   $('pn5').textContent = t('pnote', {
     n: f(pr.today), d: f(pr.deposits), f: f(pr.fees), y: rety ?? S.birthYear! + S.pensionStartAge, p: S.pensionStartAge,
-    x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), m: w.inflationOn ? '' : t('pnom'),
+    x: S.pensionExemptPct, c: f(S.pensionExemptCeiling), z: w.pensionCreditPoints, m: w.inflationOn ? '' : t('pnom'),
   });
 }
 
@@ -554,7 +632,7 @@ export function tmView(): void {
       const inc = h.type === 'Pension' ? false : h.type === 'Stocks (unvested)' ? p.countUnvested : h.include;
       const meta = esc(ty(h.type)) + (h.synthetic ? ' · ' + t('avgr', { r: h.ret.toFixed(1) }) : ' · ' + t('r5') + ' ' + h.ret.toFixed(1) + '%' + (h.official?.some((x) => x.o?.avg5 != null) ? ' ' + t('ofMark') : ''))
         + (h.vendor ? ' · ' + esc(h.vendor) : '') + (h.owner ? ' · ' + esc(h.owner) : '') + (inc ? '' : ' · ' + t('sepn'));
-      return `<div class="g" data-h="${i}"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b><div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
+      return `<div class="g" data-h="${i}"><div class="gh"><div><b>${esc(h.synthetic ? t('sre') : h.name)}</b>${retPill(h)}<div class="lbl">${meta}</div></div><div><div>${t('legPre')} ${f(pre)}</div>${h.type === 'Pension' ? '' : `<div class="lbl">${t('legPost')} ${f(post)}</div>`}</div></div></div>`;
     });
   const pens = data.pension.map((fd, i) => {
     const bs = pensionBalances[i];
@@ -820,7 +898,7 @@ function holdingDetails(x: Slot): void {
     body += sec(t('dAt', { d: dateAt(curK, 'long') })) + valueLines(x, infl, p);
   }
   body += sec(t('dRT'))
-    + row(t('dRet'), pct(h.ret)) + row(t('dEff', { s: scen }), pct(h.ret * p.returnFactor))
+    + row(t('dRet'), pct(h.ret)) + row(t('dEff', { s: scen }), pct(netReturn(h, p.returnFactor)))
     + row(t('dTaxT'), taxName) + row(t('dInTot'), yn(inc)) + row(t('dSpendable'), yn(inc && h.type !== 'Stocks (unvested)'));
   if (i) {
     body += sec(t('dSheet'));
@@ -832,6 +910,7 @@ function holdingDetails(x: Slot): void {
     if (i.style) body += row(t('dStyle'), esc(i.style));
     if (i.depositFeePct != null) body += row(t('dDepF'), pct(i.depositFeePct));
     if (i.managementFeePct != null) body += row(t('dMgmF'), pct(i.managementFeePct));
+    body += costRows(i.expectedCost);
     if (i.lastUpdated) body += row(t('dUpd'), esc(i.lastUpdated));
   }
   if (i?.depositFeePct != null || i?.managementFeePct != null) body += `<div class="dnote">${t('dFeesN')}</div>`;
@@ -849,10 +928,129 @@ function holdingDetails(x: Slot): void {
   if (target && data.grants) body += grantsSection(target, data.grants);
   else if (target) body += `<div class="dnote">${t('grNoTab')}</div>`;
   const sub = [ty(h.type), h.vendor, h.owner].filter(Boolean).map(esc).join(' · ');
+  if (!h.synthetic && h.row) body = `<div class="dlg-top"><button type="button" class="s" id="hEdit">✏️ ${t('edEdit')}</button></div>` + body;
   openDialog(h.synthetic ? t('sre') : h.name, sub, body);
+  if (!h.synthetic && h.row) $('hEdit').addEventListener('click', () => holdingForm(h));
   if (withDeposits) $('dpS').addEventListener('click', () => addDeposit(h));
   if (real && g === 'bank') $('bvS').addEventListener('click', () => updateValue(h));
   if (target && data.grants) $('grS').addEventListener('click', () => addGrant(h, target));
+}
+
+// ---------- edit holdings (SPEC 12.19) ----------
+
+const CURRENCIES = ['ILS', 'USD', 'EUR'];
+const GROUP_KEYS = ['', 'study_fund', 'fund', 'trading', 'bank', 'stocks'];
+const TAXES = ['none', 'capital_gain', 'income'];
+
+function fieldInput(f: Field, v: string, locked: boolean): string {
+  const id = 'hf_' + f.key;
+  const dis = locked ? ' disabled' : '';
+  const opt = (vals: string[], label: (x: string) => string) =>
+    `<select id="${id}"${dis}>${vals.map((x) => `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(label(x))}</option>`).join('')}</select>`;
+  let input: string;
+  if (f.kind === 'type') input = opt(HOLDING_TYPES, ty);
+  else if (f.kind === 'currency') input = opt(CURRENCIES, (x) => x);
+  else if (f.kind === 'group') input = opt(GROUP_KEYS, (x) => (x ? t(('grp_' + x) as 'grp_fund') : t('edAuto')));
+  else if (f.kind === 'tax') input = opt(TAXES, (x) => t(x === 'capital_gain' ? 'taxCg' : x === 'income' ? 'taxInc' : 'taxNone'));
+  else if (f.kind === 'bool') input = `<label class="dpck"><input type="checkbox" id="${id}"${v === '' || v === '1' || v === 'true' ? ' checked' : ''}${dis}> ${t('yes')}</label>`;
+  else input = `<input type="${f.kind === 'num' ? 'number' : 'text'}" id="${id}" value="${esc(v)}"${f.kind === 'num' ? ' inputmode="decimal" step="any"' : ''}${dis}>`;
+  return `<label for="${id}">${t(('hf_' + f.key) as 'hf_name')}${f.required ? ' *' : ''}${locked ? ` <span class="lbl">${t('edFormula')}</span>` : ''}</label>${input}`;
+}
+
+/** Add (h = null) or edit a holding: main fields first, the rest under "More fields". */
+async function holdingForm(h: Holding | null): Promise<void> {
+  if (!data) return;
+  const header = data.headers.holdings;
+  const raw = h?.row ? data.holdingsRows[h.row - 1] ?? [] : [];
+  const val = (k: string) => {
+    const i = header.indexOf(k);
+    const v = i >= 0 ? raw[i] : undefined;
+    return v == null ? '' : String(v);
+  };
+  openDialog(h ? t('edTitle', { n: h.name }) : t('edAddT'), '', `<div class="dnote">${t('loading')}</div>`);
+  let locked = new Set<string>();
+  const c = deps.client();
+  if (h?.row && c && !deps.demo()) {
+    try {
+      locked = await formulaKeys(c, data, h.row);
+    } catch (e) {
+      $('dlgB').innerHTML = `<div class="dnote bad">${esc(errorText(e))}</div>`;
+      return;
+    }
+  }
+  const shown = HOLDING_FIELDS.filter((f) => header.includes(f.key));
+  const missing = HOLDING_FIELDS.filter((f) => f.required && !header.includes(f.key)).map((f) => f.key);
+  const init = (f: Field) => (h ? val(f.key) : f.key === 'currency' ? 'ILS' : f.key === 'type' ? 'Investment fund' : f.key === 'include_in_total' ? '1' : '');
+  const box = (fs: Field[]) => fs.map((f) => `<div>${fieldInput(f, init(f), locked.has(f.key))}</div>`).join('');
+  $('dlgB').innerHTML = (missing.length ? `<div class="dnote bad">${t('eCol', { c: missing.join(', '), t: 'Holdings' })}</div>` : '')
+    + `<div class="hform">${box(shown.filter((f) => f.main))}</div>`
+    + `<details class="dpl"><summary>${t('edMore')}</summary><div class="hform">${box(shown.filter((f) => !f.main))}</div></details>`
+    + (locked.size ? `<div class="dnote">${t('edFormulaN')}</div>` : '')
+    + `<div class="dlg-btns"><button type="button" id="hfSave"${missing.length ? ' disabled' : ''}>${t('edSave')}</button><button type="button" class="s" id="hfCancel">${t('edCancel')}</button></div>`
+    + (h ? `<div class="dlg-btns"><button type="button" class="s bad" id="hfRemove">${t('edRemove')}</button></div>` : '')
+    + `<div class="dnote" id="hfMsg" aria-live="polite"></div>`;
+  $('dlgB').scrollTop = 0;
+  // A new holding's tax type follows its type until the user picks one.
+  if (!h && header.includes('tax_type')) {
+    const sync = () => ($<HTMLSelectElement>('hf_tax_type').value = defaultTax($<HTMLSelectElement>('hf_type').value));
+    sync();
+    $('hf_type').addEventListener('change', sync);
+  }
+  $('hfCancel').addEventListener('click', () => (h ? reopenHolding(h.id) : $<HTMLDialogElement>('dlg').close()));
+  $('hfSave').addEventListener('click', () => {
+    const values: Record<string, string> = {};
+    for (const f of shown) {
+      if (locked.has(f.key)) continue;
+      const e = $<HTMLInputElement>('hf_' + f.key);
+      values[f.key] = f.kind === 'bool' ? (e.checked ? '1' : '0') : e.value;
+    }
+    const bad = shown.find((f) => f.required && !locked.has(f.key) && !values[f.key].trim());
+    if (bad) {
+      $('hfMsg').textContent = t('edNeed', { f: t(('hf_' + bad.key) as 'hf_name') });
+      return;
+    }
+    void formSave('hfSave', 'hfMsg', async (cl) => {
+      const id = h ? (await saveHolding(cl, data!, h, values), h.id) : await addHolding(cl, data!, values);
+      return id ?? null;
+    });
+  });
+  if (h)
+    $('hfRemove').addEventListener('click', () => {
+      if (!confirm(t('edRemoveQ', { n: h.name }))) return;
+      void formSave('hfRemove', 'hfMsg', async (cl) => {
+        await removeHolding(cl, data!, h);
+        return null;
+      });
+    });
+}
+
+/** Runs a write from a form, reloads the sheet, and reopens the holding (or closes the window). */
+async function formSave(btn: string, msgId: string, fn: (c: SheetsClient) => Promise<string | null>): Promise<void> {
+  if (deps.demo()) {
+    $(msgId).textContent = t('demoNoSave');
+    return;
+  }
+  const c = deps.client();
+  if (!c || !data) return;
+  inp(btn).disabled = true;
+  $(msgId).textContent = t('wr');
+  try {
+    const id = await fn(c);
+    await load();
+    if (id) reopenHolding(id, t('edSaved'));
+    else $<HTMLDialogElement>('dlg').close();
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    $(msgId).textContent = errorText(e);
+    inp(btn).disabled = false;
+  }
+}
+
+function reopenHolding(id: string | undefined, note?: string): void {
+  const x = holdRows.find((s) => s.h.id === id);
+  if (!x) return $<HTMLDialogElement>('dlg').close();
+  holdingDetails(x);
+  if (note) $('dlgB').insertAdjacentHTML('afterbegin', `<div class="dnote ok">${esc(note)}</div>`);
 }
 
 /** Grants go to the unvested holding with the same ticker, if there is one. */
@@ -930,6 +1128,27 @@ function addGrant(h: Holding, target: Holding): Promise<void> {
   return popupSave(h, 'grS', 'grM', (c) => saveGrant(c, data!, target, { date, shares, notes: inp('grO').value.trim() }), t('grSaved'));
 }
 
+/**
+ * The holding's own yearly return so far, from its deposits (each counted from its
+ * own date, money-weighted like XIRR) and today's value. Null without deposits.
+ */
+function ownReturn(h: Holding): number | null {
+  if (!h.id || !h.info || !data?.deposits) return null;
+  const ds = data.deposits.filter((d) => d.holdingId === h.id);
+  return ds.length ? impliedReturn(ds, h.info.amount, new Date()) : null;
+}
+
+/** The return as a pill on its own line under the name, greener the higher, redder the lower. */
+function retPill(h: Holding): string {
+  const r = ownReturn(h);
+  if (r == null) return '';
+  const p = r * 100;
+  // Strength 0.15–1: full green at +15%/year or more, full red at −10% or less.
+  const k = Math.min(1, Math.max(0.15, p >= 0 ? p / 15 : -p / 10));
+  const cls = (p >= 0 ? 'up' : 'down') + (k >= 0.55 ? ' strong' : '');
+  return `<div class="rpl"><span class="rp ${cls}" style="--k:${k.toFixed(2)}" title="${esc(t('rpT'))}">${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(1)}%</span></div>`;
+}
+
 const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const dayText = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(locale(), { day: 'numeric', month: 'short', year: 'numeric' });
 
@@ -978,7 +1197,9 @@ function pensionDetails(idx: number): void {
   const w = whatIf();
   let body = sec(t('dToday')) + row(t('dBal'), f(fd.balance)) + row(t('dMDep'), f(fd.monthlyDeposit))
     + row(t('dDepF'), pct(fd.depositFeePct)) + row(t('dAccF'), pct(fd.accumulationFeePct)) + row(t('dYRet'), pct(fd.returnPct))
+    + costRows(fd.expectedCost)
     + row(t('dCoef'), String(fd.coefficient)) + row(t('dStops'), yn(fd.stopsAtEarlyRetirement));
+  if (fd.fundNumber && fundIds(fd.fundNumber).length) body += tracksSection({ db: 'pensia', official: fd.official, ret: fd.returnPct, retSheet: fd.returnSheet, feeYours: fd.accumulationFeePct, feeLabel: 'ofFeeP' });
   if (bs) {
     const kEnd = bs.length - 1;
     const inf = (k: number) => (w.inflationOn ? Math.pow(1 + w.inflationRatePct / 100, k / 12) : 1);
@@ -1083,6 +1304,21 @@ function setInflation(on: boolean, redraw = true): void {
   if (redraw) render();
 }
 
+/** Turning inflation off: explain why it misleads, and only switch after a second tap. */
+function askInflationOff(): void {
+  const r = N('ir');
+  const y = (start?.year ?? new Date().getFullYear()) + 25;
+  const a = f(100000 / Math.pow(1 + r / 100, 25));
+  openDialog(t('ioffT'), '', `<p>${t('ioff1', { r: String(Math.round(r * 10) / 10), y, a })}</p><ul class="hwl"><li>${t('ioff2')}</li><li>${t('ioff3')}</li><li>${t('ioff4')}</li></ul>`
+    + `<div class="dlg-btns"><button type="button" id="ioffKeep">${t('ioffKeep')}</button><button type="button" class="s" id="ioffGo">${t('ioffGo')}</button></div>`);
+  const close = () => $<HTMLDialogElement>('dlg').close();
+  $('ioffKeep').addEventListener('click', close);
+  $('ioffGo').addEventListener('click', () => {
+    close();
+    setInflation(false);
+  });
+}
+
 /** Off: a yellow warning that the real picture is worse. On: a calm note. */
 function inflationBar(): void {
   const on = inflationOn();
@@ -1128,7 +1364,7 @@ function inflationHelp(): void {
 export function initApp(d: AppDeps): void {
   deps = d;
   ['sc', 'uv'].forEach((i) => $(i).addEventListener('change', render));
-  $('infl').addEventListener('click', () => setInflation(!inflationOn()));
+  $('infl').addEventListener('click', () => (inflationOn() ? askInflationOff() : setInflation(true)));
   ['ms', 'fc', 'gr', 'ir', 'cg', 'it', 'rd', 'ra', 'al', 'pg', 'pt', 'po'].forEach((i) => $(i).addEventListener('input', renderSoon));
   $('tm').addEventListener('input', tmView);
   $('inflHelp').addEventListener('click', inflationHelp);
@@ -1152,6 +1388,7 @@ export function initApp(d: AppDeps): void {
     e.stopPropagation();
     panelHelp(b.dataset.help!);
   }, true);
+  $('hAdd').addEventListener('click', () => holdingForm(null));
   $('ofc').addEventListener('click', (e) => {
     const tg = e.target as Element;
     const b = tg.closest<HTMLElement>('[data-ofp]');

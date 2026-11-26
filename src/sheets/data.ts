@@ -22,6 +22,8 @@ export interface SheetData {
   grants: Grant[] | null;
   /** Column order of the tabs the app writes to. */
   headers: { holdings: string[]; deposits: string[]; grants: string[] };
+  /** The Holdings tab as read (values), to fill the edit form. */
+  holdingsRows: Rows;
   fetchedAt: number;
 }
 
@@ -64,6 +66,7 @@ export function fromRows(title: string, tabs: string[], rows: Record<string, Row
         deposits: (rows.Deposits?.[0] ?? []).map((h) => String(h ?? '').trim()),
         grants: (rows.Grants?.[0] ?? []).map((h) => String(h ?? '').trim()),
       },
+      holdingsRows: rows.Holdings,
       fetchedAt: Date.now(),
     },
   };

@@ -12,10 +12,13 @@ Your numbers stay in **your own Google Sheet**. There is no server and no tracki
 |---|---|---|
 | **First time? Start here** | [Getting started](docs/START.md) | [איך מתחילים](docs/START.he.md) |
 | Full user guide | [User guide](docs/MANUAL.md) | [המדריך המלא](docs/MANUAL.he.md) |
+| Taxes, returns and assumptions | [Taxes](docs/TAXES.md) | [מסים](docs/TAXES.he.md) |
 
 To just look around, open the app and tap **Explore with example data**. No sign-in is needed.
 
 ## Running your own copy
+
+**Want your own version to change freely?** Start from [`HANDOVER.md`](HANDOVER.md): give it to your AI coding assistant as the first message. It explains how to fork the code and set up your own app, sign-in and sheet without affecting this one.
 
 [`docs/SETUP.md`](docs/SETUP.md) covers publishing on GitHub Pages, creating the Google sign-in and adding friends as testers.
 
@@ -26,7 +29,7 @@ To just look around, open the app and tap **Explore with example data**. No sign
 - Spec (single source of truth): [`docs/SPEC.md`](docs/SPEC.md); section 12 covers everything added since (recurring goals, loans, languages, Ask AI, beta channel, deposits, holding groups, grants, official fund data, charts).
 - Notes for Claude Code sessions (release flow, rules): [`CLAUDE.md`](CLAUDE.md).
 - Behavioural reference: [`reference/prototype.html`](reference/prototype.html) (personal data removed).
-- Plan and open decisions: [`docs/PLAN.md`](docs/PLAN.md).
+- Design notes (stack, layout, tests, model decisions): [`docs/PLAN.md`](docs/PLAN.md).
 - Example data: `src/example.ts` (a made-up household); try it at `<app url>?example`.
 
 ### Layout
@@ -35,7 +38,7 @@ To just look around, open the app and tap **Explore with example data**. No sign
 |---|---|
 | `src/model/` | Pure calculation logic (simulation, goals, loans, free money, pension, sheet parsing). No DOM, no network. |
 | `src/sheets/` | Google sign-in (popup, redirect fallback), Sheets API client, sheet check, and every write (each behind a Save button). |
-| `src/storage.ts` | What the phone keeps: sheet ID, client ID, language, UI choices and (if added) the Gemini key. Never the token or financial data. |
+| `src/storage.ts` | What the phone keeps: saved sheets (ID + nickname), client ID, language, UI choices and (if added) the Gemini key. Never the token or financial data. |
 | `src/official/` | Official fund data from data.gov.il (Gemel-Net, Bituach-Net) by fund number; memory only. |
 | `src/ai/` | Ask AI (Gemini, the user's own key): prompt and context. |
 | `src/ui/` | Panels, chart, popups, English/Hebrew strings (every string must exist in both). |

@@ -72,6 +72,18 @@ export class SheetsClient {
     return { title: j.properties.title, tabs: j.sheets.map((s) => s.properties.title) };
   }
 
+  /** One row as typed in the sheet (formulas as their text, e.g. "=SUM(...)"). */
+  async rowFormulas(range: string): Promise<Rows[number]> {
+    const j = await this.call<{ values?: Rows }>('/values/' + encodeURIComponent(range) + '?valueRenderOption=FORMULA');
+    return j.values?.[0] ?? [];
+  }
+
+  /** Writes several ranges in one request. */
+  async batchUpdate(data: { range: string; values: Rows }[]): Promise<void> {
+    if (!data.length) return;
+    await this.call('/values:batchUpdate', { method: 'POST', body: JSON.stringify({ valueInputOption: 'USER_ENTERED', data }) });
+  }
+
   /** Reads several ranges; numbers come back as numbers. */
   async batchGet(ranges: string[]): Promise<Rows[]> {
     const q = new URLSearchParams({ valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'FORMATTED_STRING' });

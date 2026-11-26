@@ -62,7 +62,8 @@ export function parseSettings(rows: Rows): Settings {
     fx: { ILS: 1, USD: usd, EUR: num(S.EUR) || 1 },
     usd,
     returnFactors,
-    inflationEnabled: num(S.inflation_enabled) === 1 || /^true$/i.test(S.inflation_enabled ?? ''),
+    // Blank = on. (The app itself always starts with inflation on; see SPEC 12.18.)
+    inflationEnabled: blank(S.inflation_enabled) || num(S.inflation_enabled) === 1 || /^true$/i.test(S.inflation_enabled ?? ''),
     inflationRatePct: num(S.inflation_rate_pct),
     monthlySaving: num(S.monthly_saving_ILS),
     yearlyFreeCash: num(S.yearly_free_cash_ILS),
@@ -79,7 +80,7 @@ export function parseSettings(rows: Rows): Settings {
     pensionDepositGrowthPct: num(S.pension_deposit_growth_pct),
     pensionExemptPct: numOr(S.pension_exempt_pct, 67),
     pensionExemptCeiling: numOr(S.pension_exempt_ceiling_ILS, 9430),
-    pensionTaxRatePct: numOr(S.pension_tax_rate_pct, 20),
+    pensionCreditPoints: numOr(S.pension_tax_credit_points, 2.25),
     oldAgeAllowance: num(S.old_age_allowance_ILS),
   };
 }
@@ -105,6 +106,7 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
         owner: String(x.owner ?? ''),
         type: String(x.type).trim(),
         ret: num(x.return_5y_avg_pct),
+        feePct: num(x.management_fee_pct),
         tax: taxType(x.tax_type),
         include: blank(x.include_in_total) ? true : num(x.include_in_total) === 1 || /^true$/i.test(String(x.include_in_total)),
         value,
@@ -123,6 +125,7 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
           notes: String(x.notes ?? '').trim(),
           fundNumber: String(x.fund_number ?? '').trim(),
           short: String(x.short_name ?? '').trim(),
+          expectedCost: String(x.expected_yearly_cost ?? '').trim(),
         },
       };
     });
@@ -130,25 +133,9 @@ export function parseHoldings(rows: Rows, fx: Record<string, number>): Holding[]
   return H;
 }
 
-/** Common Israeli fund and insurance companies → short labels. Public company names only. */
-const VENDOR_SHORT: [RegExp, string][] = [
-  [/migdal|מגדל/i, 'MG'], [/hachshara|הכשרה/i, 'HAC'], [/phoenix|פניקס/i, 'PHX'], [/analyst|אנליסט/i, 'ANL'],
-  [/\bmor\b|^מור/i, 'MOR'], [/yelin|ילין/i, 'YL'], [/meitav|מיטב/i, 'MTV'], [/altshuler|אלטשולר/i, 'ALT'],
-  [/psagot|פסגות/i, 'PSG'], [/harel|הראל/i, 'HRL'], [/clal|כלל/i, 'CLL'], [/menora|מנורה/i, 'MNR'],
-  [/more|מור/i, 'MOR'], [/infinity|אינפיניטי/i, 'INF'], [/ibi|אי בי אי/i, 'IBI'], [/excellence|אקסלנס/i, 'EXL'],
-];
-
-/**
- * A short chart label: the short_name column, else the vendor's short form plus
- * the last digits shown in the name (e.g. "Fund ...6256" → "PHX 6256"), else the owner's initial.
- */
+/** A short chart label: the short_name column if filled, else the holding's own name. */
 export function shortName(h: Holding): string {
-  if (h.info?.short) return h.info.short;
-  const v = h.vendor.trim();
-  const ab = VENDOR_SHORT.find(([re]) => re.test(v))?.[1] ?? (v ? v.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 3).toUpperCase() : '');
-  const digits = /(\d{3,})\s*$/.exec(h.name)?.[1]?.slice(-4) ?? '';
-  const tail = digits || (h.owner ? h.owner.trim().charAt(0).toUpperCase() : '');
-  return [ab || h.name.slice(0, 6), tail].filter(Boolean).join(' ');
+  return h.info?.short || h.name;
 }
 
 /** The holding's group: the `group` column if it names one, else from the type. */
@@ -169,7 +156,7 @@ export function reinvestmentHolding(H: Holding[]): Holding {
   for (const h of H) {
     if (INVEST_TYPES.includes(h.type) && h.value > 0) {
       w += h.value;
-      wr += h.value * h.ret;
+      wr += h.value * (h.ret - (h.feePct ?? 0));
     }
   }
   return {
@@ -200,6 +187,8 @@ export function parsePension(rows: Rows): PensionFund[] {
       returnPct: num(x.yearly_return_pct),
       coefficient: num(x.conversion_coefficient) || 200,
       stopsAtEarlyRetirement: blank(x.stops_at_early_retirement) ? true : num(x.stops_at_early_retirement) === 1 || /^true$/i.test(String(x.stops_at_early_retirement)),
+      fundNumber: String(x.fund_number ?? '').trim(),
+      expectedCost: String(x.expected_yearly_cost ?? '').trim(),
     }));
 }
 

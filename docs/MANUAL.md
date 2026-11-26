@@ -30,12 +30,14 @@ You'll see a made-up household. Change things, tap rows, move the slider; nothin
 Always open the app from its icon.
 
 ### c. Connect
-1. Paste your sheet's link (in Google Sheets: **Share** → **Copy link**) → **Continue**.
+1. Paste your sheet's link (in Google Sheets: **Share** → **Copy link**), give it a short **nickname** (e.g. *Home*) → **Continue**.
 2. Tap **Continue with Google** → choose your account.
 3. Google shows **"Google hasn't verified this app"**. That's normal for a private app: tap **Advanced** → **Go to Finance Planner** → **Continue**.
 4. The **Sheet check** shows what was found. When everything has a ✓, tap **Open the planner**.
 
 Next time: open the icon → **Continue with Google**. You sign in again each time on purpose; the app keeps no login on the phone.
+
+**Several sheets** (for example your own and your parents'): the nickname of the open sheet is shown at the top. Tap it to switch sheets, **Add a sheet** (link + nickname) or **Rename this sheet**. Each sheet is checked once the first time you open it. You need to be signed in with a Google account that can open the sheet. **Remove this sheet** (bottom) takes it off the list; the sheet itself isn't touched.
 
 ---
 
@@ -46,14 +48,14 @@ The screen has four sections: **Quick look** (your money today, projection), **Y
 | Panel | What it tells you |
 |---|---|
 | **Inflation bar** (top) | Yellow ⚠ while amounts are in future shekels; tap **Adjust for inflation** for today's money. **🤔** explains it. |
-| **Your money today** | Everything you have after tax (what you'd keep if you sold it all now), before tax, and after debts. Pension is not included. **Free to spend today**: how much you could spend now and still pay every goal, loan and early retirement on time and keep the rainy day fund. Tap **➕** at the bottom of the card for the colored bar showing where the rest is set aside. |
+| **Current status** | Everything you have after tax (what you'd keep if you sold it all now), with before tax and free to spend side by side below it, and after debts. Pension is not included. **Free to spend today**: how much you could spend now and still pay every goal, loan and early retirement on time and keep the rainy day fund. Tap **➕** at the bottom of the card for the colored bar showing where the rest is set aside. |
 | **Projection** | Your money over time. Move the slider to see any month. Dots mark goals: green = funded, red = short. The shaded band is early retirement. Below the graph, pick a return scenario (Optimistic, Moderate, Pessimistic). |
 | **Goals** | Each goal's date, amount and whether it's on track. Add a goal at the bottom; it can repeat (for example every year, or every 5 years). |
 | **Early retirement** | When you stop working, the monthly allowance until your pension, and whether your money lasts. Change the age and allowance here. See section 4. |
 | **Pension** | What your pension funds may pay per month, after tax. Kept separate from everything else. |
 | **Assumptions** | Saving per month, yearly extra cash, inflation rate, tax rates and the rainy day fund. Changes are "what if" only. |
 | **Loans** | Each loan: what you still owe (at the date on the slider), the payment plan and whether it's on track. Only shown if your sheet has a Loans tab with loans. |
-| **Holdings** | Your money today by type (before tax), then every account at the date on the slider, in sections (study funds, funds and savings, trading accounts, bank, stocks, pension): tap a section's header to open or close it. At the bottom, the **Official returns** chart compares your funds' official returns (see section 6). |
+| **Holdings** | An **Overview** at the top (seen when the panel is open): a donut of your money today by type (before tax) with its list, and **Exposure**: how much is in stocks and how much is abroad or in a foreign currency, with an *Unknown* part for accounts the app has no data for. Then every account at the date on the slider, in sections (study funds, funds and savings, trading accounts, bank, stocks, pension): tap a section's header to open or close it. Under each account's name, a **%** shows its own yearly return so far, worked out from its deposits (each from its own date) to today's value: greener the higher, red if it lost money. It's shown only for accounts with deposits. At the bottom, the **Official returns** chart compares your funds' official returns (see section 6). |
 
 **Tap any holding, loan or goal** for details. A holding's window also lets you add a deposit (funds and trading accounts), update the balance (bank) or add a share grant (stocks).
 
@@ -100,20 +102,25 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 ## 6. Good to know
 
 - **Your sheet is the source of truth.** Edit numbers in Google Sheets, then tap **Reload** in the app.
-- **The app writes to your sheet only when you tap a Save button**: new goals, the rainy day fund, retirement age and allowance, new deposits, a bank balance, and share grants. Nothing else, never automatically.
+- **The app writes to your sheet only when you tap a Save button**: new goals, the rainy day fund, retirement age and allowance, new deposits, a bank balance, share grants, and holdings you add, edit or remove. Nothing else, never automatically.
+- **Edit holdings in the app:** tap a holding → **✏️ Edit** to change its fields (main ones first, the rest under *More fields*), or **Remove** it. **➕ Add holding** is at the bottom of the Holdings panel. Fields your sheet calculates with a formula are greyed out and never overwritten. Adding uses the first empty row after your last holding (your formulas there keep working), and removing clears the holding's typed cells without deleting the row, so nothing else in your sheet breaks.
 - **"What if" changes** in Assumptions only change the screen. To keep them, change the sheet.
-- **Returns** use each account's 5-year average return, scaled by the scenario (Moderate = 75% of it).
+- **Returns** use each account's official 5-year average return when it has a fund number (otherwise your `return_5y_avg_pct`), scaled by the scenario (Moderate = 75% of it), **minus your own management fee** (`management_fee_pct`): official returns are before it, so a lower fee shows up as more growth.
+- **Taxes:** capital gains tax (25%) is on the gain you sell; with inflation on, only on the real gain (above inflation). Study funds are tax free. The early-retirement allowance is your own money, so the only tax is on the gains sold to pay it. **Pension tax** follows the 2026 rules per person: 67% of the pension up to ₪9,430 a month is tax free (from 2028), the rest goes through the income tax brackets, less your credit points (`pension_tax_credit_points`, 2.25 by default; 2.75 for a woman). It's worked out in today's money.
 - **Rainy day fund** counts in your totals but is never spent.
 - **Repeating goals** (Goals tab: `repeat_every_years`, `repeat_until_year`): each time is checked on its own, so you'll see if, say, the 2031 vacation is short.
 - **Loans** (optional Loans tab): money you owe, paid in monthly installments or in one payment on a date. Repayments come out of your money like goals do. Your totals don't subtract loans; the **After debts** line does.
 - **Deposits** (optional Deposits tab: `deposit_id`, `holding_id`, `date`, `amount`, `currency`, `notes`): tap a holding to see its deposits, the yearly return they add up to so far, and a form to add a deposit. Saving adds a row to Deposits, adds the amount to the holding's `deposited_amount` (unless that cell is a formula, which updates itself), and, if you leave the box ticked, to its `current_amount`.
-- **Holding groups** (Holdings `group` column: `study_fund`, `fund`, `trading`, `bank`, `stocks`; blank = from the type): the Holdings panel shows one section per group (tap a section's header to open or close it; the app remembers), an **Official returns** chart at the bottom comparing all holdings with a fund number (choose 5 years, 3 years or since January; columns are coloured by type and labelled with a short name such as `PHX 1234`, or your own `short_name` column; tap a column to highlight that holding in the list), and tapping a holding offers what fits its group:
+- **Holding groups** (Holdings `group` column: `study_fund`, `fund`, `trading`, `bank`, `stocks`; blank = from the type): the Holdings panel shows one section per group (tap a section's header to open or close it; the app remembers), an **Official returns** chart at the bottom comparing all holdings with a fund number (choose 5 years, 3 years or since January; columns are coloured by vendor (each vendor keeps its colour) and labelled with the holding name (keep names short, e.g. `GL.ABC...1234`), or your own `short_name` column; tap a column to highlight that holding in the list), and tapping a holding offers what fits its group:
   - Study funds: details only.
   - Funds and trading accounts: deposits, and adding a deposit.
   - Bank: update the balance.
   - Intel stocks: share grants (optional Grants tab: `grant_id`, `holding_id`, `date`, `shares`, `notes`). Adding one also adds the shares to the unvested holding's `quantity`.
-- **Fund number** (Holdings `fund_number`, the official fund or track number): for study funds and funds, the app looks it up in the Finance Ministry's public data (Gemel-Net; Bituach-Net for savings plans) and shows the official returns, fees and stock exposure. The projection then uses the official 5-year average instead of `return_5y_avg_pct`. Your fees still come from your sheet. Several numbers (e.g. `101, 202`) mean the money is split evenly between those tracks. A savings plan's track can also be another company's provident fund: if it isn't in Bituach-Net, the app looks in Gemel-Net. A track with no 5-year figure, or one not found, uses your `return_5y_avg_pct`.
+- **Fund number** (Holdings `fund_number`, the official fund or track number): for study funds and funds, the app looks it up in the Finance Ministry's public data (Gemel-Net; Bituach-Net for savings plans) and shows the official returns, fees and stock exposure. The projection then uses the official 5-year average instead of `return_5y_avg_pct`. Your fees still come from your sheet. Several funds in one holding: write each with its share, e.g. `(101,25%),(202,75%)` (the older `101, 202` still works and means equal shares); the return is weighted by those shares. The same goes for **Pension** (`fund_number` there is looked up in Pensia-Net and replaces `yearly_return_pct` when a 5-year figure exists).
+- **Expected yearly cost** (`expected_yearly_cost`, Holdings and Pension): the yearly cost your provider quotes, as a % of the balance: the management fee plus the fund's own investment costs (brokers, external managers). One number, or one per fund in the same `(cost,share%)` form; `?` = not known yet. It's shown in the details window. It isn't subtracted again in the projection, because the official returns are already after these costs. A savings plan's track can also be another company's provident fund: if it isn't in Bituach-Net, the app looks in Gemel-Net. A track with no 5-year figure, or one not found, uses your `return_5y_avg_pct`.
 - **Liquid money** means accounts you can actually use: not pension, not shares that haven't vested.
+- **Inflation** is on by default: amounts are in today's money. Turning it off asks first, because everything then looks better than it really is.
+- **All the tax rules and assumptions** are explained in detail in [Taxes, returns and assumptions](TAXES.md).
 - It's a planning tool with simplified tax rules, not financial advice.
 
 ---
@@ -123,7 +130,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 - Your numbers go only between your phone and your Google Sheet.
 - The person who sent you the app **cannot** see your sheet or your numbers.
 - If you fill in `fund_number`, only those fund numbers are sent to data.gov.il (the government's public data site) to fetch public fund data. No amounts, names or account numbers.
-- The phone keeps only your sheet link, language and (if you add one) your Gemini key. **Forget this sheet** (bottom of the app) removes them.
+- The phone keeps only your sheets' IDs and nicknames, your language, a few display choices and (if you add one) your Gemini key. **Remove this sheet** (bottom of the app) takes one sheet off; removing the last one, or **Forget everything** on the first screen, clears it all.
 - Two optional exceptions to "only between your phone and your sheet": **fund numbers** go to data.gov.il as above, and **Ask AI** (see section 5).
 
 ---
@@ -136,7 +143,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 | "This file is an Excel file" | In Google Sheets: **File** → **Save as Google Sheets**, then use the new link. |
 | "This Google account cannot open the sheet" | Sign in with the Google account that owns the sheet. |
 | Sheet check shows ✗ | Fix that tab or column name in the sheet exactly as shown, then **Check again**. |
-| Sign-in window doesn't open | Tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
+| Sign-in window doesn't open | On the sign-in screen, tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
 | Ask AI: "prepayment credits are depleted" (402) | The key's Google project is on paid billing with no credit. In AI Studio (ai.studio/projects) create a new project without billing and a key in it, or add credit. |
 | Ask AI: "busy" (503) | Google's free AI is overloaded for a moment; the app already tried other models. Your key is fine: try again in a minute. |
 | No official data for a fund ("not found") | Check the number in `fund_number`: it's the fund's or track's official number (on your statement or the provider's site). Several tracks: separate them with commas. |

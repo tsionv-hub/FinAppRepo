@@ -21,14 +21,14 @@ Single source of truth. `reference/prototype.html` is the working prototype: whe
 Rows in Settings are found by key; columns in other tabs by header name (column order is free). Numbers may contain commas. Use unformatted values.
 
 ### 3.1 Settings (A key, B value, C notes)
-base_currency (ILS), display_currency (ILS/USD/EUR; bottom-line only), inflation_enabled (0/1), inflation_rate_pct, start_date (app uses the current month), FX rows USD and EUR (rate to ILS, live via GOOGLEFINANCE in the sheet), monthly_saving_ILS, yearly_free_cash_ILS, yearly_intel_grant_USD (a value, not shares), capital_gains_tax_pct (25), income_tax_pct (50), intel_vest_years (4), intel_vest_every_months (6), birth_year, retirement_age, pre_retirement_allowance_ILS (monthly), pension_start_age (67), pension_deposit_growth_pct, pension_exempt_pct, pension_exempt_ceiling_ILS, pension_tax_rate_pct, old_age_allowance_ILS, return_factor_optimistic (1), return_factor_moderate (0.75), return_factor_pessimistic (0.5).
+base_currency (ILS), display_currency (ILS/USD/EUR; bottom-line only), inflation_enabled (0/1), inflation_rate_pct, start_date (app uses the current month), FX rows USD and EUR (rate to ILS, live via GOOGLEFINANCE in the sheet), monthly_saving_ILS, yearly_free_cash_ILS, yearly_intel_grant_USD (a value, not shares), capital_gains_tax_pct (25), income_tax_pct (50), intel_vest_years (4), intel_vest_every_months (6), birth_year, retirement_age, pre_retirement_allowance_ILS (monthly), pension_start_age (67), pension_deposit_growth_pct, pension_exempt_pct, pension_exempt_ceiling_ILS, pension_tax_credit_points (2.25), old_age_allowance_ILS, return_factor_optimistic (1), return_factor_moderate (0.75), return_factor_pessimistic (0.5).
 
 ### 3.2 Holdings
 id, name, vendor, account_number, owner, type, investment_style, investment_track, currency, current_amount, deposited_amount, return_5y_avg_pct, deposit_fee_pct, management_fee_pct, tax_type, include_in_total, ticker, quantity, available_from, opened_date, last_updated, notes; then computed convenience columns (the app ignores them and computes itself).
 - `type`: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). Pension is not in this tab.
 - `tax_type`: none, capital_gain, income (blank = none). `include_in_total`: 1/0 (blank = 1).
 - Value ILS = current_amount × FX of currency. Deposited ILS = deposited_amount × FX; blank = value (gain 0).
-- **return_5y_avg_pct is the return used** (blank = 0). `yearly_return_pct` no longer exists. Fees are stored, not used in projections yet.
+- **The return used** is the official 5-year average when the holding has a fund number with one (12.12), else `return_5y_avg_pct` (blank = 0). In both cases it is before the personal management fee, so the projection uses return × scenario factor − `management_fee_pct` (12.17).
 - Stock rows: current_amount is a sheet formula quantity × GOOGLEFINANCE(ticker,"price"); the app only reads numbers and never calls a market API.
 - Never display or log full account numbers; the app does not need them.
 
@@ -78,7 +78,7 @@ Starts January of birth_year + retirement_age (at earliest next year) until Dece
 When enabled, goal amounts, allowance and rainy day fund are in today's money and inflated by (1 + rate)^(k/12) at each check; displayed projections are divided by the same factor.
 
 ### 5.10 Pension panel
-Separate from totals, goals and free money. Per fund: monthly deposit (growing by pension_deposit_growth_pct) net of deposit fee; yearly accumulation fee on the balance applied monthly; interest at the fund's return; deposits stop in January of the retirement year when stops_at_early_retirement = 1; interest continues until pension_start_age. Monthly pension = balance ÷ conversion_coefficient. Tax: exempt share pension_exempt_pct up to pension_exempt_ceiling_ILS per month **per owner**, remainder taxed at pension_tax_rate_pct. Show total at pension age, monthly pension pre-tax and after tax, and the share of the retirement allowance covered (plus optional old-age allowance). Inflation toggle shows today's money.
+Separate from totals, goals and free money. Per fund: monthly deposit (growing by pension_deposit_growth_pct) net of deposit fee; yearly accumulation fee on the balance applied monthly; interest at the fund's return; deposits stop in January of the retirement year when stops_at_early_retirement = 1; interest continues until pension_start_age. Monthly pension = balance ÷ conversion_coefficient. Tax: exempt share pension_exempt_pct up to pension_exempt_ceiling_ILS per month **per owner**, remainder taxed with the income tax brackets less pension_tax_credit_points (12.17). Show total at pension age, monthly pension pre-tax and after tax, and the share of the retirement allowance covered (plus optional old-age allowance). Inflation toggle shows today's money.
 
 ### 5.11 Free money
 Largest post-tax amount X removable from liquid holdings now such that every remaining goal and the retirement withdrawals stay funded and the rainy day fund stays intact. Upper bound = liquid post-tax − rainy day fund. Bisection (24 iterations now, 14 for the curve), removing X proportionally and re-simulating the future. Future saving and growth count, so a future shortfall that they close does not reduce today's free money. If 0 because goals cannot be met, show the extra monthly saving needed (bisection up to ₪1M); if one goal limits it, name it. Free money curve: monthly snapshots, evaluated every 3 months (every 6 when horizon beyond 2040); after the last goal and full vesting it follows the post-tax curve at a roughly constant distance.
@@ -154,7 +154,7 @@ When every eligible account is empty, monthly saving and yearly cash are split e
 - Every panel has a 🤔 button with a short explanation (it never opens or closes the panel). Panels are grouped as Today / Your plans / Details & settings, with a sticky jump bar; closed panels show a key value in their header (status badge, total, next date).
 
 ### 12.6 Sections (v1.8)
-Quick look (your money today, projection) · Your money & goals (holdings with money by type on top, goals, loans) · Retirement & pension (early retirement, pension) · Settings (assumptions). The Next goals panel was removed. Only the projection starts open.
+Quick look (current status, projection) · Your money & goals (holdings with money by type on top, goals, loans) · Retirement & pension (early retirement, pension) · Settings (assumptions). The Next goals panel was removed. Only the projection starts open.
 
 ### 12.7 Ask AI (v1.9, optional, opt-in)
 A floating 💬 Ask AI button opens a chat with Google Gemini, using each user's own free Gemini API key (stored on the phone only; Remove AI key and Forget this sheet delete it). First use: a red privacy warning that must be accepted (question and sheet numbers go to Google; free-tier data may be used to improve Google's AI; the developer sees nothing; account numbers are never sent), then step-by-step key setup with a test call (any key format is accepted; Google's answer decides; the setup screen reopens when the user returns from AI Studio). Later: a short 🥱🧑‍⚖️ reminder once per app opening, with "Don't show again" from the 4th time. Each question sends the sheet data, the app's own results and the user guide; the conversation lives in memory only while the chat is open and nothing is stored. This is the one exception to section 1's "data only travels between the phone and the sheet", made at the user's explicit choice.
@@ -201,8 +201,7 @@ At the bottom of the Holdings panel, an "Official returns" chart compares every 
 
 Each column is labelled with a short name:
 - the optional Holdings `short_name`, if filled;
-- otherwise a short form of the vendor (a fixed list of public company names, e.g. Migdal → MG, Hachshara → HAC) plus the last 4 digits at the end of the holding name;
-- otherwise the owner's initial instead of the digits.
+- otherwise the holding name itself. (v1.24: the label used to be built from a vendor short form plus the last digits; now name your holdings short, e.g. `GL.ABC...1234`.)
 
 Tapping a column picks it:
 - the other columns dim;
@@ -210,3 +209,79 @@ Tapping a column picks it:
 - its row in the list is highlighted, and its group opens.
 
 Tapping the column again clears the pick. Redraws take the groups' open state from the screen, so a fast redraw doesn't undo a close.
+
+### 12.14 Several sheets on one phone (v1.18)
+The phone keeps a list of sheets in `sheets`: `[{id, nick}]`, holding only the sheet ID taken from the link and the user's nickname. It is meant for one person per phone. Access is still Google's: the signed-in account must be able to open the sheet.
+- **Adding a sheet:** a new link needs a nickname, up to 40 characters.
+- **Main screen:** the open sheet's nickname is shown at the top as a dropdown. It switches sheets, renames the current one (`prompt`) or adds one (setup screen). Reload sits at the end of that line (v1.25); when the dropdown is not shown (example mode), Reload stays on the "Updated" line.
+- **Setup screen:** lists the saved sheets to open.
+- **Sheet check:** shown once per sheet. `checked` is a list of sheet IDs; the older value `"1"` means the sheet that was current.
+- **Sheets from before v1.18:** a sheet already set up gets its sheet title as its nickname on the first load.
+- **Remove this sheet** (main screen) removes only the current one; removing the last sheet clears everything as before. **Forget everything** (setup screen) clears all.
+
+### 12.15 Own return in each holding's title (v1.19)
+A holding with deposits in the Deposits tab shows its own yearly return so far next to its name, as a pill.
+- **How it's calculated:** it is the same money-weighted figure as the popup's "Yearly return so far" (`impliedReturn`, like XIRR). Each deposit counts from its own date up to today's `current_amount`, in the holding's own currency.
+- **Colour:** green for positive, red for negative. The strength scales with the size: full strength at +15% a year or −10% a year, and white text at about 55% strength or more.
+- **When it's missing:** there is no pill without deposits, or with less than about two months of history.
+- **Example data:** an account that lost value shows the red case.
+
+### 12.16 Fund shares, expected yearly cost, Pensia-Net (v1.20)
+**Fund numbers with shares.** `fund_number` takes `(id,share%),(id,share%)`. The shares are scaled to add up to 100%. The older forms `id` and `id, id` (equal shares) still work.
+- A holding's return is Σ share × (official 5-year average, or the sheet's return for a fund without one).
+- The official-returns chart weights each fund's figure the same way.
+- The popups show each fund's share.
+
+**Pension tab.** It takes the optional `fund_number` and `expected_yearly_cost`. Pension fund numbers are looked up in Pensia-Net (resource `6d47d6b5-…`) in the same single request per database. `returnPct` becomes the weighted official 5-year average, falling back to `yearly_return_pct` for a fund without one. The pension popup shows the per-fund official data, with the fund-average accumulation fee next to the user's.
+
+**`expected_yearly_cost`** (Holdings and Pension, optional) is the provider's expected yearly cost. In Hebrew it is *שיעור עלות שנתית צפויה*: the management fee plus the fund's direct investment expenses, as a % of the balance. It is one value, or one per fund in the same `(value,share%)` form; `?` or a non-number means unknown.
+- The popups show the weighted total, or "not known" if any part is unknown, plus the parts.
+- It is not used in the projection: official returns are already net of these costs.
+- The open data on data.gov.il does not include direct investment expenses, so the app cannot fill in a `?`.
+
+### 12.17 Model corrections (v1.21)
+**Management fee.** Official Gemel-Net and Bituach-Net returns are after the fund's direct investment expenses but **before** the member's own management fee. The same is assumed for `return_5y_avg_pct`.
+- Each month a holding grows by (return × scenario factor − `management_fee_pct`) a year.
+- The Stock reinvestment holding uses the value-weighted net returns of the investment holdings.
+- `expected_yearly_cost` is display only. It already includes the direct expenses, so it is not subtracted.
+
+**Real capital gains.** With inflation on, the cost basis of `capital_gain` holdings rises with the inflation rate each month, so the 25% applies to the real gain only, as Israeli law does for these holdings. Foreign-currency holdings use the same rule as a simplification. With inflation off, the model assumes no inflation, so the basis stays.
+
+**Pension tax** is worked out per owner, in today's money (the pension at pension age ÷ inflation), because the ceiling, brackets and credit point move with the consumer price index.
+- **Exempt part:** min(pension, ceiling) × `pension_exempt_pct` is tax free (Amendment 190: 57.5% in 2026, 62.5% in 2027, 67% from 2028).
+- **The rest** is taxed with the 2026 monthly brackets: 10% to ₪7,010; 14% to ₪10,060; 20% to ₪19,000; 31% to ₪25,100; 35% to ₪46,690; 47% to ₪60,130; 50% above, including the 3% surtax.
+- **Credit points:** less `pension_tax_credit_points` × ₪242 (default 2.25). The old `pension_tax_rate_pct` key is no longer read.
+- **Not modelled:** health and national insurance on the pension; tax on the old-age allowance itself; spreading lump sums.
+
+**Pre-retirement allowance.** It is your own money, so no income tax. Each month it is taken from liquid holdings in proportion to their value. The tax on the gain sold, at capital gains rate or none for study funds, comes out with it, so the allowance is net.
+
+**Known simplifications, kept on purpose:**
+- The Intel shares' whole value is taxed at the marginal rate. Under section 102 the growth after the grant would be capital gain.
+- Withdrawals are proportional, not the most tax-efficient order.
+- An investment provident fund taken as an annuity after 60 is tax free; the model treats it as a lump-sum sale.
+- Projected returns: a fund with no official 5-year figure (a track under 5 years old) uses `return_5y_avg_pct`, not its 1–3-year history, which would overstate long-term growth.
+
+### 12.18 Inflation on by default; tax document (v1.22)
+- **Inflation:** the app always starts with inflation on, whatever `inflation_enabled` says (blank now also means on). Turning it off opens a dialog that explains why: savings look bigger, pension tax is too high, and capital gains are taxed in full. It offers "Keep it on" as the main button and "Turn off anyway". Turning it back on is one tap. Off is a what-if for the session and is never saved.
+- **Example household:** retires at 57 on ₪16,000 a month and saves ₪5,500 a month, so with inflation on the moderate scenario is still funded but limited by early retirement, and the pessimistic one is short.
+- **`docs/TAXES.md`** and **`TAXES.he.md`** explain every return and tax rule, the assumptions and what isn't modelled. They're linked from the manuals and READMEs.
+
+### 12.19 Editing holdings from the app (v1.23)
+The holding popup has **✏️ Edit**, and the Holdings panel has **➕ Add holding**.
+- **The form** shows the main fields (name, type, value, currency, owner, provider), with the rest under "More fields". Only columns that exist in the sheet appear. Required fields are name, type and value.
+- **Locked fields:** before editing, the app reads the row as typed (`valueRenderOption=FORMULA`). Formula cells are shown disabled and are never written.
+- **Save** writes the form's cells in one `values:batchUpdate`. If `current_amount` changed, it also sets `last_updated` to today.
+- **Add** goes to the first row after the last holding, with the next `H<n>` id and a default `tax_type` from the type. Formulas from the last holding's row are copied, row references moved, into cells that are empty in the new row, so the sheet's own calculated columns keep working. If that row isn't free, it appends instead.
+- **Remove** clears the row's typed cells and keeps the row and its formulas, so references elsewhere don't break. Deposits for the holding stay in the Deposits tab.
+- Typed text starting with `=` is stored as text, never as a formula.
+- Example mode saves nothing.
+
+**Next:** the same for goals, loans, pension funds, and saving Settings what-ifs.
+
+**v1.25 (first panel):** renamed "Current status" (Hebrew "מצב נוכחי"). Post-tax stays the big figure; below it, pre-tax and free to spend today sit side by side as two tiles (free in green); "after debts", when there are loans, takes a full-width tile under them. The ➕/➖ and 🤔 tip now comes before the inflation warning.
+
+**v1.26 (Holdings overview, vendor colours, inflation bar):**
+- Holdings panel, top, inside the panel (seen only when open): **Overview**. A donut of money by type (included holdings, before tax) with its list as legend and table; slices and list in a fixed type order, each type a fixed palette slot (8-slot categorical palette checked for colour-blind and normal-vision separation, light and dark; past 8 → grey "Other"). Then **Exposure**: two 100% bars, *Stocks* (in / not in / unknown) and *Abroad* (abroad or foreign currency / Israel / unknown), in money. Per holding: the official `STOCK_MARKET_EXPOSURE` / `FOREIGN_EXPOSURE` share (weighted by track) when there is one; else shares count as 100% stocks, cash as 0%; shares and cash count as abroad when their currency is not ILS; anything else is unknown. Pension is not included (`src/model/exposure.ts`).
+- Official returns chart: columns coloured **by vendor**. Vendors take slots in the order they first appear in the Holdings tab (among holdings with a fund number), so a vendor keeps its colour; from the 9th on, and holdings without a vendor, are grey "Other". The legend lists vendors.
+- Inflation bar, when on: "Turn off" and 🤔 sit side by side, so the bar is one line.
+

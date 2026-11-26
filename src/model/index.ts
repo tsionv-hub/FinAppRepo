@@ -5,3 +5,4 @@ export * from './engine';
 export * from './pension';
 export * from './params';
 export * from './deposits';
+export * from './exposure';

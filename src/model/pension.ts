@@ -13,7 +13,8 @@ export interface PensionInputs {
   depositGrowthPct: number;
   exemptPct: number;
   exemptCeiling: number;
-  taxRatePct: number;
+  /** Income tax credit points of each pension owner (2.25 for a resident; 2.75 for a woman). */
+  creditPoints: number;
   oldAgeAllowance: number;
   /** Monthly retirement allowance, for the coverage share. */
   allowance: number;
@@ -47,10 +48,37 @@ export interface PensionResult {
   coverage: number | null;
 }
 
-/** Monthly tax on a pension: part up to the ceiling is exempt at exemptPct. */
-export function pensionTax(monthly: number, exemptPct: number, ceiling: number, taxRatePct: number): number {
+/**
+ * Israeli income tax brackets, monthly ₪ (2026). Brackets, the credit point and the
+ * pension exemption ceiling are updated with the consumer price index, so the
+ * pension's tax is worked out in today's money.
+ */
+export const TAX_BRACKETS: [upTo: number, rate: number][] = [
+  [7010, 0.1], [10060, 0.14], [19000, 0.2], [25100, 0.31], [46690, 0.35], [60130, 0.47], [Infinity, 0.5],
+];
+/** Value of one income tax credit point, ₪ per month (2026). */
+export const CREDIT_POINT = 242;
+
+/** Monthly income tax on taxable income (today's money), after credit points. */
+export function incomeTax(taxable: number, creditPoints: number): number {
+  let tax = 0;
+  let from = 0;
+  for (const [upTo, rate] of TAX_BRACKETS) {
+    if (taxable <= from) break;
+    tax += (Math.min(taxable, upTo) - from) * rate;
+    from = upTo;
+  }
+  return Math.max(0, tax - creditPoints * CREDIT_POINT);
+}
+
+/**
+ * Monthly tax on one person's pension (today's money): the exempt share of the
+ * pension up to the ceiling (Amendment 190: 67% from 2028) is tax free, the rest is
+ * taxed with the income tax brackets, less the person's credit points.
+ */
+export function pensionTax(monthly: number, exemptPct: number, ceiling: number, creditPoints: number): number {
   const exempt = (Math.min(monthly, ceiling) * exemptPct) / 100;
-  return (Math.max(0, monthly - exempt) * taxRatePct) / 100;
+  return incomeTax(Math.max(0, monthly - exempt), creditPoints);
 }
 
 export function projectFund(f: PensionFund, x: PensionInputs, kEnd: number): FundProjection {
@@ -88,9 +116,10 @@ export function projectPension(funds: PensionFund[], x: PensionInputs): PensionR
   for (const p of proj) byOwner.set(p.fund.owner, (byOwner.get(p.fund.owner) ?? 0) + p.monthly);
   let pre = 0;
   let net = 0;
+  // Tax in today's money: the ceiling and brackets rise with prices (when inflation is off, prices don't rise).
   for (const m of byOwner.values()) {
     pre += m;
-    net += m - pensionTax(m, x.exemptPct, x.exemptCeiling, x.taxRatePct);
+    net += m - pensionTax(m / inf, x.exemptPct, x.exemptCeiling, x.creditPoints) * inf;
   }
   const sum = (fn: (p: FundProjection) => number) => proj.reduce((a, p) => a + fn(p), 0);
   return {
