@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   buildParams, defaultWhatIf, goalStep, initialSlots, liquidPostTax, monthAt, parseGoals, parseHoldings,
-  parsePension, parseSettings, pensionTax, projectPension, resolveGoals, retirementYear, run, simulate,
+  parsePension, parseSettings, pensionTax, incomeTax, netReturn, projectPension, resolveGoals, retirementYear, run, simulate,
   stepOf, taxOf, today, type Goal, type Holding, type Params,
 } from '../src/model';
 import { goalsRows, holdingsRows, pensionRows, settingsRows } from './fixture';
@@ -175,16 +175,40 @@ describe('totals', () => {
 });
 
 describe('pension', () => {
-  it('applies the exemption up to the ceiling', () => {
-    expect(pensionTax(5000, 67, 9430, 20)).toBeCloseTo(5000 * 0.33 * 0.2);
-    expect(pensionTax(20000, 67, 9430, 20)).toBeCloseTo((20000 - 9430 * 0.67) * 0.2);
+  it('taxes income with the 2026 brackets less credit points', () => {
+    expect(incomeTax(5000, 2.25)).toBe(0); // 500 tax, less 544.5 credit
+    expect(incomeTax(10000, 2.25)).toBeCloseTo(701 + 2990 * 0.14 - 2.25 * 242);
+    expect(incomeTax(20000, 0)).toBeCloseTo(701 + 3050 * 0.14 + 8940 * 0.2 + 1000 * 0.31);
+    expect(incomeTax(70000, 0)).toBeCloseTo(701 + 427 + 1788 + 6100 * 0.31 + 21590 * 0.35 + 13440 * 0.47 + 9870 * 0.5);
+  });
+
+  it('applies the exemption up to the ceiling, then the brackets', () => {
+    // 20,000 pension: 67% of 9,430 exempt, the rest taxed with brackets, 2.25 credit points.
+    expect(pensionTax(20000, 67, 9430, 2.25)).toBeCloseTo(incomeTax(20000 - 9430 * 0.67, 2.25));
+    expect(pensionTax(5000, 67, 9430, 2.25)).toBe(0); // small pension: no tax after credit points
+  });
+
+  it('works out pension tax in today\'s money when inflation is on', () => {
+    const funds = parsePension(pensionRows);
+    const base = {
+      start: START, birthYear: 1980, pensionStartAge: 67, depositGrowthPct: 0, exemptPct: 67, exemptCeiling: 9430,
+      creditPoints: 2.25, oldAgeAllowance: 0, allowance: 10000, retirementYear: null, inflationRate: 0.03,
+    };
+    const on = projectPension(funds, { ...base, inflationOn: true });
+    const kEnd = on.kEnd;
+    const inf = Math.pow(1.03, kEnd / 12);
+    // after-tax in today's money = each owner's pension in today's money less that tax
+    const byOwner = new Map<string, number>();
+    for (const p of on.funds) byOwner.set(p.fund.owner, (byOwner.get(p.fund.owner) ?? 0) + p.monthly / inf);
+    const net = [...byOwner.values()].reduce((a, m) => a + m - pensionTax(m, 67, 9430, 2.25), 0);
+    expect(on.monthlyAfterTax).toBeCloseTo(net, 6);
   });
 
   it('stops deposits at early retirement for flagged funds only and splits tax per owner', () => {
     const funds = parsePension(pensionRows);
     const base = {
       start: START, birthYear: 1980, pensionStartAge: 67, depositGrowthPct: 0, exemptPct: 67, exemptCeiling: 9430,
-      taxRatePct: 20, oldAgeAllowance: 0, allowance: 10000, inflationOn: false, inflationRate: 0,
+      creditPoints: 2.25, oldAgeAllowance: 0, allowance: 10000, inflationOn: false, inflationRate: 0,
     };
     const early = projectPension(funds, { ...base, retirementYear: 2035 });
     const none = projectPension(funds, { ...base, retirementYear: null });
@@ -192,7 +216,7 @@ describe('pension', () => {
     expect(early.funds[1].final).toBeLessThan(none.funds[1].final); // blank flag = stops
     expect(early.funds[2].final).toBeCloseTo(none.funds[2].final);
     const byOwner = { P1: early.funds[0].monthly + early.funds[2].monthly, P2: early.funds[1].monthly };
-    const net = Object.values(byOwner).reduce((a, m) => a + m - pensionTax(m, 67, 9430, 20), 0);
+    const net = Object.values(byOwner).reduce((a, m) => a + m - pensionTax(m, 67, 9430, 2.25), 0);
     expect(early.monthlyAfterTax).toBeCloseTo(net);
   });
 });
@@ -207,5 +231,29 @@ describe('params', () => {
     expect(p.yearlyGrant).toBeCloseTo(20000 * 3.7);
     expect(p.vestTranches).toBe(8);
     expect(p.stopYear).toBeNull();
+  });
+});
+
+describe('fees and real gains', () => {
+  it('takes the management fee off the scenario return', () => {
+    const h = { ret: 10, feePct: 0.6 } as Holding;
+    expect(netReturn(h, 1)).toBeCloseTo(9.4);
+    expect(netReturn(h, 0.75)).toBeCloseTo(6.9);
+    expect(netReturn({ ret: 10 } as Holding, 1)).toBe(10);
+  });
+
+  it('with inflation on, capital gains tax is on the real gain only', () => {
+    // One capital-gain holding that grows exactly with inflation: no real gain, so no tax.
+    const H = parseHoldings([
+      ['id', 'name', 'type', 'currency', 'current_amount', 'deposited_amount', 'return_5y_avg_pct', 'tax_type'],
+      ['H1', 'Fund', 'Investment fund', 'ILS', 100000, 100000, 3, 'capital_gain'],
+    ], { ILS: 1 });
+    const p = (inflationOn: boolean) => params({ inflationOn, inflationRate: 0.03, returnFactor: 1, monthlySaving: 0, yearlyFreeCash: 0, yearlyGrant: 0 });
+    const real = simulate(H, [], p(true));
+    const last = real.pts[real.pts.length - 1];
+    expect(last[1] - last[2]).toBeLessThan(1); // pre-tax ≈ post-tax
+    const nominal = simulate(H, [], p(false));
+    const l2 = nominal.pts[nominal.pts.length - 1];
+    expect(l2[1] - l2[2]).toBeGreaterThan(1000); // without inflation, the whole gain is taxed
   });
 });

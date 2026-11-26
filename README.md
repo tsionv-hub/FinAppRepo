@@ -26,7 +26,7 @@ To just look around, open the app and tap **Explore with example data**. No sign
 - Spec (single source of truth): [`docs/SPEC.md`](docs/SPEC.md); section 12 covers everything added since (recurring goals, loans, languages, Ask AI, beta channel, deposits, holding groups, grants, official fund data, charts).
 - Notes for Claude Code sessions (release flow, rules): [`CLAUDE.md`](CLAUDE.md).
 - Behavioural reference: [`reference/prototype.html`](reference/prototype.html) (personal data removed).
-- Plan and open decisions: [`docs/PLAN.md`](docs/PLAN.md).
+- Design notes (stack, layout, tests, model decisions): [`docs/PLAN.md`](docs/PLAN.md).
 - Example data: `src/example.ts` (a made-up household); try it at `<app url>?example`.
 
 ### Layout

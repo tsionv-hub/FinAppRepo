@@ -16,7 +16,7 @@ export interface WhatIf {
   retirementAge: number | null;
   allowance: number;
   pensionDepositGrowthPct: number;
-  pensionTaxRatePct: number;
+  pensionCreditPoints: number;
   oldAgeAllowance: number;
 }
 
@@ -35,7 +35,7 @@ export function defaultWhatIf(s: Settings, reserve: number): WhatIf {
     retirementAge: s.retirementAge,
     allowance: s.retirementAllowance,
     pensionDepositGrowthPct: s.pensionDepositGrowthPct,
-    pensionTaxRatePct: s.pensionTaxRatePct,
+    pensionCreditPoints: s.pensionCreditPoints,
     oldAgeAllowance: s.oldAgeAllowance,
   };
 }

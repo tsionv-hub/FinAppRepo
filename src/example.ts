@@ -36,7 +36,7 @@ export const EXAMPLE_TABS: Tab[] = [
       ['pension_deposit_growth_pct', 1],
       ['pension_exempt_pct', 67],
       ['pension_exempt_ceiling_ILS', 9430],
-      ['pension_tax_rate_pct', 20],
+      ['pension_tax_credit_points', 2.25],
       ['old_age_allowance_ILS', 2500],
       ['return_factor_optimistic', 1],
       ['return_factor_moderate', 0.75],

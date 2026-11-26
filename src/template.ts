@@ -47,7 +47,7 @@ export const TEMPLATE_TABS: Tab[] = [
       ['pension_deposit_growth_pct', 0, 'Yearly growth of pension deposits'],
       ['pension_exempt_pct', 67, 'Exempt share of the pension'],
       ['pension_exempt_ceiling_ILS', 9430, 'Monthly ceiling for the exemption, per person'],
-      ['pension_tax_rate_pct', 20, 'Tax on the taxable part of the pension'],
+      ['pension_tax_credit_points', 2.25, 'Income tax credit points per person for the pension tax (2.25 resident, 2.75 for a woman; more for children etc.)'],
       ['old_age_allowance_ILS', 0, 'Optional monthly old-age allowance'],
       ['return_factor_optimistic', 1, 'Multiplies every 5-year return'],
       ['return_factor_moderate', 0.75, 'Default scenario'],

@@ -21,14 +21,14 @@ Single source of truth. `reference/prototype.html` is the working prototype: whe
 Rows in Settings are found by key; columns in other tabs by header name (column order is free). Numbers may contain commas. Use unformatted values.
 
 ### 3.1 Settings (A key, B value, C notes)
-base_currency (ILS), display_currency (ILS/USD/EUR; bottom-line only), inflation_enabled (0/1), inflation_rate_pct, start_date (app uses the current month), FX rows USD and EUR (rate to ILS, live via GOOGLEFINANCE in the sheet), monthly_saving_ILS, yearly_free_cash_ILS, yearly_intel_grant_USD (a value, not shares), capital_gains_tax_pct (25), income_tax_pct (50), intel_vest_years (4), intel_vest_every_months (6), birth_year, retirement_age, pre_retirement_allowance_ILS (monthly), pension_start_age (67), pension_deposit_growth_pct, pension_exempt_pct, pension_exempt_ceiling_ILS, pension_tax_rate_pct, old_age_allowance_ILS, return_factor_optimistic (1), return_factor_moderate (0.75), return_factor_pessimistic (0.5).
+base_currency (ILS), display_currency (ILS/USD/EUR; bottom-line only), inflation_enabled (0/1), inflation_rate_pct, start_date (app uses the current month), FX rows USD and EUR (rate to ILS, live via GOOGLEFINANCE in the sheet), monthly_saving_ILS, yearly_free_cash_ILS, yearly_intel_grant_USD (a value, not shares), capital_gains_tax_pct (25), income_tax_pct (50), intel_vest_years (4), intel_vest_every_months (6), birth_year, retirement_age, pre_retirement_allowance_ILS (monthly), pension_start_age (67), pension_deposit_growth_pct, pension_exempt_pct, pension_exempt_ceiling_ILS, pension_tax_credit_points (2.25), old_age_allowance_ILS, return_factor_optimistic (1), return_factor_moderate (0.75), return_factor_pessimistic (0.5).
 
 ### 3.2 Holdings
 id, name, vendor, account_number, owner, type, investment_style, investment_track, currency, current_amount, deposited_amount, return_5y_avg_pct, deposit_fee_pct, management_fee_pct, tax_type, include_in_total, ticker, quantity, available_from, opened_date, last_updated, notes; then computed convenience columns (the app ignores them and computes itself).
 - `type`: Study fund, Investment fund, Savings plan, Brokerage, Cash, Stocks, Stocks (unvested). Pension is not in this tab.
 - `tax_type`: none, capital_gain, income (blank = none). `include_in_total`: 1/0 (blank = 1).
 - Value ILS = current_amount × FX of currency. Deposited ILS = deposited_amount × FX; blank = value (gain 0).
-- **return_5y_avg_pct is the return used** (blank = 0). `yearly_return_pct` no longer exists. Fees are stored, not used in projections yet.
+- **The return used** is the official 5-year average when the holding has a fund number with one (12.12), else `return_5y_avg_pct` (blank = 0). In both cases it is before the personal management fee, so the projection uses return × scenario factor − `management_fee_pct` (12.17).
 - Stock rows: current_amount is a sheet formula quantity × GOOGLEFINANCE(ticker,"price"); the app only reads numbers and never calls a market API.
 - Never display or log full account numbers; the app does not need them.
 
@@ -78,7 +78,7 @@ Starts January of birth_year + retirement_age (at earliest next year) until Dece
 When enabled, goal amounts, allowance and rainy day fund are in today's money and inflated by (1 + rate)^(k/12) at each check; displayed projections are divided by the same factor.
 
 ### 5.10 Pension panel
-Separate from totals, goals and free money. Per fund: monthly deposit (growing by pension_deposit_growth_pct) net of deposit fee; yearly accumulation fee on the balance applied monthly; interest at the fund's return; deposits stop in January of the retirement year when stops_at_early_retirement = 1; interest continues until pension_start_age. Monthly pension = balance ÷ conversion_coefficient. Tax: exempt share pension_exempt_pct up to pension_exempt_ceiling_ILS per month **per owner**, remainder taxed at pension_tax_rate_pct. Show total at pension age, monthly pension pre-tax and after tax, and the share of the retirement allowance covered (plus optional old-age allowance). Inflation toggle shows today's money.
+Separate from totals, goals and free money. Per fund: monthly deposit (growing by pension_deposit_growth_pct) net of deposit fee; yearly accumulation fee on the balance applied monthly; interest at the fund's return; deposits stop in January of the retirement year when stops_at_early_retirement = 1; interest continues until pension_start_age. Monthly pension = balance ÷ conversion_coefficient. Tax: exempt share pension_exempt_pct up to pension_exempt_ceiling_ILS per month **per owner**, remainder taxed with the income tax brackets less pension_tax_credit_points (12.17). Show total at pension age, monthly pension pre-tax and after tax, and the share of the retirement allowance covered (plus optional old-age allowance). Inflation toggle shows today's money.
 
 ### 5.11 Free money
 Largest post-tax amount X removable from liquid holdings now such that every remaining goal and the retirement withdrawals stay funded and the rainy day fund stays intact. Upper bound = liquid post-tax − rainy day fund. Bisection (24 iterations now, 14 for the curve), removing X proportionally and re-simulating the future. Future saving and growth count, so a future shortfall that they close does not reduce today's free money. If 0 because goals cannot be met, show the extra monthly saving needed (bisection up to ₪1M); if one goal limits it, name it. Free money curve: monthly snapshots, evaluated every 3 months (every 6 when horizon beyond 2040); after the last goal and full vesting it follows the post-tax curve at a roughly constant distance.
@@ -239,3 +239,25 @@ A holding with deposits in the Deposits tab shows its own yearly return so far n
 - The popups show the weighted total, or "not known" if any part is unknown, plus the parts.
 - It is not used in the projection: official returns are already net of these costs.
 - The open data on data.gov.il does not include direct investment expenses, so the app cannot fill in a `?`.
+
+### 12.17 Model corrections (v1.21)
+**Management fee.** Official Gemel-Net and Bituach-Net returns are after the fund's direct investment expenses but **before** the member's own management fee. The same is assumed for `return_5y_avg_pct`.
+- Each month a holding grows by (return × scenario factor − `management_fee_pct`) a year.
+- The Stock reinvestment holding uses the value-weighted net returns of the investment holdings.
+- `expected_yearly_cost` is display only. It already includes the direct expenses, so it is not subtracted.
+
+**Real capital gains.** With inflation on, the cost basis of `capital_gain` holdings rises with the inflation rate each month, so the 25% applies to the real gain only, as Israeli law does for these holdings. Foreign-currency holdings use the same rule as a simplification. With inflation off, the model assumes no inflation, so the basis stays.
+
+**Pension tax** is worked out per owner, in today's money (the pension at pension age ÷ inflation), because the ceiling, brackets and credit point move with the consumer price index.
+- **Exempt part:** min(pension, ceiling) × `pension_exempt_pct` is tax free (Amendment 190: 57.5% in 2026, 62.5% in 2027, 67% from 2028).
+- **The rest** is taxed with the 2026 monthly brackets: 10% to ₪7,010; 14% to ₪10,060; 20% to ₪19,000; 31% to ₪25,100; 35% to ₪46,690; 47% to ₪60,130; 50% above, including the 3% surtax.
+- **Credit points:** less `pension_tax_credit_points` × ₪242 (default 2.25). The old `pension_tax_rate_pct` key is no longer read.
+- **Not modelled:** health and national insurance on the pension; tax on the old-age allowance itself; spreading lump sums.
+
+**Pre-retirement allowance.** It is your own money, so no income tax. Each month it is taken from liquid holdings in proportion to their value. The tax on the gain sold, at capital gains rate or none for study funds, comes out with it, so the allowance is net.
+
+**Known simplifications, kept on purpose:**
+- The Intel shares' whole value is taxed at the marginal rate. Under section 102 the growth after the grant would be capital gain.
+- Withdrawals are proportional, not the most tax-efficient order.
+- An investment provident fund taken as an annuity after 60 is tax free; the model treats it as a lump-sum sale.
+- Projected returns: a fund with no official 5-year figure (a track under 5 years old) uses `return_5y_avg_pct`, not its 1–3-year history, which would overstate long-term growth.

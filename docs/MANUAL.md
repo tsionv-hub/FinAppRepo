@@ -104,7 +104,8 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 - **Your sheet is the source of truth.** Edit numbers in Google Sheets, then tap **Reload** in the app.
 - **The app writes to your sheet only when you tap a Save button**: new goals, the rainy day fund, retirement age and allowance, new deposits, a bank balance, and share grants. Nothing else, never automatically.
 - **"What if" changes** in Assumptions only change the screen. To keep them, change the sheet.
-- **Returns** use each account's 5-year average return, scaled by the scenario (Moderate = 75% of it).
+- **Returns** use each account's official 5-year average return when it has a fund number (otherwise your `return_5y_avg_pct`), scaled by the scenario (Moderate = 75% of it), **minus your own management fee** (`management_fee_pct`): official returns are before it, so a lower fee shows up as more growth.
+- **Taxes:** capital gains tax (25%) is on the gain you sell; with inflation on, only on the real gain (above inflation). Study funds are tax free. The early-retirement allowance is your own money, so the only tax is on the gains sold to pay it. **Pension tax** follows the 2026 rules per person: 67% of the pension up to ₪9,430 a month is tax free (from 2028), the rest goes through the income tax brackets, less your credit points (`pension_tax_credit_points`, 2.25 by default; 2.75 for a woman). It's worked out in today's money.
 - **Rainy day fund** counts in your totals but is never spent.
 - **Repeating goals** (Goals tab: `repeat_every_years`, `repeat_until_year`): each time is checked on its own, so you'll see if, say, the 2031 vacation is short.
 - **Loans** (optional Loans tab): money you owe, paid in monthly installments or in one payment on a date. Repayments come out of your money like goals do. Your totals don't subtract loans; the **After debts** line does.
@@ -139,7 +140,7 @@ Tap **💬 Ask AI** (bottom corner) to ask questions in your own words, in Hebre
 | "This file is an Excel file" | In Google Sheets: **File** → **Save as Google Sheets**, then use the new link. |
 | "This Google account cannot open the sheet" | Sign in with the Google account that owns the sheet. |
 | Sheet check shows ✗ | Fix that tab or column name in the sheet exactly as shown, then **Check again**. |
-| Sign-in window doesn't open | Tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
+| Sign-in window doesn't open | On the sign-in screen, tap **Sign-in test** at the bottom and try **2. Sign in (redirect)**. |
 | Ask AI: "prepayment credits are depleted" (402) | The key's Google project is on paid billing with no credit. In AI Studio (ai.studio/projects) create a new project without billing and a key in it, or add credit. |
 | Ask AI: "busy" (503) | Google's free AI is overloaded for a moment; the app already tried other models. Your key is fine: try again in a minute. |
 | No official data for a fund ("not found") | Check the number in `fund_number`: it's the fund's or track's official number (on your statement or the provider's site). Several tracks: separate them with commas. |
