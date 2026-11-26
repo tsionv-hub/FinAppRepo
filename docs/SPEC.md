@@ -266,3 +266,15 @@ A holding with deposits in the Deposits tab shows its own yearly return so far n
 - **Inflation:** the app always starts with inflation on, whatever `inflation_enabled` says (blank now also means on). Turning it off opens a dialog that explains why: savings look bigger, pension tax is too high, and capital gains are taxed in full. It offers "Keep it on" as the main button and "Turn off anyway". Turning it back on is one tap. Off is a what-if for the session and is never saved.
 - **Example household:** retires at 57 on ₪16,000 a month and saves ₪5,500 a month, so with inflation on the moderate scenario is still funded but limited by early retirement, and the pessimistic one is short.
 - **`docs/TAXES.md`** and **`TAXES.he.md`** explain every return and tax rule, the assumptions and what isn't modelled. They're linked from the manuals and READMEs.
+
+### 12.19 Editing holdings from the app (v1.23)
+The holding popup has **✏️ Edit**, and the Holdings panel has **➕ Add holding**.
+- **The form** shows the main fields (name, type, value, currency, owner, provider), with the rest under "More fields". Only columns that exist in the sheet appear. Required fields are name, type and value.
+- **Locked fields:** before editing, the app reads the row as typed (`valueRenderOption=FORMULA`). Formula cells are shown disabled and are never written.
+- **Save** writes the form's cells in one `values:batchUpdate`. If `current_amount` changed, it also sets `last_updated` to today.
+- **Add** goes to the first row after the last holding, with the next `H<n>` id and a default `tax_type` from the type. Formulas from the last holding's row are copied, row references moved, into cells that are empty in the new row, so the sheet's own calculated columns keep working. If that row isn't free, it appends instead.
+- **Remove** clears the row's typed cells and keeps the row and its formulas, so references elsewhere don't break. Deposits for the holding stay in the Deposits tab.
+- Typed text starting with `=` is stored as text, never as a formula.
+- Example mode saves nothing.
+
+**Next:** the same for goals, loans, pension funds, and saving Settings what-ifs.

@@ -29,6 +29,9 @@ const depositsX = [
 // fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
 const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '(22,25%),(33,75%)' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
 let govCalls = 0;
+// Cells that are formulas in the mock sheet (as typed): Broker C's deposited_amount.
+const depCol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('deposited_amount'));
+const formulaCells: Record<string, string> = { ['Holdings!' + depCol + '4']: '=SUMIFS(Deposits!D:D,Deposits!B:B,A4)' };
 // Pension 1 has two funds: 44 is in the Pensia-Net mock (7.5%), 55 is not (falls back to the sheet's 5%).
 const pensionX = pensionRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'P1' ? '(44,50%),(55,50%)' : '', i === 0 ? 'expected_yearly_cost' : r[0] === 'P1' ? '(0.3,50%),(?,50%)' : r[0] === 'P2' ? 0.42 : '']);
 let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionX, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
@@ -104,6 +107,13 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     }
     // Single-cell formula read (deposited_amount before a deposit): the mock sheet has no formulas.
     const one = /\/values\/'([^']+)'!([A-Z]+)(\d+)$/.exec(decodeURIComponent(u.pathname));
+    const rowR = /\/values\/'([^']+)'!A(\d+):[A-Z]+\d+$/.exec(decodeURIComponent(u.pathname));
+    if (rowR && u.searchParams.get('valueRenderOption') === 'FORMULA') {
+      const t = tabs[rowR[1]] ?? [];
+      const r = +rowR[2];
+      const vals = [...((t[r - 1] as unknown[]) ?? [])].map((v, i) => formulaCells[`${rowR[1]}!${String.fromCharCode(65 + i)}${r}`] ?? v);
+      return route.fulfill({ json: { values: [vals] } });
+    }
     if (one && u.searchParams.get('valueRenderOption') === 'FORMULA') {
       const t = tabs[one[1]] ?? [];
       const ci = one[2].charCodeAt(0) - 65;
@@ -441,6 +451,43 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const sb = await txt('#dlgB');
   ok(sb.includes('Official data (Bituach-Net)') && sb.includes('25% of this holding') && sb.includes('Mock fund 33 · 75% of this holding · Gemel-Net') && sb.includes('Return used: 10.5%'), 'funds weighted by their share; a policy track missing from Bituach-Net is found in Gemel-Net (25% × 12 + 75% × 10 = 10.5%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
   await page.click('#dlgX');
+  // Edit, add and remove holdings from the app.
+  const bu = (from: number) => writes.slice(from).filter((w) => w.url.endsWith('/values:batchUpdate')).flatMap((w) => (w.body as { data: { range: string; values: unknown[][] }[] }).data);
+  const cur = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('current_amount'));
+  await page.click('#hl .g:has-text("Broker C")');
+  await page.click('#hEdit');
+  await page.waitForSelector('#hfSave');
+  ok((await page.inputValue('#hf_name')) === 'Broker C' && (await page.inputValue('#hf_current_amount')) === '60000' && (await page.isDisabled('#hf_deposited_amount')), 'edit form: filled from the sheet; a formula cell is locked');
+  await page.screenshot({ path: OUT + '/edit-holding.png' });
+  let w0 = writes.length;
+  await page.fill('#hf_current_amount', '62000');
+  await page.click('#hfSave');
+  await page.waitForFunction(() => document.querySelector('#dlgB .dnote.ok')?.textContent === 'Saved to the Holdings tab.');
+  let d = bu(w0);
+  ok(d.some((x) => x.range === `'Holdings'!${cur}4` && x.values[0][0] === 62000) && !d.some((x) => x.range === `'Holdings'!${depCol}4`), 'saving writes the changed fields, never the formula cell');
+  ok((await txt('#dlgT')) === 'Broker C', 'and reopens the holding');
+  await page.click('#dlgX');
+  await page.click('#hAdd');
+  await page.waitForSelector('#hfSave');
+  await page.click('#hfSave');
+  ok((await txt('#hfMsg')) === 'Fill in: Name.', 'a new holding needs a name');
+  await page.fill('#hf_name', 'New fund');
+  await page.fill('#hf_current_amount', '5000');
+  w0 = writes.length;
+  await page.click('#hfSave');
+  await page.waitForFunction(() => !(document.getElementById('dlg') as HTMLDialogElement).open || /Saved|Holdings/.test(document.getElementById('hfMsg')?.textContent ?? ''));
+  d = bu(w0);
+  const at = (c: string) => d.find((x) => x.range === `'Holdings'!${c}`)?.values[0][0];
+  const taxCol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('tax_type'));
+  ok(at('A10') === 'H9' && at('B10') === 'New fund' && at(cur + '10') === 5000 && at(taxCol + '10') === 'capital_gain', 'adding writes the next free row with the next id and a default tax: ' + JSON.stringify(d.map((x) => x.range + '=' + x.values[0][0])));
+  await page.click('#hl .g:has-text("Old account")');
+  await page.click('#hEdit');
+  await page.waitForSelector('#hfRemove');
+  w0 = writes.length;
+  await page.click('#hfRemove');
+  await page.waitForFunction(() => !(document.getElementById('dlg') as HTMLDialogElement).open);
+  d = bu(w0);
+  ok(d.length > 3 && d.every((x) => x.range.endsWith('9') && x.values[0][0] === ''), 'removing clears that row\'s typed cells only');
   await page.click('#hl .g:has-text("Study A")');
   ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');
   await page.click('#dlgX');

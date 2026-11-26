@@ -16,7 +16,7 @@ The source of truth is `docs/SPEC.md`. These notes cover how the app is built an
 |---|---|
 | `src/model/` | Pure calculation: simulation, goals, loans, free money, pension, deposits, sheet parsing. No DOM, no network, no clock. |
 | `src/official/` | Official fund data: the fetch, the `(id,share%)` parsing, applying returns. |
-| `src/sheets/` | Sign-in, the Sheets client, the sheet check, and every write (each behind a Save button). |
+| `src/sheets/` | Sign-in, the Sheets client, the sheet check, and every write (each behind a Save button); `edit.ts` adds, edits and removes rows without touching formulas. |
 | `src/ui/` | Panels, chart, popups, Ask AI, English and Hebrew strings. |
 | `src/storage.ts` | What the phone keeps: saved sheets (ID and nickname), client ID, language, UI choices, Gemini key. |
 

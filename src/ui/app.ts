@@ -11,6 +11,7 @@ import {
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleOfficialRecords, exampleRows } from '../example';
+import { addHolding, defaultTax, formulaKeys, HOLDING_FIELDS, HOLDING_TYPES, removeHolding, saveHolding, type Field } from '../sheets/edit';
 import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, lookupPension, dbFor } from '../official/gov';
 import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
@@ -875,10 +876,129 @@ function holdingDetails(x: Slot): void {
   if (target && data.grants) body += grantsSection(target, data.grants);
   else if (target) body += `<div class="dnote">${t('grNoTab')}</div>`;
   const sub = [ty(h.type), h.vendor, h.owner].filter(Boolean).map(esc).join(' · ');
+  if (!h.synthetic && h.row) body = `<div class="dlg-top"><button type="button" class="s" id="hEdit">✏️ ${t('edEdit')}</button></div>` + body;
   openDialog(h.synthetic ? t('sre') : h.name, sub, body);
+  if (!h.synthetic && h.row) $('hEdit').addEventListener('click', () => holdingForm(h));
   if (withDeposits) $('dpS').addEventListener('click', () => addDeposit(h));
   if (real && g === 'bank') $('bvS').addEventListener('click', () => updateValue(h));
   if (target && data.grants) $('grS').addEventListener('click', () => addGrant(h, target));
+}
+
+// ---------- edit holdings (SPEC 12.19) ----------
+
+const CURRENCIES = ['ILS', 'USD', 'EUR'];
+const GROUP_KEYS = ['', 'study_fund', 'fund', 'trading', 'bank', 'stocks'];
+const TAXES = ['none', 'capital_gain', 'income'];
+
+function fieldInput(f: Field, v: string, locked: boolean): string {
+  const id = 'hf_' + f.key;
+  const dis = locked ? ' disabled' : '';
+  const opt = (vals: string[], label: (x: string) => string) =>
+    `<select id="${id}"${dis}>${vals.map((x) => `<option value="${esc(x)}"${x === v ? ' selected' : ''}>${esc(label(x))}</option>`).join('')}</select>`;
+  let input: string;
+  if (f.kind === 'type') input = opt(HOLDING_TYPES, ty);
+  else if (f.kind === 'currency') input = opt(CURRENCIES, (x) => x);
+  else if (f.kind === 'group') input = opt(GROUP_KEYS, (x) => (x ? t(('grp_' + x) as 'grp_fund') : t('edAuto')));
+  else if (f.kind === 'tax') input = opt(TAXES, (x) => t(x === 'capital_gain' ? 'taxCg' : x === 'income' ? 'taxInc' : 'taxNone'));
+  else if (f.kind === 'bool') input = `<label class="dpck"><input type="checkbox" id="${id}"${v === '' || v === '1' || v === 'true' ? ' checked' : ''}${dis}> ${t('yes')}</label>`;
+  else input = `<input type="${f.kind === 'num' ? 'number' : 'text'}" id="${id}" value="${esc(v)}"${f.kind === 'num' ? ' inputmode="decimal" step="any"' : ''}${dis}>`;
+  return `<label for="${id}">${t(('hf_' + f.key) as 'hf_name')}${f.required ? ' *' : ''}${locked ? ` <span class="lbl">${t('edFormula')}</span>` : ''}</label>${input}`;
+}
+
+/** Add (h = null) or edit a holding: main fields first, the rest under "More fields". */
+async function holdingForm(h: Holding | null): Promise<void> {
+  if (!data) return;
+  const header = data.headers.holdings;
+  const raw = h?.row ? data.holdingsRows[h.row - 1] ?? [] : [];
+  const val = (k: string) => {
+    const i = header.indexOf(k);
+    const v = i >= 0 ? raw[i] : undefined;
+    return v == null ? '' : String(v);
+  };
+  openDialog(h ? t('edTitle', { n: h.name }) : t('edAddT'), '', `<div class="dnote">${t('loading')}</div>`);
+  let locked = new Set<string>();
+  const c = deps.client();
+  if (h?.row && c && !deps.demo()) {
+    try {
+      locked = await formulaKeys(c, data, h.row);
+    } catch (e) {
+      $('dlgB').innerHTML = `<div class="dnote bad">${esc(errorText(e))}</div>`;
+      return;
+    }
+  }
+  const shown = HOLDING_FIELDS.filter((f) => header.includes(f.key));
+  const missing = HOLDING_FIELDS.filter((f) => f.required && !header.includes(f.key)).map((f) => f.key);
+  const init = (f: Field) => (h ? val(f.key) : f.key === 'currency' ? 'ILS' : f.key === 'type' ? 'Investment fund' : f.key === 'include_in_total' ? '1' : '');
+  const box = (fs: Field[]) => fs.map((f) => `<div>${fieldInput(f, init(f), locked.has(f.key))}</div>`).join('');
+  $('dlgB').innerHTML = (missing.length ? `<div class="dnote bad">${t('eCol', { c: missing.join(', '), t: 'Holdings' })}</div>` : '')
+    + `<div class="hform">${box(shown.filter((f) => f.main))}</div>`
+    + `<details class="dpl"><summary>${t('edMore')}</summary><div class="hform">${box(shown.filter((f) => !f.main))}</div></details>`
+    + (locked.size ? `<div class="dnote">${t('edFormulaN')}</div>` : '')
+    + `<div class="dlg-btns"><button type="button" id="hfSave"${missing.length ? ' disabled' : ''}>${t('edSave')}</button><button type="button" class="s" id="hfCancel">${t('edCancel')}</button></div>`
+    + (h ? `<div class="dlg-btns"><button type="button" class="s bad" id="hfRemove">${t('edRemove')}</button></div>` : '')
+    + `<div class="dnote" id="hfMsg" aria-live="polite"></div>`;
+  $('dlgB').scrollTop = 0;
+  // A new holding's tax type follows its type until the user picks one.
+  if (!h && header.includes('tax_type')) {
+    const sync = () => ($<HTMLSelectElement>('hf_tax_type').value = defaultTax($<HTMLSelectElement>('hf_type').value));
+    sync();
+    $('hf_type').addEventListener('change', sync);
+  }
+  $('hfCancel').addEventListener('click', () => (h ? reopenHolding(h.id) : $<HTMLDialogElement>('dlg').close()));
+  $('hfSave').addEventListener('click', () => {
+    const values: Record<string, string> = {};
+    for (const f of shown) {
+      if (locked.has(f.key)) continue;
+      const e = $<HTMLInputElement>('hf_' + f.key);
+      values[f.key] = f.kind === 'bool' ? (e.checked ? '1' : '0') : e.value;
+    }
+    const bad = shown.find((f) => f.required && !locked.has(f.key) && !values[f.key].trim());
+    if (bad) {
+      $('hfMsg').textContent = t('edNeed', { f: t(('hf_' + bad.key) as 'hf_name') });
+      return;
+    }
+    void formSave('hfSave', 'hfMsg', async (cl) => {
+      const id = h ? (await saveHolding(cl, data!, h, values), h.id) : await addHolding(cl, data!, values);
+      return id ?? null;
+    });
+  });
+  if (h)
+    $('hfRemove').addEventListener('click', () => {
+      if (!confirm(t('edRemoveQ', { n: h.name }))) return;
+      void formSave('hfRemove', 'hfMsg', async (cl) => {
+        await removeHolding(cl, data!, h);
+        return null;
+      });
+    });
+}
+
+/** Runs a write from a form, reloads the sheet, and reopens the holding (or closes the window). */
+async function formSave(btn: string, msgId: string, fn: (c: SheetsClient) => Promise<string | null>): Promise<void> {
+  if (deps.demo()) {
+    $(msgId).textContent = t('demoNoSave');
+    return;
+  }
+  const c = deps.client();
+  if (!c || !data) return;
+  inp(btn).disabled = true;
+  $(msgId).textContent = t('wr');
+  try {
+    const id = await fn(c);
+    await load();
+    if (id) reopenHolding(id, t('edSaved'));
+    else $<HTMLDialogElement>('dlg').close();
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    $(msgId).textContent = errorText(e);
+    inp(btn).disabled = false;
+  }
+}
+
+function reopenHolding(id: string | undefined, note?: string): void {
+  const x = holdRows.find((s) => s.h.id === id);
+  if (!x) return $<HTMLDialogElement>('dlg').close();
+  holdingDetails(x);
+  if (note) $('dlgB').insertAdjacentHTML('afterbegin', `<div class="dnote ok">${esc(note)}</div>`);
 }
 
 /** Grants go to the unvested holding with the same ticker, if there is one. */
@@ -1216,6 +1336,7 @@ export function initApp(d: AppDeps): void {
     e.stopPropagation();
     panelHelp(b.dataset.help!);
   }, true);
+  $('hAdd').addEventListener('click', () => holdingForm(null));
   $('ofc').addEventListener('click', (e) => {
     const tg = e.target as Element;
     const b = tg.closest<HTMLElement>('[data-ofp]');
