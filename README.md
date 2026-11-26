@@ -18,6 +18,8 @@ To just look around, open the app and tap **Explore with example data**. No sign
 
 ## Running your own copy
 
+**Want your own version to change freely?** Start from [`HANDOVER.md`](HANDOVER.md): give it to your AI coding assistant as the first message. It explains how to fork the code and set up your own app, sign-in and sheet without affecting this one.
+
 [`docs/SETUP.md`](docs/SETUP.md) covers publishing on GitHub Pages, creating the Google sign-in and adding friends as testers.
 
 ---
