@@ -143,7 +143,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
   ok((await page.locator('#ofc svg .ofc-col').count()) === 4 && (await txt('#ofc')).includes('Example: these official figures are made up.'), 'example mode shows the official returns chart with made-up figures (no network): ' + (await page.locator('#ofc svg .ofc-col').count()));
   ok(govCalls === 0, 'example mode does not call data.gov.il');
-  ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'KIDS,PRO 4821,PRO A,PRO S', 'example chart labels: short_name and vendor short forms');
+  ok((await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))) === 'Investment fund ...4821,KIDS,Study fund (Alex),Study fund (Sam)', 'example chart labels: short_name, else the holding name: ' + (await page.$$eval('#ofc .ofnm', (e) => e.map((x) => x.textContent).sort().join(','))));
   ok((await page.locator('#hl details.hgd').count()) === 6, 'example shows all six holding groups');
   const pill = (name: string) => page.$eval(`#hl .g:has(b:text-is("${name}")) .rp`, (e) => e.className + ' ' + e.textContent).catch(() => 'none');
   ok(/^rp up( strong)? \+\d+\.\d%$/.test(await pill('Investment fund ...4821')) && /^rp down( strong)? −\d+\.\d%$/.test(await pill('Old foreign account')), 'holding titles show their own yearly return: green when up, red when down: ' + (await pill('Investment fund ...4821')) + ' / ' + (await pill('Old foreign account')));
@@ -430,7 +430,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click(bankG + ' > summary');
   ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
   const cols = () => page.$$eval('#ofc svg', (s) => [...s[0].querySelectorAll('text')].map((x) => x.textContent!.replace(/^(.+?)\1$/, '$1')).join('|'));
-  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '10.5|VEN P|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else vendor + owner): ' + (await cols()));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '10.5|Savings D|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else the holding name): ' + (await cols()));
   await page.click('#ofc [data-ofp=ytd]');
   ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
   await page.click('#ofc [data-ofp=avg5]');

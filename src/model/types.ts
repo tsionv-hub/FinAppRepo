@@ -79,7 +79,7 @@ export interface HoldingInfo {
   notes: string;
   /** fund_number column (study funds and funds only). */
   fundNumber: string;
-  /** short_name column: a label for charts (blank = made from the vendor). */
+  /** short_name column: a label for charts (blank = the holding name). */
   short: string;
   /** expected_yearly_cost as typed: "0.94", "?" or "(0.41,38%),(0.34,62%)". */
   expectedCost: string;

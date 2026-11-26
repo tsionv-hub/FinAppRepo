@@ -95,11 +95,9 @@ describe('deposited_amount after a deposit', () => {
 
 describe('short names for charts', () => {
   const h = (o: Partial<Holding> & { short?: string }) => ({ name: '', vendor: '', owner: '', ...o, info: { short: o.short ?? '' } }) as unknown as Holding;
-  it('uses short_name, else vendor short form plus the digits in the name, else the owner', () => {
-    expect(shortName(h({ short: 'My fund', vendor: 'Migdal' }))).toBe('My fund');
-    expect(shortName(h({ vendor: 'Migdal', name: 'Savings plan ...1234' }))).toBe('MG 1234');
-    expect(shortName(h({ vendor: 'Hachshara', name: 'Policy', owner: 'dana' }))).toBe('HAC D');
-    expect(shortName(h({ vendor: 'הפניקס', name: 'קרן 98765' }))).toBe('PHX 8765');
-    expect(shortName(h({ vendor: 'Some Bank', name: 'X' }))).toBe('SOM');
+  it('uses short_name, else the holding name as it is', () => {
+    expect(shortName(h({ short: 'My fund', vendor: 'Migdal', name: 'SP.MG...1234' }))).toBe('My fund');
+    expect(shortName(h({ vendor: 'Migdal', name: 'SP.MG...1234' }))).toBe('SP.MG...1234');
+    expect(shortName(h({ vendor: 'הפניקס', name: 'קרן 98765' }))).toBe('קרן 98765');
   });
 });
