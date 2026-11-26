@@ -226,19 +226,29 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(!/\{\w+\}/.test(await txt('#dlgB')), 'no unfilled {placeholders} in the explanation');
   await page.screenshot({ path: OUT + '/popup-inflation.png' });
   await page.click('#dlgX');
-  ok(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn')), 'inflation off: the bar is a yellow warning');
-  ok((await txt('#inflTxt')) === 'Not adjusted for inflation' && (await txt('#infl')) === 'Adjust for inflation', 'the warning is just its title, with the button and 🤔: ' + (await txt('#inflTxt')));
-  await page.screenshot({ path: OUT + '/infl-off.png' });
-  const fmOff = await txt('#fm');
-  await page.click('#infl');
-  ok(!(await page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'))) && (await txt('#inflTxt')) === 'Shown in today’s money' && (await txt('#infl')) === 'Turn off', 'inflation on: calm note and a Turn off button');
+  const warn = () => page.evaluate(() => document.getElementById('inflBar')!.classList.contains('warn'));
+  ok(!(await warn()) && (await txt('#inflTxt')) === 'Shown in today’s money' && (await txt('#infl')) === 'Turn off', 'inflation is on by default (the sheet says 0): calm note and a Turn off button');
   await page.screenshot({ path: OUT + '/infl-on.png' });
-  await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOff);
-  ok(true, 'turning inflation on recomputes free money: ' + fmOff + ' -> ' + (await txt('#fm')));
+  const fmOn = await txt('#fm');
+  await page.click('#infl');
+  ok((await txt('#dlgT')) === 'Turn off inflation?' && (await txt('#dlgB')).includes('Pension tax is worked out as if') && !(await warn()), 'turning it off first explains why that misleads');
+  await page.screenshot({ path: OUT + '/infl-ask.png' });
+  await page.click('#ioffKeep');
+  ok(!(await warn()) && !(await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)), '"Keep it on" keeps it on');
+  await page.click('#infl');
+  await page.click('#ioffGo');
+  ok((await warn()) && (await txt('#inflTxt')) === 'Not adjusted for inflation' && (await txt('#infl')) === 'Adjust for inflation', '"Turn off anyway" turns it off: yellow warning');
+  await page.screenshot({ path: OUT + '/infl-off.png' });
+  await page.waitForFunction((b) => document.getElementById('fm')!.textContent!.replace(/[⁦⁩]/g, '') !== b, fmOn);
+  ok(true, 'turning inflation off recomputes free money: ' + fmOn + ' -> ' + (await txt('#fm')));
+  await page.click('#infl');
+  ok(!(await warn()) && !(await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)), 'turning it back on needs no confirmation');
   await page.click('#inflHelp');
   ok((await txt('#dlgB')).includes('Now: on'), 'the explanation shows the switch is on');
   await page.click('#dlgX');
+  // The rest of the checks were written with inflation off.
   await page.click('#infl');
+  await page.click('#ioffGo');
 
   // 2c. Feedback link.
   const fbHref = await page.getAttribute('#fbBtn', 'href');

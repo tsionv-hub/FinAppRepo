@@ -291,3 +291,5 @@ dialog#aiChat::backdrop { background: rgba(0, 0, 0, .4); }
 .rp.up { background: rgba(var(--rp-up), calc(.12 + .78 * var(--k))); color: rgb(var(--rp-up)); }
 .rp.down { background: rgba(var(--rp-down), calc(.12 + .78 * var(--k))); color: rgb(var(--rp-down)); }
 .rp.strong { color: #fff; }
+.dlg-btns { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+.dlg-btns button { flex: 1; }

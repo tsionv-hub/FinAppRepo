@@ -62,7 +62,8 @@ export function parseSettings(rows: Rows): Settings {
     fx: { ILS: 1, USD: usd, EUR: num(S.EUR) || 1 },
     usd,
     returnFactors,
-    inflationEnabled: num(S.inflation_enabled) === 1 || /^true$/i.test(S.inflation_enabled ?? ''),
+    // Blank = on. (The app itself always starts with inflation on; see SPEC 12.18.)
+    inflationEnabled: blank(S.inflation_enabled) || num(S.inflation_enabled) === 1 || /^true$/i.test(S.inflation_enabled ?? ''),
     inflationRatePct: num(S.inflation_rate_pct),
     monthlySaving: num(S.monthly_saving_ILS),
     yearlyFreeCash: num(S.yearly_free_cash_ILS),
