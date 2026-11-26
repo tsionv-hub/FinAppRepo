@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { applyOfficial, dbFor, fetchOfficial, fundIds, latest } from '../src/official/gov';
-import { parseHoldings } from '../src/model';
+import { applyOfficial, costParts, costTotal, dbFor, fetchOfficial, fundIds, fundTracks, latest, shares } from '../src/official/gov';
+import { parseHoldings, parsePension } from '../src/model';
 
 // Made-up fund numbers and figures.
 const rec = (id: number, period: number, avg5: number | null, extra: Record<string, unknown> = {}) => ({
@@ -48,7 +48,7 @@ describe('official fund data', () => {
     expect(re.ret).toBeCloseTo((100000 * 8 + 50000 * 7.5 + 20000 * 7) / 170000, 6);
     applyOfficial(H, new Map()); // again, with nothing found: back to the sheet
     expect(H[0].ret).toBe(6);
-    expect(H[0].official).toEqual([{ id: 111, o: null }]);
+    expect(H[0].official).toEqual([{ id: 111, w: 1, o: null }]);
   });
   it('asks each database only for its own fund numbers', async () => {
     const urls: string[] = [];
@@ -69,5 +69,48 @@ describe('official fund data', () => {
     applyOfficial(H, map);
     expect(H[1].official!.map((x) => x.o?.db)).toEqual(['bituach', 'gemel']);
     expect(H[1].ret).toBe((6 + 9) / 2);
+  });
+});
+
+describe('fund numbers with shares, and expected yearly cost', () => {
+  it('reads "(id,share%)" lists, and the older forms', () => {
+    expect(fundTracks('(101,25%),(202,75%)')).toEqual([{ id: 101, w: 0.25 }, { id: 202, w: 0.75 }]);
+    expect(fundTracks('( 101 , 25 ) , ( 202 , 75% )')).toEqual([{ id: 101, w: 0.25 }, { id: 202, w: 0.75 }]);
+    expect(fundTracks('(101,1),(202,3)')).toEqual([{ id: 101, w: 0.25 }, { id: 202, w: 0.75 }]); // scaled to 100%
+    expect(fundTracks('101, 202')).toEqual([{ id: 101, w: 0.5 }, { id: 202, w: 0.5 }]);
+    expect(fundTracks(3456)).toEqual([{ id: 3456, w: 1 }]);
+    expect(fundIds('(101,25%),(202,75%)')).toEqual([101, 202]);
+    expect(shares('')).toEqual([]);
+  });
+  it('reads expected yearly cost: one value, per fund, or unknown', () => {
+    expect(costTotal('0.94')).toBe(0.94);
+    expect(costTotal(0.718)).toBe(0.718);
+    expect(costTotal('(0.4,25%),(0.8,75%)')).toBeCloseTo(0.7, 10);
+    expect(costTotal('?')).toBeNull();
+    expect(costTotal('(0.4,25%),(?,75%)')).toBeNull();
+    expect(costTotal('')).toBeNull();
+    expect(costParts('(0.4,25%),(?,75%)')).toEqual([{ v: 0.4, w: 0.25 }, { v: null, w: 0.75 }]);
+  });
+  it('weights the official return by each fund\'s share, for holdings and pension funds', () => {
+    const H = parseHoldings([
+      ['id', 'name', 'type', 'currency', 'current_amount', 'return_5y_avg_pct', 'fund_number'],
+      ['H1', 'Policy', 'Savings plan', 'ILS', 1000, 5, '(222,25%),(333,75%)'],
+    ], { ILS: 1 });
+    const P = parsePension([
+      ['name', 'current_amount_ILS', 'yearly_return_pct', 'fund_number', 'expected_yearly_cost'],
+      ['Fund', 1000, 4, '(444,40%),(555,60%)', '(0.3,40%),(0.5,60%)'],
+    ]);
+    const map = new Map([
+      ['bituach:222', latest('bituach', [rec(222, 202610, 12)]).get(222)!],
+      ['gemel:333', latest('gemel', [rec(333, 202610, 8)]).get(333)!],
+      ['pensia:444', latest('pensia', [rec(444, 202610, 10)]).get(444)!],
+    ]);
+    applyOfficial(H, map, P);
+    expect(H[0].ret).toBeCloseTo(0.25 * 12 + 0.75 * 8, 10);
+    expect(P[0].returnPct).toBeCloseTo(0.4 * 10 + 0.6 * 4, 10); // 555 not found: the sheet's 4
+    expect(P[0].returnSheet).toBe(4);
+    expect(costTotal(P[0].expectedCost)).toBeCloseTo(0.42, 10);
+    applyOfficial(H, new Map(), P);
+    expect(P[0].returnPct).toBe(4);
   });
 });

@@ -226,3 +226,16 @@ A holding with deposits in the Deposits tab shows its own yearly return so far n
 - **Colour:** green for positive, red for negative. The strength scales with the size: full strength at +15% a year or −10% a year, and white text at about 55% strength or more.
 - **When it's missing:** there is no pill without deposits, or with less than about two months of history.
 - **Example data:** an account that lost value shows the red case.
+
+### 12.16 Fund shares, expected yearly cost, Pensia-Net (v1.20)
+**Fund numbers with shares.** `fund_number` takes `(id,share%),(id,share%)`. The shares are scaled to add up to 100%. The older forms `id` and `id, id` (equal shares) still work.
+- A holding's return is Σ share × (official 5-year average, or the sheet's return for a fund without one).
+- The official-returns chart weights each fund's figure the same way.
+- The popups show each fund's share.
+
+**Pension tab.** It takes the optional `fund_number` and `expected_yearly_cost`. Pension fund numbers are looked up in Pensia-Net (resource `6d47d6b5-…`) in the same single request per database. `returnPct` becomes the weighted official 5-year average, falling back to `yearly_return_pct` for a fund without one. The pension popup shows the per-fund official data, with the fund-average accumulation fee next to the user's.
+
+**`expected_yearly_cost`** (Holdings and Pension, optional) is the provider's expected yearly cost. In Hebrew it is *שיעור עלות שנתית צפויה*: the management fee plus the fund's direct investment expenses, as a % of the balance. It is one value, or one per fund in the same `(value,share%)` form; `?` or a non-number means unknown.
+- The popups show the weighted total, or "not known" if any part is unknown, plus the parts.
+- It is not used in the projection: official returns are already net of these costs.
+- The open data on data.gov.il does not include direct investment expenses, so the app cannot fill in a `?`.

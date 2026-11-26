@@ -27,9 +27,11 @@ const depositsX = [
   ['D2', 'H3', '2024-05-10', 15000, 'USD', '', 'Broker C'],
 ];
 // fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
-const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '22, 33' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
+const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '(22,25%),(33,75%)' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
 let govCalls = 0;
-let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionRows, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
+// Pension 1 has two funds: 44 is in the Pensia-Net mock (7.5%), 55 is not (falls back to the sheet's 5%).
+const pensionX = pensionRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'P1' ? '(44,50%),(55,50%)' : '', i === 0 ? 'expected_yearly_cost' : r[0] === 'P1' ? '(0.3,50%),(?,50%)' : r[0] === 'P2' ? 0.42 : '']);
+let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionX, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
 let badAuth = 0;
@@ -79,8 +81,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
     govCalls++;
     const q = new URL(route.request().url()).searchParams;
     const ids = JSON.parse(q.get('filters')!).FUND_ID as number[];
-    const db = q.get('resource_id')!.startsWith('c6c6') ? 'bituach' : 'gemel';
-    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12, 'gemel:33': 10 };
+    const rid = q.get('resource_id')!;
+    const db = rid.startsWith('c6c6') ? 'bituach' : rid.startsWith('6d47') ? 'pensia' : 'gemel';
+    const known: Record<string, number> = { 'gemel:1111': 9.4, 'bituach:22': 12, 'gemel:33': 10, 'pensia:44': 7.5 };
     const records = ids.filter((id) => known[db + ':' + id] != null).map((id) => ({
       FUND_ID: id, FUND_NAME: 'Mock fund ' + id, REPORT_PERIOD: 202610, AVG_ANNUAL_YIELD_TRAILING_5YRS: known[db + ':' + id], AVG_ANNUAL_YIELD_TRAILING_3YRS: 11,
       YEAR_TO_DATE_YIELD: 6.5, AVG_ANNUAL_MANAGEMENT_FEE: 0.66, TOTAL_ASSETS: 1000, STOCK_MARKET_EXPOSURE: 480, FOREIGN_EXPOSURE: 520,
@@ -176,7 +179,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#signIn');
   await page.waitForSelector('#setupCheck:not([hidden])');
   ok((await txt('#chkSum')).includes('Everything'), 'sheet check passes: ' + (await txt('#chkSum')));
-  ok((await page.locator('#chkList .ck').count()) === 8, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the missing optional group column');
+  ok((await page.locator('#chkList .ck').count()) === 9, 'checklist lists the seven tabs (Loans, Deposits and Grants included) and the missing optional group and expected_yearly_cost columns');
   await page.screenshot({ path: OUT + '/setup-check.png' });
   await page.click('#openApp');
   await page.waitForSelector('#app:not([hidden])');
@@ -395,7 +398,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const grps = await page.$$eval('#hl .hgrp span:first-child', (e) => e.map((x) => x.textContent));
   ok(JSON.stringify(grps.slice(0, 5)) === JSON.stringify(['Study funds (1)', 'Funds and savings (2)', 'Trading accounts (2)', 'Bank (1)', 'Intel stocks (2)']) && grps[5]?.startsWith('Pension'), 'holdings are split into groups: ' + grps.join(', '));
   ok(await page.$eval('#hl details.hgd[data-g=bank]', (d) => !!d.querySelector('.g') && d.querySelector('.g')!.textContent!.includes('Checking')), 'rows sit under their group');
-  ok(govCalls === 2, 'official data: one request per database (Gemel-Net, Bituach-Net): ' + govCalls);
+  ok(govCalls === 3, 'official data: one request per database (Gemel-Net, Bituach-Net, Pensia-Net): ' + govCalls);
   ok((await txt('#hl .g:has-text("Invest B")')).includes('5y avg 9.4% (official)'), 'a holding with a fund number uses the official 5-year average: ' + (await txt('#hl .g:has-text("Invest B") .lbl')));
   const bankG = '#hl details.hgd[data-g=bank]';
   await page.click(bankG + ' > summary');
@@ -407,7 +410,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click(bankG + ' > summary');
   ok(await page.isVisible('#hl .g:has-text("Checking")'), 'and opens again');
   const cols = () => page.$$eval('#ofc svg', (s) => [...s[0].querySelectorAll('text')].map((x) => x.textContent!.replace(/^(.+?)\1$/, '$1')).join('|'));
-  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '11.0|VEN P|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else vendor + owner): ' + (await cols()));
+  ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await cols()) === '10.5|VEN P|9.4|INV-B', 'official returns: one column chart, 5 years first, best first, short labels (short_name, else vendor + owner): ' + (await cols()));
   await page.click('#ofc [data-ofp=ytd]');
   ok((await page.locator('#ofc svg .ofc-col').count()) === 2 && (await page.getAttribute('#ofc [data-ofp=ytd]', 'aria-pressed')) === 'true' && (await cols()).startsWith('6.5|'), 'the period selector switches the chart to since January: ' + (await cols()));
   await page.click('#ofc [data-ofp=avg5]');
@@ -426,7 +429,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#dlgX');
   await page.click('#hl .g:has-text("Savings D")');
   const sb = await txt('#dlgB');
-  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('50% of this holding') && sb.includes('Mock fund 33 · 50% of this holding · Gemel-Net') && sb.includes('Return used: 11%'), 'a policy track missing from Bituach-Net is found in Gemel-Net; split evenly (12 and 10 → 11%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
+  ok(sb.includes('Official data (Bituach-Net)') && sb.includes('25% of this holding') && sb.includes('Mock fund 33 · 75% of this holding · Gemel-Net') && sb.includes('Return used: 10.5%'), 'funds weighted by their share; a policy track missing from Bituach-Net is found in Gemel-Net (25% × 12 + 75% × 10 = 10.5%): ' + sb.match(/Return used: [\d.]+%/)?.[0]);
   await page.click('#dlgX');
   await page.click('#hl .g:has-text("Study A")');
   ok((await page.locator('#dpS, #bvS, #grS').count()) === 0, 'study fund popup has no deposit, balance or grant form');
@@ -456,6 +459,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(!(await dlgOpen()), 'tapping outside closes the popup');
   await page.click('#hl .g:has-text("Pension 1")');
   ok((await txt('#dlgB')).includes('At pension age (67)'), 'pension fund popup shows the pension-age projection');
+  const pb = await txt('#dlgB');
+  ok(pb.includes('Official data (Pensia-Net)') && pb.includes('Mock fund 44 · 50% of this holding') && pb.includes('not found in Pensia-Net') && pb.includes('Yearly return6.25%'), 'pension fund: official Pensia-Net data, weighted (50% × 7.5 + 50% × sheet 5 = 6.25%): ' + pb.match(/Yearly return[\d.]+%/)?.[0]);
+  ok(pb.includes('Expected yearly costnot known yet (?)') && pb.includes('fund 1 (50%)0.3%') && pb.includes('fund 2 (50%)?'), 'expected yearly cost per fund, "?" shown as not known');
   await page.click('#dlgX');
   await page.click('#goals .g:has-text("Car")');
   ok((await txt('#dlgB')).includes('Due1 June 2028'), 'goal popup shows the due date on the 1st: ' + (await txt('#dlgB')).match(/Due[^A-Z]*\d{4}/)?.[0]);
