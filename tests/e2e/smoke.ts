@@ -28,12 +28,15 @@ const depositsX = [
 ];
 // fund_number for the official-data lookup (made-up figures in the data.gov.il mock below).
 const holdingsX = holdingsRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'H2' ? 1111 : r[0] === 'H4' ? '(22,25%),(33,75%)' : '', i === 0 ? 'short_name' : r[0] === 'H2' ? 'INV-B' : '']);
+// Account numbers that the made-up Delta report (tests/fixtures/delta-fake.pdf) also has.
+const accCol = (holdingsRows[0] as string[]).indexOf('account_number');
+holdingsX.forEach((r) => r[0] === 'H2' && (r[accCol] = '7712345'));
 let govCalls = 0;
 // Cells that are formulas in the mock sheet (as typed): Broker C's deposited_amount.
 const depCol = String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf('deposited_amount'));
 const formulaCells: Record<string, string> = { ['Holdings!' + depCol + '4']: '=SUMIFS(Deposits!D:D,Deposits!B:B,A4)' };
 // Pension 1 has two funds: 44 is in the Pensia-Net mock (7.5%), 55 is not (falls back to the sheet's 5%).
-const pensionX = pensionRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'P1' ? '(44,50%),(55,50%)' : '', i === 0 ? 'expected_yearly_cost' : r[0] === 'P1' ? '(0.3,50%),(?,50%)' : r[0] === 'P2' ? 0.42 : '']);
+const pensionX = pensionRows.map((r, i) => [...r, i === 0 ? 'fund_number' : r[0] === 'P1' ? '(44,50%),(55,50%)' : '', i === 0 ? 'expected_yearly_cost' : r[0] === 'P1' ? '(0.3,50%),(?,50%)' : r[0] === 'P2' ? 0.42 : '', i === 0 ? 'account_number' : r[0] === 'P1' ? '55501234-2' : '']);
 let tabs: Record<string, unknown[][]> = { Settings: settings, Holdings: holdingsX, Goals: goalsX, Pension: pensionX, Loans: loansX, Deposits: depositsX, Grants: [['grant_id', 'holding_id', 'date', 'shares', 'notes']] };
 let sheetsMode: 'ok' | 'ratelimit' | 'offline' = 'ok';
 const writes: { method: string; url: string; body: unknown }[] = [];
@@ -385,6 +388,32 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(rd.filter((x) => x.values[0][0] === '').length >= 3, 'the removed goal row is cleared');
   ok(!!rap && rap.values.length === 1 && rap.values[0][1] === 'Piano' && rap.values[0][2] === 20000 && rap.values[0].length === 13, 'the new goal is appended in the extended column order: ' + JSON.stringify(rap?.values));
   ok(!(await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)), 'the review closes after saving');
+
+  // 4c. Delta report import: read the PDF on the device, propose, write only what stays ticked.
+  const wd0 = writes.length;
+  await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
+  ok(await page.isVisible('#dlImp'), 'Holdings has an "Import Delta report" button');
+  await page.setInputFiles('#dlFile', new URL('../fixtures/delta-fake.pdf', import.meta.url).pathname);
+  await page.waitForSelector('#dlgB .dlrow', { timeout: 20000 });
+  const dsub = await txt('#dlgB .dsub');
+  ok(/figures as of 10\/2026 · 4 funds read, 2 found in your sheet/.test(dsub), 'the report is read on the phone: ' + dsub);
+  const rowsTxt = await page.$$eval('#dlgB .dlrow', (e) => e.map((x) => x.textContent!.replace(/[\s\u2066-\u2069]/g, '')));
+  ok(rowsTxt.includes('Balance₪320,000→₪38,302') && rowsTxt.includes('Tracks(fundnumbers)1111→15256') && rowsTxt.includes('Balance₪600,000→₪763,413') && rowsTxt.includes('Lastupdated–→2026-10-31'), 'proposals show old → new per holding: ' + rowsTxt.join(' | '));
+  ok((await txt('#dlgB')).includes('In the report but not in your sheet') && (await txt('#dlgB')).includes('570-911-400001-0'), 'funds in the report but not in the sheet are listed');
+  ok(writes.length === wd0, 'nothing written before "Write"');
+  await page.locator('#dlg').screenshot({ path: OUT + '/delta-review.png' });
+  // Untick the pension's track change, keep the rest.
+  await page.locator('#dlgB .dlrow', { hasText: '(15263,63%),(13909,37%)' }).locator('input').uncheck();
+  const nSel = await page.$$eval('#dlgB [data-dl]', (e) => e.filter((x) => (x as HTMLInputElement).checked).length);
+  ok((await txt('#dlWrite')) === `Write ${nSel} selected changes to the sheet`, 'the write button counts the ticked changes: ' + (await txt('#dlWrite')));
+  await page.click('#dlWrite');
+  await page.waitForFunction(() => document.getElementById('dlgB')!.textContent!.includes('Written to your sheet'));
+  const dd = writes.slice(wd0).filter((w) => w.url.endsWith('/values:batchUpdate')).flatMap((w) => (w.body as { data: { range: string; values: unknown[][] }[] }).data);
+  const hc = (k: string) => String.fromCharCode(65 + (holdingsRows[0] as string[]).indexOf(k));
+  const pc = (k: string) => String.fromCharCode(65 + (pensionX[0] as string[]).indexOf(k));
+  ok(dd.some((x) => x.range === `'Holdings'!${hc('current_amount')}3` && x.values[0][0] === 38302) && dd.some((x) => x.range === `'Pension'!${pc('current_amount_ILS')}2` && x.values[0][0] === 763413), 'ticked changes are written to their cells: ' + dd.map((x) => x.range + '=' + x.values[0][0]).join(', '));
+  ok(!dd.some((x) => x.range === `'Pension'!${pc('fund_number')}2`) && dd.length === nSel, 'an unticked change is not written, and nothing else is');
+  await page.click('#dlClose');
 
   // 5. Hebrew: everything works, including adding a (recurring) goal and saving it.
   await page.click('#lb');

@@ -73,7 +73,8 @@ function serviceWorker(): Plugin {
     apply: 'build',
     generateBundle(_, bundle) {
       this.emitFile({ type: 'asset', fileName: 'manifest.webmanifest', source: JSON.stringify(manifest, null, 2) });
-      const files = ['./', ...Object.keys(bundle).map((f) => './' + f), './' + iconDir + 'icon-192.png', './' + iconDir + 'icon-512.png', './' + iconDir + 'apple-touch-icon.png'];
+      // The PDF reader (Delta import) is big and rarely used: fetched when needed, not kept offline.
+      const files = ['./', ...Object.keys(bundle).filter((f) => !/^assets\/pdf[.-]/.test(f)).map((f) => './' + f), './' + iconDir + 'icon-192.png', './' + iconDir + 'icon-512.png', './' + iconDir + 'apple-touch-icon.png'];
       const version = createHash('sha256').update(files.join('|') + Object.values(bundle).map((b) => ('code' in b ? b.code : String(b.source))).join('')).digest('hex').slice(0, 12);
       const sw = `// Generated at build time. Caches the app shell only; never sheet data or Google calls.
 const CACHE = 'fp-${channel}-${version}';

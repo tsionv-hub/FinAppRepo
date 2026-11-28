@@ -21,9 +21,11 @@ export interface SheetData {
   /** Null when the sheet has no Grants tab. */
   grants: Grant[] | null;
   /** Column order of the tabs the app writes to. */
-  headers: { holdings: string[]; deposits: string[]; grants: string[] };
+  headers: { holdings: string[]; deposits: string[]; grants: string[]; pension: string[] };
   /** The Holdings tab as read (values), to fill the edit form. */
   holdingsRows: Rows;
+  /** The Pension tab as read (empty when there is none). */
+  pensionRows: Rows;
   fetchedAt: number;
 }
 
@@ -65,8 +67,10 @@ export function fromRows(title: string, tabs: string[], rows: Record<string, Row
         holdings: (rows.Holdings[0] ?? []).map((h) => String(h ?? '').trim()),
         deposits: (rows.Deposits?.[0] ?? []).map((h) => String(h ?? '').trim()),
         grants: (rows.Grants?.[0] ?? []).map((h) => String(h ?? '').trim()),
+        pension: (rows.Pension?.[0] ?? []).map((h) => String(h ?? '').trim()),
       },
       holdingsRows: rows.Holdings,
+      pensionRows: rows.Pension ?? [],
       fetchedAt: Date.now(),
     },
   };
