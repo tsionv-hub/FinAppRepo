@@ -217,7 +217,10 @@ export function parseGoals(rows: Rows, startYear: number): GoalsTab {
     .filter((x) => !blank(x.name) && String(x.type ?? '').trim() !== 'reserve')
     .map<Goal>((x) => ({
       id: blank(x.id) ? undefined : String(x.id),
+      row: x._row,
       name: String(x.name),
+      nameHe: String(x.name_he ?? '').trim() || undefined,
+      description: String(x.description ?? '').trim() || undefined,
       amount: num(x.target_amount_ILS),
       year: parseInt(String(x.target_year), 10),
       month: Math.min(12, Math.max(1, parseInt(String(x.target_month ?? ''), 10) || 1)),

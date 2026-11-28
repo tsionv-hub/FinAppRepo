@@ -344,6 +344,48 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(writes.some((w) => w.url.includes("'Settings'!B17") && JSON.stringify(w.body).includes('57')), 'retirement age written to Settings!B17');
   ok(writes.length === 4, 'exactly 4 writes so far (' + writes.length + ')');
 
+  // 4b. Goals review: walk through every goal, change one, remove one, add one; write only when asked.
+  const wr0 = writes.length;
+  await page.click('#grv');
+  const sub = () => txt('#dlgB .dsub');
+  ok((await txt('#dlgT')) === 'Review goals' && /^Goal 1 of \d+$/.test(await sub()), 'goals review opens on the first goal: ' + (await sub()));
+  const nGoals = Number((await sub()).match(/of (\d+)/)![1]);
+  await page.fill('#rv_a', '123456');
+  await page.fill('#rv_h', 'יעד ראשון');
+  await page.fill('#rv_d', 'A test description');
+  await page.click('#rvNext');
+  ok((await sub()) === 'Goal 2 of ' + nGoals, 'Next shows the next goal, one at a time');
+  await page.click('#rvBack');
+  ok((await page.inputValue('#rv_a')) === '123456' && (await page.inputValue('#rv_h')) === 'יעד ראשון', 'Back keeps what was typed');
+  await page.click('#rvNext');
+  await page.click('#rvRm');
+  ok((await txt('#dlgB')).includes('will be removed') && (await page.isDisabled('#rv_n')), 'a goal can be marked for removal');
+  await page.click('#rvSkip');
+  ok((await sub()) === 'Add a new goal?', 'Skip to new goals jumps straight to the add step');
+  await page.click('#rvBack');
+  ok((await sub()) === 'Goal ' + nGoals + ' of ' + nGoals, 'Back from the add step goes to the last goal');
+  await page.click('#rvNext');
+  ok((await sub()) === 'Add a new goal?', 'after the last goal, it offers to add a new one');
+  await page.fill('#rvn_n', 'Piano');
+  await page.fill('#rvn_a', '20000');
+  await page.fill('#rvn_y', '2029');
+  await page.click('#rvAdd');
+  ok((await txt('#dlgB')).includes('Added: Piano'), 'a new goal is added (and the form is ready for another)');
+  await page.click('#rvNext');
+  const sum = await txt('#dlgB');
+  ok(sum.includes('Changed (1)') && sum.includes('Removed (1)') && sum.includes('New (1)') && sum.includes('Write these changes to your sheet?') && sum.includes('name_he, description'), 'summary lists the changes and asks before writing: ' + sum.replace(/\s+/g, ' ').slice(0, 200));
+  ok(writes.length === wr0, 'nothing written before "Write to sheet"');
+  await page.click('#rvWrite');
+  await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('Goals saved'));
+  const rw = writes.slice(wr0);
+  const rd = rw.filter((w) => w.url.endsWith('/values:batchUpdate')).flatMap((w) => (w.body as { data: { range: string; values: unknown[][] }[] }).data);
+  const rap = rw.find((w) => w.url.endsWith(':append'))?.body as { values: unknown[][] } | undefined;
+  ok(rd.some((x) => x.range === "'Goals'!L1" && x.values[0][0] === 'name_he') && rd.some((x) => x.range === "'Goals'!M1" && x.values[0][0] === 'description'), 'missing columns are added to the Goals header');
+  ok(rd.some((x) => /^'Goals'!C\d+$/.test(x.range) && x.values[0][0] === 123456) && rd.some((x) => /^'Goals'!L\d+$/.test(x.range) && x.values[0][0] === 'יעד ראשון'), 'changed cells written in place');
+  ok(rd.filter((x) => x.values[0][0] === '').length >= 3, 'the removed goal row is cleared');
+  ok(!!rap && rap.values.length === 1 && rap.values[0][1] === 'Piano' && rap.values[0][2] === 20000 && rap.values[0].length === 13, 'the new goal is appended in the extended column order: ' + JSON.stringify(rap?.values));
+  ok(!(await page.evaluate(() => (document.getElementById('dlg') as HTMLDialogElement).open)), 'the review closes after saving');
+
   // 5. Hebrew: everything works, including adding a (recurring) goal and saving it.
   await page.click('#lb');
   ok((await page.getAttribute('html', 'dir')) === 'rtl', 'Hebrew switches to right-to-left');
@@ -358,7 +400,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#gb');
   await page.click('#sv');
   await page.waitForFunction(() => document.getElementById('gm')!.textContent!.includes('נשמר'));
-  const ap2 = writes.filter((w) => w.url.endsWith(':append'))[1];
+  const ap2 = writes.filter((w) => w.url.endsWith(':append')).at(-1);
   ok(ap2 && JSON.stringify((ap2.body as { values: unknown[][] }).values[0]) === JSON.stringify(['G8', 'טיול שנתי', 10000, 2028, 1, 8, 'Added in app', 1, '', 2, 2034]), 'Hebrew recurring goal saved with its repeat columns: ' + JSON.stringify((ap2?.body as { values: unknown })?.values));
   // Language audit: open everything, including popups, and look for any English string that has a Hebrew version.
   const englishLeft = async () => {
