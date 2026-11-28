@@ -332,12 +332,47 @@ fieldset.rvf[disabled] { opacity: .5; }
 .rvadded { margin: 6px 0 10px; }
 .rvadded .bk button { margin-inline-start: 6px; }
 .rvask { font-weight: 600; margin: 14px 0 0; }
-/* Delta import review (v1.28) */
-.dlsel { display: flex; gap: 8px; margin: 8px 0; }
-.dlg-h { margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid var(--ln); }
-.dlrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 0; font-size: 14px; color: var(--tx); }
-.dlrow input { flex: none; }
-.dlrow .dlf { flex: 1 0 auto; white-space: nowrap; }
-.dlrow .dlv { margin-inline-start: auto; text-align: end; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
-.dlrow .old { color: var(--mu); text-decoration: line-through; }
+/* Delta import review (v1.30): summary tiles, one card per holding, sticky footer */
+.dlsum { margin-bottom: 6px; }
+.dlsumh { font-weight: 600; font-size: 14px; }
+.dltiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 10px 0 6px; }
+.dltile { display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 8px 4px; border-radius: 10px; border: 1px solid var(--ln); background: var(--bg); color: var(--tx); font-size: 11px; line-height: 1.2; text-align: center; }
+.dltile b { font-size: 20px; }
+.dltile:disabled { opacity: .45; }
+.dltile.t-upd b { color: #b45309; } .dltile.t-same b { color: var(--ok); } .dltile.t-new b { color: var(--ac); }
+.dlsec { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--mu); margin: 18px 0 6px; scroll-margin-top: 8px; }
+.dlcard { border: 1px solid var(--ln); border-radius: 12px; padding: 10px 12px; margin-bottom: 8px; background: var(--card); }
+.dlcard.c-upd { border-inline-start: 4px solid #f59e0b; }
+.dlcard.c-same { border-inline-start: 4px solid var(--ok); }
+.dlcard.c-none { border-inline-start: 4px solid var(--ln); background: var(--bg); }
+.dlcard.c-new { border-inline-start: 4px solid var(--ac); }
+.dlch { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.dlcn { min-width: 0; }
+.dlpill { flex: none; font-size: 11.5px; font-weight: 700; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.dlpill.p-upd { background: color-mix(in srgb, #f59e0b 18%, transparent); color: #b45309; }
+.dlpill.p-same { background: color-mix(in srgb, var(--ok) 14%, transparent); color: var(--ok); }
+.dlpill.p-none { background: var(--ln); color: var(--mu); }
+.dlpill.p-new { background: color-mix(in srgb, var(--ac) 14%, transparent); color: var(--ac); }
+.dlrow { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0 6px; border-top: 1px solid var(--ln); margin-top: 8px; font-size: 14px; color: var(--tx); }
+.dlrow + .dlrow { margin-top: 0; }
+.dlrow input { flex: none; width: 20px; height: 20px; margin-top: 1px; accent-color: var(--ac); }
+.dlbody { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.dlf { font-size: 12.5px; color: var(--mu); font-weight: 600; }
+.dlv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-variant-numeric: tabular-nums; }
+.dlv .old { color: var(--mu); text-decoration: line-through; }
+.dlv .arr { color: var(--mu); }
+[dir=rtl] .dlv .arr { display: inline-block; transform: scaleX(-1); }
+.dld { font-size: 12px; font-weight: 600; padding: 0 6px; border-radius: 6px; }
+.dld.up { color: var(--ok); background: color-mix(in srgb, var(--ok) 10%, transparent); }
+.dld.down { color: var(--bad); background: color-mix(in srgb, var(--bad) 10%, transparent); }
+.dlwarn { display: block; font-size: 12.5px; color: #b45309; margin-top: 4px; }
+.dlrow.doubt .dlv b { color: var(--mu); }
+.dlfacts { font-size: 12px; margin-top: 8px; color: var(--tx); }
+.dlwhy { font-size: 12.5px; color: var(--mu); margin-top: 4px; }
+.dlfoot { position: sticky; bottom: -16px; background: var(--card); border-top: 1px solid var(--ln); margin: 12px -16px -16px; padding: 8px 16px 14px; box-shadow: 0 -6px 12px -8px rgba(0, 0, 0, .15); }
+.dlbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.dlbar #dlWrite { flex: 0 1 auto; padding: 10px 18px; font-weight: 600; }
+.dlsel { display: flex; align-items: center; gap: 6px; color: var(--mu); font-size: 13px; }
+button.lnk { background: none; border: 0; padding: 6px 2px; color: var(--ac); font-size: 13px; text-decoration: underline; }
+dialog#dlg.tall { max-height: 92vh; }
 

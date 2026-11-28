@@ -12,11 +12,12 @@ import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleOfficialRecords, exampleRows } from '../example';
 import { planImport, applyProposals, type ImportPlan, type Proposal } from '../import/proposals';
-import { parseDelta } from '../import/delta';
+import { parseDelta, type DeltaProduct } from '../import/delta';
 import { draftOf, planGoals, saveGoalsReview, changedFields, type GoalDraft } from '../sheets/goals';
 import { addHolding, defaultTax, formulaKeys, HOLDING_FIELDS, HOLDING_TYPES, removeHolding, saveHolding, type Field } from '../sheets/edit';
 import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, lookupPension, dbFor } from '../official/gov';
 import type { Official } from '../model/types';
+import type { Rows } from '../model/parse';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
 import { get, isChecked, KEYS, markChecked, nickOf, remove, saveSheet, set } from '../storage';
@@ -869,6 +870,7 @@ const sec = (title: string) => `<div class="dsec">${title}</div>`;
 const yn = (b: boolean) => (b ? t('yes') : t('no'));
 
 export function openDialog(title: string, sub: string, body: string): void {
+  $('dlg').classList.remove('tall');
   $('dlgT').textContent = title;
   $('dlgB').innerHTML = (sub ? `<p class="dsub">${sub}</p>` : '') + body;
   const d = $<HTMLDialogElement>('dlg');
@@ -1737,54 +1739,171 @@ async function deltaImport(files: File[]): Promise<void> {
 const DL_STATUS: Record<string, 'dlS_on' | 'dlS_off' | 'dlS_end' | 'dlS_unk'> = { 'פעיל': 'dlS_on', 'לא פעיל': 'dlS_off', 'תום תקופה': 'dlS_end', 'לא ידוע': 'dlS_unk' };
 const dlStatus = (s: string) => (DL_STATUS[s] ? t(DL_STATUS[s]) : s);
 const dlLabel = (field: string) => t(('dlF_' + field) as 'dlF_fund_number');
-function dlValue(field: string, v: unknown): string {
-  if (v === '' || v == null) return '–';
+
+/** How many PDFs the import read (shown in the summary). */
+let dlFiles = 1;
+
+/** The report's product types, as the app's holding types (in the app's language). */
+const DL_TYPE: Record<string, string> = { 'קרן פנסיה': 'Pension', 'קופת גמל להשקעה': 'Investment fund', 'קרן השתלמות': 'Study fund', 'קופת גמל': 'Investment fund', 'ביטוח חיים וחסכון': 'Savings plan', 'חיים משולב חסכון': 'Savings plan', 'ביטוח מנהלים': 'Pension', 'פוליסת חיסכון': 'Savings plan' };
+const dlType = (s: string) => (DL_TYPE[s] ? ty(DL_TYPE[s]) : s);
+
+/** "10/2026" → "Oct 2026" in the app's language. */
+function dlMonth(mm: string | null | undefined): string {
+  const m = /^(\d{2})\/(\d{4})$/.exec(mm ?? '');
+  return m ? new Date(+m[2], +m[1] - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' }) : '–';
+}
+
+/** A value as shown in the review: money, percent, a date in words, or tracks one per line. */
+function dlShowValue(field: string, v: unknown): string {
+  if (v === '' || v == null) return `<span class="lbl">${t('dlEmptyV')}</span>`;
   if (/amount/.test(field)) return f(Number(v));
   if (/_pct$/.test(field)) return `${Number(v)}%`;
+  if (field === 'last_updated' && /^\d{4}-\d{2}-\d{2}$/.test(String(v))) return esc(dayText(String(v)));
+  if (field === 'fund_number') return String(v).split(/\),\s*\(/).map((x) => esc(x.replace(/^\(|\)$/g, '').replace(',', ' · '))).join('<br>');
   return esc(String(v));
 }
 
-/** How many PDFs the import read (shown in the window's subtitle). */
-let dlFiles = 1;
+/** How much a value moves: "+₪37,565 (+1.9%)" for money, "−0.15 pts" for a percentage. */
+function dlDelta(field: string, old: unknown, v: unknown): string {
+  const o = typeof old === 'number' ? old : parseFloat(String(old ?? '').replace(/,/g, ''));
+  const n = Number(v);
+  if (!Number.isFinite(o) || !Number.isFinite(n) || typeof v !== 'number') return '';
+  const d = n - o;
+  if (!d) return '';
+  const sign = d > 0 ? '+' : '−';
+  const cls = d > 0 ? 'up' : 'down';
+  if (/amount/.test(field)) return `<span class="dld ${cls}">${sign}${f(Math.abs(d))}${o ? ` (${sign}${Math.abs((d / o) * 100).toFixed(1)}%)` : ''}</span>`;
+  if (/_pct$/.test(field)) return `<span class="dld ${cls}">${sign}${Math.abs(d).toFixed(2).replace(/\.?0+$/, '')} ${t('dlPts')}</span>`;
+  return '';
+}
 
-/** Holdings and pension funds the reports had nothing on: these still need updating by hand. */
-function dlMissing(plan: ImportPlan): string {
-  if (!plan.missing.length) return '';
-  return sec(t('dlMiss', { n: plan.missing.length }))
-    + plan.missing.map((m) => `<div class="bk"><span>${esc(m.name)}</span><span class="lbl">${m.tab === 'Pension' ? t('dlTabP') : ''}</span></div>`).join('')
-    + `<div class="dnote">${t('dlMissN')}</div>`;
+/** One line of what the report says about a fund beyond the cells it changes. */
+function dlFacts(p: DeltaProduct): string {
+  const tr = p.tracks;
+  const tot = tr.reduce((a, x) => a + (x.amount ?? 0), 0);
+  const avg = (k: 'ytd' | 'stocksPct') => {
+    if (!tr.length || tr.some((x) => x[k] == null)) return null;
+    if (tr.length === 1) return tr[0][k]!;
+    return tot ? tr.reduce((a, x) => a + (x.amount ?? 0) * x[k]!, 0) / tot : null;
+  };
+  const ytd = avg('ytd');
+  const st = avg('stocksPct');
+  const parts = [
+    p.balance != null ? t('dlFBal', { v: f(p.balance) }) : '',
+    ytd != null ? t('dlFYtd', { v: `${ytd > 0 ? '+' : ''}${ytd.toFixed(1)}%` }) : '',
+    p.depositsThisYear ? t('dlFDep', { v: f(p.depositsThisYear) }) : '',
+    st != null ? t('dlFStocks', { v: `${Math.round(Math.min(100, st))}%` }) : '',
+  ].filter(Boolean);
+  return parts.length ? `<div class="dlfacts"><span class="lbl">${t('dlFacts', { d: dlMonth(p.asOf) })}</span> ${parts.join(' · ')}</div>` : '';
+}
+
+interface DlCard {
+  tab: 'Holdings' | 'Pension';
+  row: number;
+  name: string;
+  sub: string;
+  balance: number | null;
+  /** Why there's no data (no-data cards only). */
+  why?: string;
+  match?: ImportPlan['matched'][number];
+}
+
+/** Every holding and pension fund of the sheet, with what the report says about it. */
+function dlCards(plan: ImportPlan): DlCard[] {
+  if (!data) return [];
+  const out: DlCard[] = [];
+  const NOT_COVERED = new Set(['Brokerage', 'Cash', 'Stocks', 'Stocks (unvested)']);
+  const add = (tab: DlCard['tab'], header: string[], rows: Rows, amountCol: string) => {
+    const c = (k: string) => header.indexOf(k);
+    rows.forEach((r, i) => {
+      if (i === 0) return;
+      const name = String(r[c('name')] ?? '').trim();
+      if (!name) return;
+      const type = tab === 'Pension' ? ty('Pension') : String(r[c('type')] ?? '');
+      const vendor = String(r[c('vendor')] ?? r[c('owner')] ?? '').trim();
+      const acc = String(r[c('account_number')] ?? '').replace(/\D/g, '');
+      const ccy = String(r[c('currency')] ?? 'ILS').trim().toUpperCase() || 'ILS';
+      const amt = parseFloat(String(r[c(amountCol)] ?? '').replace(/,/g, ''));
+      const match = plan.matched.find((m) => m.tab === tab && m.row === i + 1);
+      const why = match ? undefined : !acc ? t('dlWhyNoAcc') : tab === 'Holdings' && NOT_COVERED.has(String(r[c('type')] ?? '')) ? t('dlWhyKind') : t('dlWhyNotIn');
+      out.push({
+        tab, row: i + 1, name, match, why,
+        sub: [tab === 'Holdings' ? ty(type) : t('dlTabP'), vendor, acc ? '…' + acc.slice(-4) : ''].filter(Boolean).map(esc).join(' · '),
+        balance: Number.isFinite(amt) && ccy === 'ILS' ? amt : null,
+      });
+    });
+  };
+  add('Holdings', data.headers.holdings, data.holdingsRows, 'current_amount');
+  add('Pension', data.headers.pension, data.pensionRows, 'current_amount_ILS');
+  return out;
 }
 
 function dlShow(produced: string | null, plan: ImportPlan): void {
   const ps = plan.proposals;
-  const asOf = [...new Set(plan.matched.map((m) => m.product.asOf).filter(Boolean))].join(', ') || '–';
-  const n = plan.matched.length + plan.unmatched.length + plan.empty.length;
-  let body = `<div class="dnote">${t('dlPrivacy')}</div>`;
-  const groups = plan.matched.filter((m) => ps.some((p) => p.tab === m.tab && p.row === m.row));
-  const same = plan.matched.filter((m) => !groups.includes(m));
-  if (!ps.length) body += `<div class="dnote ok">${t('dlNoChg')}</div>`;
-  else
-    body += `<div class="dlsel"><button type="button" class="s" id="dlAll">${t('dlAll')}</button><button type="button" class="s" id="dlNo">${t('dlNoneSel')}</button></div>`;
-  for (const m of groups) {
-    const last4 = m.product.account.replace(/\D/g, '').slice(-4);
-    body += `<div class="dlg-h"><b>${esc(m.name)}</b> <span class="lbl">${m.tab === 'Pension' ? t('dlTabP') + ' · ' : ''}…${last4}${m.product.status ? ' · ' + esc(dlStatus(m.product.status)) : ''}</span></div>`;
-    if (m.product.status === 'תום תקופה') body += `<div class="dnote bad">${esc(t('dlEnd', { s: dlStatus(m.product.status) }))}</div>`;
-    ps.forEach((p, i) => {
-      if (p.tab !== m.tab || p.row !== m.row) return;
-      body += `<label class="dlrow"><input type="checkbox" data-dl="${i}"${p.doubt ? '' : ' checked'}><span class="dlf">${dlLabel(p.field)}</span>`
-        + `<span class="dlv"><span class="old">${dlValue(p.field, p.old)}</span> → <b>${dlValue(p.field, p.value)}</b></span></label>`
-        + (p.doubt ? `<div class="dnote">${t(p.doubt === 'zeroFee' ? 'dlZero' : 'dlIns')}</div>` : '');
-    });
+  const cards = dlCards(plan);
+  const changes = (c: DlCard) => ps.map((p, i) => ({ p, i })).filter(({ p }) => p.tab === c.tab && p.row === c.row);
+  const upd = cards.filter((c) => c.match && changes(c).length);
+  const same = cards.filter((c) => c.match && !changes(c).length);
+  const none = cards.filter((c) => !c.match);
+  const asOf = [...new Set(plan.matched.map((m) => dlMonth(m.product.asOf)))].join(', ') || '–';
+
+  const tile = (cls: string, n: number, label: string, target: string) =>
+    `<button type="button" class="dltile ${cls}" data-dlgo="${target}"${n ? '' : ' disabled'}><b>${n}</b><span>${label}</span></button>`;
+  let body = `<div class="dlsum">`
+    + `<div class="dlsumh">📄 ${t(dlFiles === 1 ? 'dlHead1' : 'dlHead', { n: dlFiles, d: asOf })}${produced ? ` <span class="lbl">· ${t('dlMade', { d: produced })}</span>` : ''}</div>`
+    + `<div class="dltiles">${tile('t-upd', upd.length, t('dlSumUpd'), 'dlSecUpd')}${tile('t-same', same.length, t('dlSumSame'), 'dlSecSame')}${tile('t-none', none.length, t('dlSumNo'), 'dlSecNo')}${tile('t-new', plan.unmatched.length, t('dlSumNew'), 'dlSecNew')}</div>`
+    + `<div class="dnote">🔒 ${t('dlPrivacy')}</div></div>`;
+
+  const head = (c: DlCard, pill: string) =>
+    `<div class="dlch"><div class="dlcn"><b>${esc(c.name)}</b><div class="lbl">${c.sub}</div></div><span class="dlpill ${pill}">${pillText(c)}</span></div>`;
+  const pillText = (c: DlCard) => {
+    if (!c.match) return t('dlPillNo');
+    const n = changes(c).length;
+    return n ? (n === 1 ? t('dlPillChg1') : t('dlPillChg', { n })) : t('dlPillSame');
+  };
+
+  if (upd.length) {
+    body += `<h3 class="dlsec" id="dlSecUpd">${t('dlSecUpd', { n: upd.length })}</h3>`;
+    for (const c of upd) {
+      const pr = c.match!.product;
+      body += `<div class="dlcard c-upd">${head(c, 'p-upd')}`;
+      if (pr.status === 'תום תקופה') body += `<div class="dlwarn">⚠️ ${esc(t('dlEnd', { s: dlStatus(pr.status) }))}</div>`;
+      for (const { p, i } of changes(c)) {
+        body += `<label class="dlrow${p.doubt ? ' doubt' : ''}"><input type="checkbox" data-dl="${i}"${p.doubt ? '' : ' checked'}>`
+          + `<span class="dlbody"><span class="dlf">${dlLabel(p.field)}</span>`
+          + `<span class="dlv"><span class="old">${dlShowValue(p.field, p.old)}</span><span class="arr" aria-hidden="true">→</span><b>${dlShowValue(p.field, p.value)}</b>${dlDelta(p.field, p.old, p.value)}</span>`
+          + (p.doubt ? `<span class="dlwarn">⚠️ ${t(p.doubt === 'zeroFee' ? 'dlZero' : 'dlIns')}</span>` : '')
+          + `</span></label>`;
+      }
+      body += dlFacts(pr) + `</div>`;
+    }
   }
-  if (same.length) body += `<div class="dnote">${esc(t('dlUpToDate', { n: same.map((m) => m.name).join(', ') }))}</div>`;
-  if (plan.unmatched.length)
-    body += sec(t('dlNotIn')) + plan.unmatched.map((p) => `<div class="bk"><span>${esc(p.type)}${p.company ? ' · ' + esc(p.company) : ''} · ${esc(p.account)}</span><span>${f(p.balance ?? 0)}</span></div>`).join('')
-      + `<div class="dnote">${t('dlNotInN')}</div>`;
+  if (same.length) {
+    body += `<h3 class="dlsec" id="dlSecSame">${t('dlSecSame', { n: same.length })}</h3>`;
+    for (const c of same) body += `<div class="dlcard c-same">${head(c, 'p-same')}${dlFacts(c.match!.product)}</div>`;
+  }
+  if (none.length) {
+    body += `<h3 class="dlsec" id="dlSecNo">${t('dlSecNo', { n: none.length })}</h3><div class="dnote">${t('dlNoN')}</div>`;
+    for (const c of none) body += `<div class="dlcard c-none">${head(c, 'p-none')}<div class="dlwhy">${esc(c.why ?? '')}</div></div>`;
+  }
+  if (plan.unmatched.length) {
+    body += `<h3 class="dlsec" id="dlSecNew">${t('dlSecNew', { n: plan.unmatched.length })}</h3><div class="dnote">${t('dlNotInN')}</div>`;
+    for (const p of plan.unmatched)
+      body += `<div class="dlcard c-new"><div class="dlch"><div class="dlcn"><b>${esc(dlType(p.type))}</b><div class="lbl">${[p.company, p.account].filter(Boolean).map(esc).join(' · ')}</div></div><span class="dlpill p-new">${t('dlPillNew')}</span></div>${dlFacts(p)}</div>`;
+  }
   if (plan.empty.length) body += `<div class="dnote">${t('dlEmpty', { n: plan.empty.length })}</div>`;
-  // With nothing to write, this window is the end: say here what the reports didn't cover.
-  if (!ps.length) body += dlMissing(plan);
-  body += `<div class="dlg-btns">${ps.length ? `<button type="button" id="dlWrite"></button>` : ''}<button type="button" class="s" id="dlClose">${t('close')}</button></div><div class="dnote" id="dlMsg" aria-live="polite"></div>`;
-  openDialog(t('dlT'), (dlFiles > 1 ? t('dlFiles', { n: dlFiles }) + ' · ' : '') + t('dlSub', { d: produced ?? '–', a: asOf, n, m: plan.matched.length }), body);
+
+  body += `<div class="dlfoot">`
+    + (ps.length
+      ? `<div class="dlbar"><span class="dlsel"><button type="button" class="lnk" id="dlAll">${t('dlAll')}</button><span aria-hidden="true">·</span><button type="button" class="lnk" id="dlNo">${t('dlNoneSel')}</button></span><button type="button" id="dlWrite"></button></div>`
+      : `<div class="dlbar"><span class="dnote ok">${t('dlNoChg')}</span><button type="button" class="s" id="dlClose">${t('close')}</button></div>`)
+    + `<div class="dnote" id="dlMsg" aria-live="polite"></div></div>`;
+  openDialog(t('dlT'), '', body);
+  $('dlg').classList.add('tall');
+
+  $('dlgB').querySelectorAll<HTMLButtonElement>('[data-dlgo]').forEach((b) =>
+    b.addEventListener('click', () => document.getElementById(b.dataset.dlgo!)?.scrollIntoView({ behavior: 'smooth', block: 'start' })),
+  );
   const boxes = () => [...$('dlgB').querySelectorAll<HTMLInputElement>('[data-dl]')];
   const count = () => {
     if (!ps.length) return;
@@ -1795,14 +1914,13 @@ function dlShow(produced: string | null, plan: ImportPlan): void {
   };
   boxes().forEach((b) => b.addEventListener('change', count));
   count();
-  $('dlClose').addEventListener('click', () => $<HTMLDialogElement>('dlg').close());
-  if (!ps.length) return;
+  if (!ps.length) return void $('dlClose').addEventListener('click', () => $<HTMLDialogElement>('dlg').close());
   $('dlAll').addEventListener('click', () => (boxes().forEach((b) => (b.checked = true)), count()));
   $('dlNo').addEventListener('click', () => (boxes().forEach((b) => (b.checked = false)), count()));
-  $('dlWrite').addEventListener('click', () => void dlWrite(boxes().filter((b) => b.checked).map((b) => ps[Number(b.dataset.dl)]), plan));
+  $('dlWrite').addEventListener('click', () => void dlWrite(boxes().filter((b) => b.checked).map((b) => ps[Number(b.dataset.dl)])));
 }
 
-async function dlWrite(chosen: Proposal[], plan: ImportPlan): Promise<void> {
+async function dlWrite(chosen: Proposal[]): Promise<void> {
   if (!data || !chosen.length) return;
   if (deps.demo()) return void ($('dlMsg').textContent = t('demoNoSave'));
   const c = deps.client();
@@ -1815,7 +1933,6 @@ async function dlWrite(chosen: Proposal[], plan: ImportPlan): Promise<void> {
     const done = chosen.length - skipped.length;
     openDialog(t('dlT'), '', `<div class="dnote ok">${t('dlDone', { n: done })}</div>`
       + (skipped.length ? `<div class="dnote bad">${esc(t('dlSkip', { f: skipped.map((p) => `${p.name}: ${dlLabel(p.field)}`).join(', ') }))}</div>` : '')
-      + dlMissing(plan)
       + `<div class="dlg-btns"><button type="button" class="s" id="dlClose">${t('close')}</button></div>`);
     $('dlClose').addEventListener('click', () => $<HTMLDialogElement>('dlg').close());
   } catch (e) {
