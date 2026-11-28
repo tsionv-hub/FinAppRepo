@@ -285,3 +285,10 @@ The holding popup has **✏️ Edit**, and the Holdings panel has **➕ Add hold
 - Official returns chart: columns coloured **by vendor**. Vendors take slots in the order they first appear in the Holdings tab (among holdings with a fund number), so a vendor keeps its colour; from the 9th on, and holdings without a vendor, are grey "Other". The legend lists vendors.
 - Inflation bar, when on: "Turn off" and 🤔 sit side by side, so the bar is one line.
 
+**v1.27 (Goals review):**
+- Goals panel, top: **📝 Review goals** opens a step-by-step window. One screen per goal (every goal except early retirement and the rainy day fund, plus goals added in the app but not saved), with a progress bar, **Back** / **Next**, and **Remove this goal** (toggles; a removed goal is greyed out). Fields: name*, Hebrew name, amount* (today's money), year*, month, repeat every N years, until year, pay out on due date, description. Next checks the same rules as adding a goal; Back keeps what was typed.
+- After the last goal: **Add a new goal?** — add as many as wanted (each listed with Remove); text typed but not added is added on Finish.
+- **Summary**: Changed (with the changed fields), Removed and New, the columns that will be added, and "Write these changes to your sheet?" with **Write to sheet**, **Back** and **Discard changes**. Nothing is written before Write; closing the window discards the review. Example mode can't write.
+- Writing (`src/sheets/goals.ts`): one batch for new header cells (`name_he`, `description`, and the repeat columns if needed, added after the last header column) and the changed cells of existing goals (only changed fields; formula cells never written); removed goals have their typed cells cleared (the row stays, like removing a holding); new goals are appended in the (extended) column order with the next G ids and priorities. Then the sheet is reloaded.
+- New optional Goals columns: `name_he` (shown instead of the name in Hebrew; blank = the built-in translation) and `description` (shown in the goal's popup).
+

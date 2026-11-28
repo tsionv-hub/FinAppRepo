@@ -105,7 +105,13 @@ export interface PensionFund {
 
 export interface Goal {
   id?: string;
+  /** Row in the Goals tab (1-based), for editing it in place. */
+  row?: number;
   name: string;
+  /** name_he column: shown instead of the name in Hebrew (blank = translated from the name). */
+  nameHe?: string;
+  /** description column: free text about the goal. */
+  description?: string;
   /** Target amount in today's ILS. For the retirement goal this is derived. */
   amount: number;
   year: number;

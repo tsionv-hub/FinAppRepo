@@ -11,6 +11,7 @@ import {
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleOfficialRecords, exampleRows } from '../example';
+import { draftOf, planGoals, saveGoalsReview, changedFields, type GoalDraft } from '../sheets/goals';
 import { addHolding, defaultTax, formulaKeys, HOLDING_FIELDS, HOLDING_TYPES, removeHolding, saveHolding, type Field } from '../sheets/edit';
 import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, lookupPension, dbFor } from '../official/gov';
 import type { Official } from '../model/types';
@@ -514,7 +515,7 @@ function freeView(fm: FreeMoney): void {
   $('fm').textContent = f(fm.free);
   let s = t('freeN');
   const n = fm.note;
-  if (n.kind === 'limited') s += ' ' + t('lim') + ' ' + goalName(n.goal.name) + ' (' + n.goal.year + ').';
+  if (n.kind === 'limited') s += ' ' + t('lim') + ' ' + goalName(n.goal.name, n.goal.nameHe) + ' (' + n.goal.year + ').';
   if (n.kind === 'allReserved') s = t('allRes');
   if (n.kind === 'impossible') s = t('none2');
   if (n.kind === 'saveMore') s = t('none1', { x: f(n.perMonth) });
@@ -752,7 +753,7 @@ function goalsView(r: SimResult, goals: Goal[], liquidNow: number, reserve: numb
     const i = listed.push(orig) - 1;
     goalRows.push(x);
     const date = new Date(x.year, (x.month || 1) - 1, 1).toLocaleDateString(locale(), { month: 'short', year: 'numeric' });
-    o += `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
+    o += `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name, x.nameHe))}</b>`
       + (orig.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}">${t('rm')}</button>` : '')
       + `<div class="lbl">${f(x.amount)} · ${date}${x.retirement ? ' · ' + t('age') + ' ' + inp('ra').value : ''}</div></div><div>`
       + (y ? pill(y.ok, y.ok ? t('on') : t('sh') + ' ' + f(y.short)) + (x.retirement ? '' : `<div class="lbl">${t('prj')} ${f(y.have)}</div>`) : '')
@@ -784,7 +785,7 @@ function recurringRow(x: Goal, zs: GoalResult[], i: number): string {
     ? pill(false, `${t('shortIn', { y: bad.g.year })} ${f(bad.short)}`)
     : pill(true, t('on'));
   const pc = zs.length ? (nOk / zs.length) * 100 : 0;
-  return `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name))}</b>`
+  return `<div class="g" data-gd="${i}"><div class="gh"><div><b>${esc(goalName(x.name, x.nameHe))}</b>`
     + (x.pending ? ` <span class="lbl">${t('ns')}</span> <button class="s" data-rm="${i}">${t('rm')}</button>` : '')
     + `<div class="lbl">${f(x.amount)} ${everyText(x)} · ${t('fromL')} ${first}</div></div><div>${status}`
     + (zs.length ? `<div class="lbl">${t('nRec', { n: nOk, m: zs.length })}${next ? '' : ''}</div>` : '')
@@ -1222,8 +1223,9 @@ function recurringDetails(g: Goal): void {
   }
   if (!zs.length) body += `<div class="dnote">${t('dNoOcc')}</div>`;
   body += `<div class="dnote">${t('dRecN')}</div>`;
+  if (g.description) body += `<div class="dnote">${esc(g.description)}</div>`;
   if (g.notes) body += `<div class="dnote">${esc(g.notes)}</div>`;
-  openDialog(goalName(g.name), g.pending ? t('ns') : '', body);
+  openDialog(goalName(g.name, g.nameHe), g.pending ? t('ns') : '', body);
 }
 
 function loanDetails(i: number): void {
@@ -1268,9 +1270,10 @@ function goalDetails(g: Goal): void {
     if (z) body += row(t('dHave'), f(z.have)) + (z.ok ? '' : row(t('dShortBy'), f(z.short)));
     if (g.priority != null) body += row(t('dPrio'), String(g.priority));
     body += `<div class="dnote">${t('dGoalN')}</div>`;
+    if (g.description) body += `<div class="dnote">${esc(g.description)}</div>`;
     if (g.notes) body += `<div class="dnote">${esc(g.notes)}</div>`;
   }
-  openDialog(goalName(g.name), g.pending ? t('ns') : '', body);
+  openDialog(goalName(g.name, g.nameHe), g.pending ? t('ns') : '', body);
 }
 
 function reserveDetails(): void {
@@ -1370,6 +1373,7 @@ export function initApp(d: AppDeps): void {
   $('inflHelp').addEventListener('click', inflationHelp);
   $('gb').addEventListener('click', addGoal);
   $('sv').addEventListener('click', saveGoals);
+  $('grv').addEventListener('click', () => goalsReview());
   $('rb').addEventListener('click', saveRes);
   $('rb2').addEventListener('click', saveRet);
   $('reload').addEventListener('click', load);
@@ -1515,4 +1519,178 @@ export function aiSnapshot(demo: boolean): AiSnapshot | null {
     },
     guide: getLang() === 'he' ? guideHe : guideEn,
   };
+}
+
+// ---------- goals review (SPEC v1.27) ----------
+
+/** The review in progress: one draft per goal, the step shown, and goals added at the end. */
+let rv: { drafts: GoalDraft[]; i: number; msg: string } | null = null;
+
+const monthOptions = (sel: number) =>
+  Array.from({ length: 12 }, (_, k) => `<option value="${k + 1}"${k + 1 === sel ? ' selected' : ''}>${esc(new Date(2026, k, 1).toLocaleDateString(locale(), { month: 'long' }))}</option>`).join('');
+
+/** Opens the review: every goal (not early retirement or the rainy day fund), one per screen. */
+function goalsReview(): void {
+  if (!data) return;
+  const list = [...data.goals.goals.filter((g) => !g.retirement), ...pending];
+  rv = { drafts: list.map(draftOf), i: 0, msg: '' };
+  rvShow();
+}
+
+/** Number of goal screens (the "add a new goal" screen and the summary come after). */
+const rvGoals = () => rv!.drafts.filter((d) => d.orig).length;
+
+function rvForm(d: GoalDraft, prefix: string): string {
+  const v = (x: string | number | null) => esc(x == null ? '' : String(x));
+  const fld = (id: string, label: string, input: string) => `<div><label for="${prefix}${id}">${label}</label>${input}</div>`;
+  return `<div class="hform">`
+    + fld('n', t('name') + ' *', `<input type="text" id="${prefix}n" value="${v(d.name)}" autocomplete="off">`)
+    + fld('h', t('grvHe'), `<input type="text" id="${prefix}h" dir="rtl" value="${v(d.nameHe)}" placeholder="${esc(t('grvHeP'))}" autocomplete="off">`)
+    + `<div class="row">` + fld('a', t('amount') + ' *', `<input type="number" id="${prefix}a" inputmode="numeric" value="${v(d.amount || '')}">`)
+    + fld('y', t('year') + ' *', `<input type="number" id="${prefix}y" inputmode="numeric" value="${v(d.year || '')}">`) + `</div>`
+    + fld('m', t('month'), `<select id="${prefix}m">${monthOptions(d.month || 1)}</select>`)
+    + `<div class="row">` + fld('r', t('repL'), `<input type="number" id="${prefix}r" inputmode="numeric" min="0" value="${v(d.everyYears || '')}">`)
+    + fld('u', t('untilL'), `<input type="number" id="${prefix}u" inputmode="numeric" value="${v(d.untilYear)}">`) + `</div>`
+    + `<label class="chk"><input type="checkbox" id="${prefix}s"${d.spend ? ' checked' : ''}><span>${t('spend')}</span></label>`
+    + fld('d', t('grvDesc'), `<textarea id="${prefix}d" rows="2">${v(d.description)}</textarea>`)
+    + `</div>`;
+}
+
+/** Reads the form into the draft; returns an error text if it isn't valid. */
+function rvRead(d: GoalDraft, prefix: string): string | null {
+  const val = (id: string) => $<HTMLInputElement>(prefix + id).value;
+  d.name = val('n').trim();
+  d.nameHe = val('h').trim();
+  d.amount = parseFloat(val('a').replace(/,/g, '')) || 0;
+  d.year = parseInt(val('y'), 10) || 0;
+  d.month = parseInt(val('m'), 10) || 1;
+  d.everyYears = Math.max(0, Math.round(parseFloat(val('r')) || 0));
+  d.untilYear = parseInt(val('u'), 10) || null;
+  d.spend = $<HTMLInputElement>(prefix + 's').checked;
+  d.description = val('d').trim();
+  if (d.remove) return null;
+  if (!d.name || d.amount <= 0 || !(d.year >= start.year && d.year <= start.year + 60)) return t('need', { y: start.year });
+  if (d.everyYears > 0 && d.untilYear && d.untilYear < d.year) return t('needRep');
+  return null;
+}
+
+function rvShow(): void {
+  if (!rv || !data) return;
+  const n = rvGoals();
+  const i = rv.i;
+  const msg = rv.msg ? `<div class="dnote ok">${esc(rv.msg)}</div>` : '';
+  rv.msg = '';
+  const bar = (k: number) => `<div class="rvbar" aria-hidden="true"><i style="width:${((k / (n + 1)) * 100).toFixed(1)}%"></i></div>`;
+  if (i < n) {
+    const d = rv.drafts.filter((x) => x.orig)[i];
+    openDialog(t('grvT'), t('grvOf', { i: i + 1, n }),
+      bar(i) + msg + (i === 0 ? `<div class="dnote">${t('grvNote')}</div>` : '')
+      + (d.orig?.pending ? `<div class="dnote">${t('ns')}</div>` : '')
+      + (d.remove ? `<div class="dnote bad">${t('grvRemoved')}</div>` : '')
+      + `<fieldset class="rvf"${d.remove ? ' disabled' : ''}>${rvForm(d, 'rv_')}</fieldset>`
+      + `<div class="dnote bad" id="rvErr" aria-live="polite"></div>`
+      + `<div class="dlg-btns"><button type="button" class="s" id="rvBack"${i === 0 ? ' disabled' : ''}>${t('grvBack')}</button><button type="button" id="rvNext">${t('grvNext')}</button></div>`
+      + `<div class="dlg-btns"><button type="button" class="s${d.remove ? '' : ' bad'}" id="rvRm">${t(d.remove ? 'grvKeep' : 'grvRemove')}</button></div>`);
+    const go = (to: number) => {
+      const err = rvRead(d, 'rv_');
+      if (err && to > i) return void ($('rvErr').textContent = err);
+      rv!.i = to;
+      rvShow();
+    };
+    $('rvBack').addEventListener('click', () => go(i - 1));
+    $('rvNext').addEventListener('click', () => go(i + 1));
+    $('rvRm').addEventListener('click', () => {
+      rvRead(d, 'rv_');
+      d.remove = !d.remove;
+      rvShow();
+    });
+    return;
+  }
+  if (i === n) {
+    const added = rv.drafts.filter((x) => !x.orig);
+    const blank: GoalDraft = { name: '', nameHe: '', amount: 0, year: 0, month: 1, spend: true, everyYears: 0, untilYear: null, description: '', remove: false };
+    openDialog(t('grvT'), t('grvNewT'),
+      bar(n) + msg + `<div class="dnote">${t('grvNewN')}</div>`
+      + (added.length ? `<div class="rvadded">${added.map((x, k) => `<div class="bk"><span>➕ ${esc(x.name)}</span><span>${f(x.amount)} · ${x.year} <button type="button" class="s" data-rvdel="${k}">${t('rm')}</button></span></div>`).join('')}</div>` : '')
+      + rvForm(blank, 'rvn_')
+      + `<div class="dnote bad" id="rvErr" aria-live="polite"></div>`
+      + `<div class="dlg-btns"><button type="button" class="s" id="rvAdd">${t('grvAdd')}</button></div>`
+      + `<div class="dlg-btns"><button type="button" class="s" id="rvBack"${n === 0 ? ' disabled' : ''}>${t('grvBack')}</button><button type="button" id="rvNext">${t('grvFinish')}</button></div>`);
+    $('rvAdd').addEventListener('click', () => {
+      const d = { ...blank };
+      const err = rvRead(d, 'rvn_');
+      if (err) return void ($('rvErr').textContent = err);
+      rv!.drafts.push(d);
+      rv!.msg = t('grvAdded', { n: d.name });
+      rvShow();
+    });
+    $('dlgB').querySelectorAll<HTMLButtonElement>('[data-rvdel]').forEach((b) =>
+      b.addEventListener('click', () => {
+        const x = added[Number(b.dataset.rvdel)];
+        rv!.drafts.splice(rv!.drafts.indexOf(x), 1);
+        rvShow();
+      }),
+    );
+    $('rvBack').addEventListener('click', () => ((rv!.i = n - 1), rvShow()));
+    // Something typed but not added yet is added on Finish, so it isn't lost.
+    $('rvNext').addEventListener('click', () => {
+      if (inp('rvn_n').value.trim() || inp('rvn_a').value.trim()) {
+        const d = { ...blank };
+        const err = rvRead(d, 'rvn_');
+        if (err) return void ($('rvErr').textContent = err);
+        rv!.drafts.push(d);
+      }
+      rv!.i = n + 1;
+      rvShow();
+    });
+    return;
+  }
+  // Summary: what will change, then ask before writing.
+  const p = planGoals(data.goals, rv.drafts);
+  const label = (k: keyof GoalDraft) => t(('grvF_' + k) as 'grvF_name');
+  const changed = rv.drafts.filter((d) => d.orig?.row && !d.remove && changedFields(d).length);
+  const removed = rv.drafts.filter((d) => d.orig?.row && d.remove);
+  const fresh = rv.drafts.filter((d) => !d.remove && !d.orig?.row);
+  const list = (title: string, ds: GoalDraft[], line: (d: GoalDraft) => string) =>
+    ds.length ? sec(`${title} (${ds.length})`) + ds.map((d) => `<div class="bk"><span>${esc(goalName(d.name, d.nameHe))}</span><span class="lbl">${line(d)}</span></div>`).join('') : '';
+  const any = changed.length + removed.length + fresh.length > 0;
+  openDialog(t('grvT'), t('grvSumT'),
+    bar(n + 1)
+    + (any
+      ? list(t('grvChg'), changed, (d) => changedFields(d).map(label).join(', '))
+        + list(t('grvRm'), removed, () => '')
+        + list(t('grvNew'), fresh, (d) => `${f(d.amount)} · ${d.year}`)
+        + (p.header.length ? `<div class="dnote">${t('grvCols', { c: p.header.map((h) => h.values[0][0]).join(', ') })}</div>` : '')
+        + `<p class="rvask">${t('grvAsk')}</p>`
+        + `<div class="dlg-btns"><button type="button" id="rvWrite">${t('grvWrite')}</button><button type="button" class="s" id="rvBack">${t('grvBack')}</button></div>`
+        + `<div class="dlg-btns"><button type="button" class="s bad" id="rvDiscard">${t('grvDiscard')}</button></div>`
+      : `<div class="dnote">${t('grvNone')}</div><div class="dlg-btns"><button type="button" class="s" id="rvBack">${t('grvBack')}</button><button type="button" id="rvDiscard">${t('close')}</button></div>`)
+    + `<div class="dnote" id="rvMsg" aria-live="polite"></div>`);
+  $('rvBack').addEventListener('click', () => ((rv!.i = n), rvShow()));
+  $('rvDiscard').addEventListener('click', () => {
+    rv = null;
+    $<HTMLDialogElement>('dlg').close();
+  });
+  if (any) $('rvWrite').addEventListener('click', () => void rvWrite());
+}
+
+async function rvWrite(): Promise<void> {
+  if (!rv || !data) return;
+  if (deps.demo()) return void ($('rvMsg').textContent = t('demoNoSave'));
+  const c = deps.client();
+  if (!c) return;
+  inp('rvWrite').disabled = true;
+  $('rvMsg').textContent = t('wr');
+  try {
+    await saveGoalsReview(c, data.goals, rv.drafts);
+    rv = null;
+    pending = [];
+    await load();
+    $<HTMLDialogElement>('dlg').close();
+    $('gm').textContent = t('grvSaved');
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    $('rvMsg').textContent = errorText(e);
+    inp('rvWrite').disabled = false;
+  }
 }
