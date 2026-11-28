@@ -360,7 +360,11 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   await page.click('#rvNext');
   await page.click('#rvRm');
   ok((await txt('#dlgB')).includes('will be removed') && (await page.isDisabled('#rv_n')), 'a goal can be marked for removal');
-  for (let k = 2; k <= nGoals; k++) await page.click('#rvNext');
+  await page.click('#rvSkip');
+  ok((await sub()) === 'Add a new goal?', 'Skip to new goals jumps straight to the add step');
+  await page.click('#rvBack');
+  ok((await sub()) === 'Goal ' + nGoals + ' of ' + nGoals, 'Back from the add step goes to the last goal');
+  await page.click('#rvNext');
   ok((await sub()) === 'Add a new goal?', 'after the last goal, it offers to add a new one');
   await page.fill('#rvn_n', 'Piano');
   await page.fill('#rvn_a', '20000');

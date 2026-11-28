@@ -1590,7 +1590,7 @@ function rvShow(): void {
       + `<fieldset class="rvf"${d.remove ? ' disabled' : ''}>${rvForm(d, 'rv_')}</fieldset>`
       + `<div class="dnote bad" id="rvErr" aria-live="polite"></div>`
       + `<div class="dlg-btns"><button type="button" class="s" id="rvBack"${i === 0 ? ' disabled' : ''}>${t('grvBack')}</button><button type="button" id="rvNext">${t('grvNext')}</button></div>`
-      + `<div class="dlg-btns"><button type="button" class="s${d.remove ? '' : ' bad'}" id="rvRm">${t(d.remove ? 'grvKeep' : 'grvRemove')}</button></div>`);
+      + `<div class="dlg-btns"><button type="button" class="s${d.remove ? '' : ' bad'}" id="rvRm">${t(d.remove ? 'grvKeep' : 'grvRemove')}</button><button type="button" class="s" id="rvSkip">${t('grvSkip')}</button></div>`);
     const go = (to: number) => {
       const err = rvRead(d, 'rv_');
       if (err && to > i) return void ($('rvErr').textContent = err);
@@ -1599,6 +1599,8 @@ function rvShow(): void {
     };
     $('rvBack').addEventListener('click', () => go(i - 1));
     $('rvNext').addEventListener('click', () => go(i + 1));
+    // Straight to "add a new goal"; what was typed on this goal is kept (and checked).
+    $('rvSkip').addEventListener('click', () => go(n));
     $('rvRm').addEventListener('click', () => {
       rvRead(d, 'rv_');
       d.remove = !d.remove;
