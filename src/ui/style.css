@@ -322,3 +322,14 @@ button.bad { color: var(--bad); border-color: var(--bad); }
 .exk .sw { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-inline-end: 4px; }
 .exk .sw.no { background: var(--ln); }
 .exk .sw.unk { background: repeating-linear-gradient(135deg, var(--mu) 0 1px, transparent 1px 3px); outline: 1px solid var(--ln); }
+/* Goals review (v1.27) */
+.grv { width: 100%; margin: 0 0 10px; padding: 8px; font-weight: 600; }
+.rvbar { height: 4px; border-radius: 2px; background: var(--ln); overflow: hidden; margin-bottom: 10px; }
+.rvbar i { display: block; height: 100%; background: var(--ac); }
+fieldset.rvf { border: 0; padding: 0; margin: 0; min-width: 0; }
+fieldset.rvf[disabled] { opacity: .5; }
+.hform textarea { width: 100%; padding: 8px; border: 1px solid var(--ln); border-radius: 8px; background: var(--bg); color: var(--tx); font: inherit; resize: vertical; }
+.rvadded { margin: 6px 0 10px; }
+.rvadded .bk button { margin-inline-start: 6px; }
+.rvask { font-weight: 600; margin: 14px 0 0; }
+
