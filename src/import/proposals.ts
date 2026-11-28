@@ -39,6 +39,8 @@ export interface ImportPlan {
   unmatched: DeltaProduct[];
   /** Products with no money and no row (closed accounts): not shown as missing. */
   empty: DeltaProduct[];
+  /** Rows of Holdings and Pension that no product of the report matched: still to update by hand. */
+  missing: { tab: ProposalTab; row: number; name: string }[];
 }
 
 interface Tab {
@@ -134,7 +136,7 @@ export function planImport(r: DeltaReport, holdings: { header: string[]; rows: R
     { tab: 'Holdings', ...holdings },
     { tab: 'Pension', ...pension },
   ];
-  const plan: ImportPlan = { proposals: [], matched: [], unmatched: [], empty: [] };
+  const plan: ImportPlan = { proposals: [], matched: [], unmatched: [], empty: [], missing: [] };
   for (const p of r.products) {
     const k = accountKey(p.account);
     let hit: { t: Tab; i: number } | null = null;
@@ -168,6 +170,14 @@ export function planImport(r: DeltaReport, holdings: { header: string[]; rows: R
       const value = monthEnd(p.asOf);
       if (!same(old, value)) plan.proposals.push({ tab: t.tab, row: i + 1, name, field: 'last_updated', old, value, asOf: p.asOf });
     }
+  }
+  for (const t of tabs) {
+    const nc = t.header.indexOf('name');
+    if (nc < 0) continue;
+    t.rows.forEach((row, i) => {
+      const name = String(row[nc] ?? '').trim();
+      if (i > 0 && name && !plan.matched.some((m) => m.tab === t.tab && m.row === i + 1)) plan.missing.push({ tab: t.tab, row: i + 1, name });
+    });
   }
   return plan;
 }

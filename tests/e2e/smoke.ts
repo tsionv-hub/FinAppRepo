@@ -54,9 +54,20 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
 (async () => {
   const browser = await chromium.launch();
   const ctx = await browser.newContext({ ...devices['iPhone 13'] });
-  // Holding groups start closed; open them all so the checks can tap rows (closing is checked below).
+  // Holding groups start closed. The first time they appear on a page load (and only then), open them
+  // all, so the checks can tap rows; closing one and keeping it closed is checked below. Each load also
+  // records whether everything started closed, before this opened anything.
   await ctx.addInitScript(() => {
-    if (!localStorage.getItem('fp_hold_open')) localStorage.setItem('fp_hold_open', JSON.stringify(['study_fund', 'fund', 'trading', 'bank', 'stocks', 'pension']));
+    const w = window as unknown as { __startClosed?: boolean; __opened?: boolean };
+    new MutationObserver(() => {
+      const gs = document.querySelectorAll<HTMLDetailsElement>('#hl details.hgd');
+      if (w.__opened || !gs.length) return;
+      w.__opened = true;
+      w.__startClosed = [...document.querySelectorAll<HTMLDetailsElement>('details')].every((d) => !d.open);
+      gs.forEach((d) => (d.open = true));
+    }).observe(document, { childList: true, subtree: true });
+    // An older version remembered open groups: that must be ignored now.
+    localStorage.setItem('fp_hold_open', JSON.stringify(['study_fund', 'fund', 'trading', 'bank', 'stocks', 'pension']));
   });
   const page = await ctx.newPage();
   const errors: string[] = [];
@@ -136,6 +147,8 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok(await page.isVisible('#demoBar'), 'example mode: banner shown');
   ok(await page.isVisible('#fbBtn'), 'feedback is available in example mode too');
   ok((await txt('#fn')).includes('Limited by Early retirement'), 'example mode: free money limited by early retirement: ' + (await txt('#fm')));
+  ok(!(await page.$eval('#pProj', (d) => (d as HTMLDetailsElement).open)), 'example mode starts with the projection closed too');
+  await page.evaluate(() => ((document.getElementById('pProj') as HTMLDetailsElement).open = true));
   await page.selectOption('#sc', 'pes');
   await page.waitForFunction(() => /Saving about/.test(document.getElementById('fn')!.textContent!));
   ok(true, 'example mode, Pessimistic: ' + (await txt('#fn')));
@@ -213,7 +226,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   ok((await txt('#goals .g[data-gd]:has-text("Family vacation")')).includes('every year until 2032'), 'recurring goal shows as one row: ' + (await txt('#goals .g[data-gd]:has-text("Family vacation") .lbl')));
   ok((await page.locator('#chart rect').count()) === 1, 'chart has the retirement band');
   ok(!(await page.$('#pNext')) && !(await page.$('#pBk')), 'no separate Next goals or by-type panels');
-  ok(await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).map((d) => d.id).join()) === 'pProj', 'only the projection graph starts open');
+  ok(await page.evaluate(() => (window as unknown as { __startClosed?: boolean }).__startClosed === true) && (await page.evaluate(() => [...document.querySelectorAll('details.card')].filter((d) => (d as HTMLDetailsElement).open).length)) === 0, 'every panel and sub-panel starts closed, even if an older version remembered some open');
+  ok((await page.evaluate(() => localStorage.getItem('fp_hold_open'))) === null, 'the old remembered open groups are forgotten');
+  await page.evaluate(() => ((document.getElementById('pProj') as HTMLDetailsElement).open = true));
   ok(/Currentstatus🤔Post-tax₪[\d,]+Pre-tax₪[\d,]+Freetospendtoday₪[\d,]+Afterdebts₪[\d,]+/.test((await txt('#pToday > summary')).replace(/\s+/g, '')), 'one "today" panel shows totals and free money even when closed: ' + (await txt('#pToday > summary')).replace(/\s+/g, ' '));
   ok(await page.evaluate(() => {
     const s = document.querySelector('#pToday > summary')!;
@@ -393,10 +408,13 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const wd0 = writes.length;
   await page.evaluate(() => ((document.getElementById('pHold') as HTMLDetailsElement).open = true));
   ok(await page.isVisible('#dlImp'), 'Holdings has an "Import Delta report" button');
-  await page.setInputFiles('#dlFile', new URL('../fixtures/delta-fake.pdf', import.meta.url).pathname);
+  ok(await page.evaluate(() => { const b = document.getElementById('dlImp')!; return b.parentElement!.id === 'pHold' && b.previousElementSibling!.tagName === 'SUMMARY'; }), 'the import button is at the top of the Holdings panel');
+  // Two reports at once (e.g. one per family member): here the same one twice, so each fund must appear once.
+  const fakePdf = new URL('../fixtures/delta-fake.pdf', import.meta.url).pathname;
+  await page.setInputFiles('#dlFile', [fakePdf, fakePdf]);
   await page.waitForSelector('#dlgB .dlrow', { timeout: 20000 });
   const dsub = await txt('#dlgB .dsub');
-  ok(/figures as of 10\/2026 · 4 funds read, 2 found in your sheet/.test(dsub), 'the report is read on the phone: ' + dsub);
+  ok(/^2 reports · .*figures as of 10\/2026 · 4 funds read, 2 found in your sheet/.test(dsub), 'both reports are read on the phone, together: ' + dsub);
   const rowsTxt = await page.$$eval('#dlgB .dlrow', (e) => e.map((x) => x.textContent!.replace(/[\s\u2066-\u2069]/g, '')));
   ok(rowsTxt.includes('Balance₪320,000→₪38,302') && rowsTxt.includes('Tracks(fundnumbers)1111→15256') && rowsTxt.includes('Balance₪600,000→₪763,413') && rowsTxt.includes('Lastupdated–→2026-10-31'), 'proposals show old → new per holding: ' + rowsTxt.join(' | '));
   ok((await txt('#dlgB')).includes('In the report but not in your sheet') && (await txt('#dlgB')).includes('570-911-400001-0'), 'funds in the report but not in the sheet are listed');
@@ -413,6 +431,9 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const pc = (k: string) => String.fromCharCode(65 + (pensionX[0] as string[]).indexOf(k));
   ok(dd.some((x) => x.range === `'Holdings'!${hc('current_amount')}3` && x.values[0][0] === 38302) && dd.some((x) => x.range === `'Pension'!${pc('current_amount_ILS')}2` && x.values[0][0] === 763413), 'ticked changes are written to their cells: ' + dd.map((x) => x.range + '=' + x.values[0][0]).join(', '));
   ok(!dd.some((x) => x.range === `'Pension'!${pc('fund_number')}2`) && dd.length === nSel, 'an unticked change is not written, and nothing else is');
+  const done = await txt('#dlgB');
+  await page.locator('#dlg').screenshot({ path: OUT + '/delta-done.png' });
+  ok(/Not in the report \(\d+\)/.test(done) && done.includes('Study A') && done.includes('Pension 2') && !done.includes('Invest B'), 'when done, it lists the holdings the report had no data for: ' + done.replace(/\s+/g, ' ').slice(0, 160));
   await page.click('#dlClose');
 
   // 5. Hebrew: everything works, including adding a (recurring) goal and saving it.
