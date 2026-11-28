@@ -332,4 +332,12 @@ fieldset.rvf[disabled] { opacity: .5; }
 .rvadded { margin: 6px 0 10px; }
 .rvadded .bk button { margin-inline-start: 6px; }
 .rvask { font-weight: 600; margin: 14px 0 0; }
+/* Delta import review (v1.28) */
+.dlsel { display: flex; gap: 8px; margin: 8px 0; }
+.dlg-h { margin: 14px 0 4px; padding-top: 10px; border-top: 1px solid var(--ln); }
+.dlrow { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; padding: 6px 0; font-size: 14px; color: var(--tx); }
+.dlrow input { flex: none; }
+.dlrow .dlf { flex: 1 0 auto; white-space: nowrap; }
+.dlrow .dlv { margin-inline-start: auto; text-align: end; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.dlrow .old { color: var(--mu); text-decoration: line-through; }
 

@@ -11,6 +11,8 @@ import {
 import { SheetsClient, SheetsError } from '../sheets/api';
 import { appendGoals, fromRows, loadSheet, MissingColumnError, saveDeposit, saveGrant, saveValue, saveReserve, saveRetirement, type LoadResult, type SheetData } from '../sheets/data';
 import { exampleOfficialRecords, exampleRows } from '../example';
+import { planImport, applyProposals, type ImportPlan, type Proposal } from '../import/proposals';
+import { parseDelta } from '../import/delta';
 import { draftOf, planGoals, saveGoalsReview, changedFields, type GoalDraft } from '../sheets/goals';
 import { addHolding, defaultTax, formulaKeys, HOLDING_FIELDS, HOLDING_TYPES, removeHolding, saveHolding, type Field } from '../sheets/edit';
 import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as offKey, latest, lookupHoldings, lookupPension, dbFor } from '../official/gov';
@@ -1393,6 +1395,13 @@ export function initApp(d: AppDeps): void {
     panelHelp(b.dataset.help!);
   }, true);
   $('hAdd').addEventListener('click', () => holdingForm(null));
+  $('dlImp').addEventListener('click', () => $<HTMLInputElement>('dlFile').click());
+  $('dlFile').addEventListener('change', () => {
+    const fl = $<HTMLInputElement>('dlFile');
+    const file = fl.files?.[0];
+    fl.value = '';
+    if (file) void deltaImport(file);
+  });
   $('ofc').addEventListener('click', (e) => {
     const tg = e.target as Element;
     const b = tg.closest<HTMLElement>('[data-ofp]');
@@ -1696,3 +1705,114 @@ async function rvWrite(): Promise<void> {
     inp('rvWrite').disabled = false;
   }
 }
+
+// ---------- Delta report import (SPEC v1.28) ----------
+
+/** Reads a Delta report PDF on the phone, then shows what it would change for the user to pick. */
+async function deltaImport(file: File): Promise<void> {
+  if (!data) return;
+  openDialog(t('dlT'), '', `<div class="dnote">${t('dlReading')}</div>`);
+  let pages;
+  try {
+    // pdf.js is only loaded when a report is imported.
+    const { pdfItems, PdfPasswordError } = await import('../import/pdf');
+    const buf = await file.arrayBuffer();
+    let password: string | undefined;
+    for (;;) {
+      try {
+        pages = await pdfItems(buf, password);
+        break;
+      } catch (e) {
+        if (!(e instanceof PdfPasswordError)) throw e;
+        const pw = prompt(t(e.retry ? 'dlPassBad' : 'dlPass'));
+        if (pw == null) return void ($('dlgB').innerHTML = `<div class="dnote">${t('dlPassNo')}</div>`);
+        password = pw;
+      }
+    }
+  } catch (e) {
+    return void ($('dlgB').innerHTML = `<div class="dnote bad">${esc(String((e as Error)?.message ?? e))}</div>`);
+  }
+  const report = parseDelta(pages);
+  if (!report.products.length) return void ($('dlgB').innerHTML = `<div class="dnote bad">${t('dlNone')}</div>`);
+  const plan = planImport(report, { header: data.headers.holdings, rows: data.holdingsRows }, { header: data.headers.pension, rows: data.pensionRows });
+  dlShow(report.produced, plan);
+}
+
+/** The report's status words, in English when the app is. */
+const DL_STATUS: Record<string, 'dlS_on' | 'dlS_off' | 'dlS_end' | 'dlS_unk'> = { 'פעיל': 'dlS_on', 'לא פעיל': 'dlS_off', 'תום תקופה': 'dlS_end', 'לא ידוע': 'dlS_unk' };
+const dlStatus = (s: string) => (DL_STATUS[s] ? t(DL_STATUS[s]) : s);
+const dlLabel = (field: string) => t(('dlF_' + field) as 'dlF_fund_number');
+function dlValue(field: string, v: unknown): string {
+  if (v === '' || v == null) return '–';
+  if (/amount/.test(field)) return f(Number(v));
+  if (/_pct$/.test(field)) return `${Number(v)}%`;
+  return esc(String(v));
+}
+
+function dlShow(produced: string | null, plan: ImportPlan): void {
+  const ps = plan.proposals;
+  const asOf = [...new Set(plan.matched.map((m) => m.product.asOf).filter(Boolean))].join(', ') || '–';
+  const n = plan.matched.length + plan.unmatched.length + plan.empty.length;
+  let body = `<div class="dnote">${t('dlPrivacy')}</div>`;
+  const groups = plan.matched.filter((m) => ps.some((p) => p.tab === m.tab && p.row === m.row));
+  const same = plan.matched.filter((m) => !groups.includes(m));
+  if (!ps.length) body += `<div class="dnote ok">${t('dlNoChg')}</div>`;
+  else
+    body += `<div class="dlsel"><button type="button" class="s" id="dlAll">${t('dlAll')}</button><button type="button" class="s" id="dlNo">${t('dlNoneSel')}</button></div>`;
+  for (const m of groups) {
+    const last4 = m.product.account.replace(/\D/g, '').slice(-4);
+    body += `<div class="dlg-h"><b>${esc(m.name)}</b> <span class="lbl">${m.tab === 'Pension' ? t('dlTabP') + ' · ' : ''}…${last4}${m.product.status ? ' · ' + esc(dlStatus(m.product.status)) : ''}</span></div>`;
+    if (m.product.status === 'תום תקופה') body += `<div class="dnote bad">${esc(t('dlEnd', { s: dlStatus(m.product.status) }))}</div>`;
+    ps.forEach((p, i) => {
+      if (p.tab !== m.tab || p.row !== m.row) return;
+      body += `<label class="dlrow"><input type="checkbox" data-dl="${i}"${p.doubt ? '' : ' checked'}><span class="dlf">${dlLabel(p.field)}</span>`
+        + `<span class="dlv"><span class="old">${dlValue(p.field, p.old)}</span> → <b>${dlValue(p.field, p.value)}</b></span></label>`
+        + (p.doubt ? `<div class="dnote">${t(p.doubt === 'zeroFee' ? 'dlZero' : 'dlIns')}</div>` : '');
+    });
+  }
+  if (same.length) body += `<div class="dnote">${esc(t('dlUpToDate', { n: same.map((m) => m.name).join(', ') }))}</div>`;
+  if (plan.unmatched.length)
+    body += sec(t('dlNotIn')) + plan.unmatched.map((p) => `<div class="bk"><span>${esc(p.type)}${p.company ? ' · ' + esc(p.company) : ''} · ${esc(p.account)}</span><span>${f(p.balance ?? 0)}</span></div>`).join('')
+      + `<div class="dnote">${t('dlNotInN')}</div>`;
+  if (plan.empty.length) body += `<div class="dnote">${t('dlEmpty', { n: plan.empty.length })}</div>`;
+  body += `<div class="dlg-btns">${ps.length ? `<button type="button" id="dlWrite"></button>` : ''}<button type="button" class="s" id="dlClose">${t('close')}</button></div><div class="dnote" id="dlMsg" aria-live="polite"></div>`;
+  openDialog(t('dlT'), t('dlSub', { d: produced ?? '–', a: asOf, n, m: plan.matched.length }), body);
+  const boxes = () => [...$('dlgB').querySelectorAll<HTMLInputElement>('[data-dl]')];
+  const count = () => {
+    if (!ps.length) return;
+    const k = boxes().filter((b) => b.checked).length;
+    const w = inp('dlWrite');
+    w.textContent = k === 0 ? t('dlWrite0') : k === 1 ? t('dlWrite1') : t('dlWrite', { n: k });
+    w.disabled = k === 0;
+  };
+  boxes().forEach((b) => b.addEventListener('change', count));
+  count();
+  $('dlClose').addEventListener('click', () => $<HTMLDialogElement>('dlg').close());
+  if (!ps.length) return;
+  $('dlAll').addEventListener('click', () => (boxes().forEach((b) => (b.checked = true)), count()));
+  $('dlNo').addEventListener('click', () => (boxes().forEach((b) => (b.checked = false)), count()));
+  $('dlWrite').addEventListener('click', () => void dlWrite(boxes().filter((b) => b.checked).map((b) => ps[Number(b.dataset.dl)])));
+}
+
+async function dlWrite(chosen: Proposal[]): Promise<void> {
+  if (!data || !chosen.length) return;
+  if (deps.demo()) return void ($('dlMsg').textContent = t('demoNoSave'));
+  const c = deps.client();
+  if (!c) return;
+  inp('dlWrite').disabled = true;
+  $('dlMsg').textContent = t('wr');
+  try {
+    const skipped = await applyProposals(c, chosen, { Holdings: data.headers.holdings, Pension: data.headers.pension });
+    await load();
+    const done = chosen.length - skipped.length;
+    openDialog(t('dlT'), '', `<div class="dnote ok">${t('dlDone', { n: done })}</div>`
+      + (skipped.length ? `<div class="dnote bad">${esc(t('dlSkip', { f: skipped.map((p) => `${p.name}: ${dlLabel(p.field)}`).join(', ') }))}</div>` : '')
+      + `<div class="dlg-btns"><button type="button" class="s" id="dlClose">${t('close')}</button></div>`);
+    $('dlClose').addEventListener('click', () => $<HTMLDialogElement>('dlg').close());
+  } catch (e) {
+    if (e instanceof SheetsError && e.code === 'auth') deps.onAuthError();
+    $('dlMsg').textContent = errorText(e);
+    inp('dlWrite').disabled = false;
+  }
+}
+
