@@ -19,7 +19,7 @@ import { applyOfficial, costParts, costTotal, fetchOfficial, fundIds, key as off
 import type { Official } from '../model/types';
 import type { Checklist } from '../sheets/validate';
 import { AuthError } from '../sheets/auth';
-import { get, isChecked, KEYS, markChecked, nickOf, saveSheet, set } from '../storage';
+import { get, isChecked, KEYS, markChecked, nickOf, remove, saveSheet, set } from '../storage';
 import { chartSvg } from './chart';
 import { docsUrl } from '../docs';
 import type { AiSnapshot } from '../ai/context';
@@ -224,12 +224,9 @@ function officialFor(d: SheetData): void {
     });
 }
 
+/** Holding groups start closed every time the app opens (v1.29: the open state is no longer remembered). */
 function openGroups(): Set<string> {
-  try {
-    return new Set(JSON.parse(get(KEYS.holdOpen) || '[]') as string[]);
-  } catch {
-    return new Set();
-  }
+  return new Set();
 }
 
 type OfcPeriod = 'avg5' | 'avg3' | 'ytd';
@@ -645,11 +642,10 @@ export function tmView(): void {
   $('hsT').textContent = t('hold') + ' (' + (rows.length + pens.length) + ')';
   $('hsK').textContent = k === 0 ? t('atToday') : dateAt(k, 'short');
   // One sub-section per group, in GROUPS order, then pension funds.
-  // Each group collapses on its own (closed by default; the choice is remembered).
-  // Take the open/closed state from the sections on screen (a toggle event may not have arrived yet).
+  // Each group collapses on its own: closed when the app opens, and kept as the user leaves it while it runs
+  // (taken from the sections on screen).
   const shown = document.querySelectorAll<HTMLDetailsElement>('#hl details.hgd');
   const open = shown.length ? new Set([...shown].filter((d) => d.open).map((d) => d.dataset.g!)) : openGroups();
-  if (shown.length) set(KEYS.holdOpen, JSON.stringify([...open]));
   const group = (g: string, name: string, n: number, sum: number, body: string) =>
     `<details class="hgd" data-g="${g}"${open.has(g) ? ' open' : ''}><summary class="hgrp"><span>${name} (${n})</span><span>${f(sum / infl)}</span></summary>${body}</details>`;
   let html = '';
@@ -1398,9 +1394,9 @@ export function initApp(d: AppDeps): void {
   $('dlImp').addEventListener('click', () => $<HTMLInputElement>('dlFile').click());
   $('dlFile').addEventListener('change', () => {
     const fl = $<HTMLInputElement>('dlFile');
-    const file = fl.files?.[0];
+    const files = [...(fl.files ?? [])];
     fl.value = '';
-    if (file) void deltaImport(file);
+    if (files.length) void deltaImport(files);
   });
   $('ofc').addEventListener('click', (e) => {
     const tg = e.target as Element;
@@ -1424,15 +1420,8 @@ export function initApp(d: AppDeps): void {
       c.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
   });
-  // Remember which holding groups are open (toggle does not bubble, so listen in the capture phase).
-  $('hl').addEventListener('toggle', (e) => {
-    const d = e.target as HTMLDetailsElement;
-    if (!d.classList?.contains('hgd')) return;
-    const s = openGroups();
-    if (d.open) s.add(d.dataset.g!);
-    else s.delete(d.dataset.g!);
-    set(KEYS.holdOpen, JSON.stringify([...s]));
-  }, true);
+  // Forget the open groups an older version remembered.
+  remove(KEYS.holdOpen);
   $('hl').addEventListener('click', (e) => {
     const r = rowTap(e);
     if (r?.dataset.h) holdingDetails(holdRows[parseInt(r.dataset.h, 10)]);
@@ -1708,30 +1697,36 @@ async function rvWrite(): Promise<void> {
 
 // ---------- Delta report import (SPEC v1.28) ----------
 
-/** Reads a Delta report PDF on the phone, then shows what it would change for the user to pick. */
-async function deltaImport(file: File): Promise<void> {
+/**
+ * Reads one or more Delta report PDFs on the phone (e.g. one per family member), then shows
+ * what they would change, together, for the user to pick.
+ */
+async function deltaImport(files: File[]): Promise<void> {
   if (!data) return;
   openDialog(t('dlT'), '', `<div class="dnote">${t('dlReading')}</div>`);
-  let pages;
+  const pages = [];
   try {
     // pdf.js is only loaded when a report is imported.
     const { pdfItems, PdfPasswordError } = await import('../import/pdf');
-    const buf = await file.arrayBuffer();
-    let password: string | undefined;
-    for (;;) {
-      try {
-        pages = await pdfItems(buf, password);
-        break;
-      } catch (e) {
-        if (!(e instanceof PdfPasswordError)) throw e;
-        const pw = prompt(t(e.retry ? 'dlPassBad' : 'dlPass'));
-        if (pw == null) return void ($('dlgB').innerHTML = `<div class="dnote">${t('dlPassNo')}</div>`);
-        password = pw;
+    for (const file of files) {
+      const buf = await file.arrayBuffer();
+      let password: string | undefined;
+      for (;;) {
+        try {
+          pages.push(...(await pdfItems(buf, password)));
+          break;
+        } catch (e) {
+          if (!(e instanceof PdfPasswordError)) throw e;
+          const pw = prompt(`${file.name}\n${t(e.retry ? 'dlPassBad' : 'dlPass')}`);
+          if (pw == null) return void ($('dlgB').innerHTML = `<div class="dnote">${esc(file.name)}: ${t('dlPassNo')}</div>`);
+          password = pw;
+        }
       }
     }
   } catch (e) {
     return void ($('dlgB').innerHTML = `<div class="dnote bad">${esc(String((e as Error)?.message ?? e))}</div>`);
   }
+  dlFiles = files.length;
   const report = parseDelta(pages);
   if (!report.products.length) return void ($('dlgB').innerHTML = `<div class="dnote bad">${t('dlNone')}</div>`);
   const plan = planImport(report, { header: data.headers.holdings, rows: data.holdingsRows }, { header: data.headers.pension, rows: data.pensionRows });
@@ -1747,6 +1742,17 @@ function dlValue(field: string, v: unknown): string {
   if (/amount/.test(field)) return f(Number(v));
   if (/_pct$/.test(field)) return `${Number(v)}%`;
   return esc(String(v));
+}
+
+/** How many PDFs the import read (shown in the window's subtitle). */
+let dlFiles = 1;
+
+/** Holdings and pension funds the reports had nothing on: these still need updating by hand. */
+function dlMissing(plan: ImportPlan): string {
+  if (!plan.missing.length) return '';
+  return sec(t('dlMiss', { n: plan.missing.length }))
+    + plan.missing.map((m) => `<div class="bk"><span>${esc(m.name)}</span><span class="lbl">${m.tab === 'Pension' ? t('dlTabP') : ''}</span></div>`).join('')
+    + `<div class="dnote">${t('dlMissN')}</div>`;
 }
 
 function dlShow(produced: string | null, plan: ImportPlan): void {
@@ -1775,8 +1781,10 @@ function dlShow(produced: string | null, plan: ImportPlan): void {
     body += sec(t('dlNotIn')) + plan.unmatched.map((p) => `<div class="bk"><span>${esc(p.type)}${p.company ? ' · ' + esc(p.company) : ''} · ${esc(p.account)}</span><span>${f(p.balance ?? 0)}</span></div>`).join('')
       + `<div class="dnote">${t('dlNotInN')}</div>`;
   if (plan.empty.length) body += `<div class="dnote">${t('dlEmpty', { n: plan.empty.length })}</div>`;
+  // With nothing to write, this window is the end: say here what the reports didn't cover.
+  if (!ps.length) body += dlMissing(plan);
   body += `<div class="dlg-btns">${ps.length ? `<button type="button" id="dlWrite"></button>` : ''}<button type="button" class="s" id="dlClose">${t('close')}</button></div><div class="dnote" id="dlMsg" aria-live="polite"></div>`;
-  openDialog(t('dlT'), t('dlSub', { d: produced ?? '–', a: asOf, n, m: plan.matched.length }), body);
+  openDialog(t('dlT'), (dlFiles > 1 ? t('dlFiles', { n: dlFiles }) + ' · ' : '') + t('dlSub', { d: produced ?? '–', a: asOf, n, m: plan.matched.length }), body);
   const boxes = () => [...$('dlgB').querySelectorAll<HTMLInputElement>('[data-dl]')];
   const count = () => {
     if (!ps.length) return;
@@ -1791,10 +1799,10 @@ function dlShow(produced: string | null, plan: ImportPlan): void {
   if (!ps.length) return;
   $('dlAll').addEventListener('click', () => (boxes().forEach((b) => (b.checked = true)), count()));
   $('dlNo').addEventListener('click', () => (boxes().forEach((b) => (b.checked = false)), count()));
-  $('dlWrite').addEventListener('click', () => void dlWrite(boxes().filter((b) => b.checked).map((b) => ps[Number(b.dataset.dl)])));
+  $('dlWrite').addEventListener('click', () => void dlWrite(boxes().filter((b) => b.checked).map((b) => ps[Number(b.dataset.dl)]), plan));
 }
 
-async function dlWrite(chosen: Proposal[]): Promise<void> {
+async function dlWrite(chosen: Proposal[], plan: ImportPlan): Promise<void> {
   if (!data || !chosen.length) return;
   if (deps.demo()) return void ($('dlMsg').textContent = t('demoNoSave'));
   const c = deps.client();
@@ -1807,6 +1815,7 @@ async function dlWrite(chosen: Proposal[]): Promise<void> {
     const done = chosen.length - skipped.length;
     openDialog(t('dlT'), '', `<div class="dnote ok">${t('dlDone', { n: done })}</div>`
       + (skipped.length ? `<div class="dnote bad">${esc(t('dlSkip', { f: skipped.map((p) => `${p.name}: ${dlLabel(p.field)}`).join(', ') }))}</div>` : '')
+      + dlMissing(plan)
       + `<div class="dlg-btns"><button type="button" class="s" id="dlClose">${t('close')}</button></div>`);
     $('dlClose').addEventListener('click', () => $<HTMLDialogElement>('dlg').close());
   } catch (e) {

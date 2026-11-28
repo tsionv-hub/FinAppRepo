@@ -70,6 +70,15 @@ describe('import proposals', () => {
     expect(plan.unmatched.map((p) => p.account)).toEqual(['55501234-3']);
   });
 
+  it('lists the sheet rows the report had nothing on', () => {
+    expect(plan.missing).toEqual([{ tab: 'Holdings', row: 4, name: 'Cash' }]);
+  });
+
+  it('two reports read together: each fund once, from whichever report has it', () => {
+    const both = parseDelta([...fx.pages, ...fx.pages]);
+    expect(both.products).toEqual(r.products);
+  });
+
   it('track shares add up to 100; a missing track number means no proposal', () => {
     expect(trackCell({ tracks: [{ number: '1', name: 'a', amount: 1 }, { number: '2', name: 'b', amount: 1 }, { number: '3', name: 'c', amount: 1 }] } as never)).toBe('(1,34%),(2,33%),(3,33%)');
     expect(trackCell({ tracks: [{ name: 'a', amount: 5 }] } as never)).toBeNull();
