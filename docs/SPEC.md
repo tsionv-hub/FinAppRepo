@@ -304,3 +304,9 @@ The holding popup has **✏️ Edit**, and the Holdings panel has **➕ Add hold
 - When done (after writing, or at once when nothing needs changing), the window lists **Not in the report**: every Holdings and Pension row that no fund of the reports matched, to update by hand.
 - Every panel and sub-panel (holding groups included) starts closed when the app opens, whatever was open last time.
 
+**v1.30 (Delta import review, redesigned):**
+- Top: which reports were read and as of which month, then four tiles (tap to jump): **To update**, **Up to date**, **No data**, **Not in your sheet**; the privacy note.
+- **Every** Holdings and Pension row is a card, in three sections: *To update* (amber, "N changes"), *Up to date* (green), *No data in the report* (grey, with the reason: no account number in the sheet / Delta doesn't cover brokerage, bank or stock accounts / not in the report). Then the report's funds that aren't in the sheet (blue, "New"), with their type in the app's language.
+- A change shows its label, old (struck out) → new, and how much it moves ("+₪37,565 (+1.9%)", "−0.15 pts"); dates in words; tracks one per line as "number · share". Doubtful changes keep their ⚠️ note and start unticked. A matched card ends with what the report says: balance, return since January, deposits this year, share in stocks.
+- A sticky footer: **All · None** and **Write N changes**. The window is taller than other popups. After writing, a short confirmation (what was written, and any formula cells skipped); the separate "not in the report" list is gone, since the review already shows every holding.
+

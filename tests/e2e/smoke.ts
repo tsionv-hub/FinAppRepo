@@ -413,17 +413,27 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const fakePdf = new URL('../fixtures/delta-fake.pdf', import.meta.url).pathname;
   await page.setInputFiles('#dlFile', [fakePdf, fakePdf]);
   await page.waitForSelector('#dlgB .dlrow', { timeout: 20000 });
-  const dsub = await txt('#dlgB .dsub');
-  ok(/^2 reports · .*figures as of 10\/2026 · 4 funds read, 2 found in your sheet/.test(dsub), 'both reports are read on the phone, together: ' + dsub);
+  const dsum = await txt('#dlgB .dlsumh');
+  const tiles = await page.$$eval('#dlgB .dltile', (e) => e.map((x) => x.textContent!.replace(/\s+/g, '')));
+  ok(/^📄 2 reports · figures as of Oct 2026/.test(dsum) && tiles.join('|') === '2Toupdate|0Uptodate|' + ((holdingsRows.length - 2) + (pensionX.length - 2)) + 'Nodata|2Notinyoursheet', 'both reports are read together; the summary counts every holding: ' + dsum + ' / ' + tiles.join('|'));
+  const cardsN = await page.locator('#dlgB .dlcard').count();
+  ok(cardsN === holdingsRows.length - 1 + pensionX.length - 1 + 2, 'every holding and pension fund has a card, plus the two funds not in the sheet: ' + cardsN);
+  ok((await page.locator('#dlgB .dlcard.c-none', { hasText: 'Study A' }).textContent())!.includes('No account number in your sheet'), 'a holding with no data says why');
   const rowsTxt = await page.$$eval('#dlgB .dlrow', (e) => e.map((x) => x.textContent!.replace(/[\s\u2066-\u2069]/g, '')));
-  ok(rowsTxt.includes('Balance₪320,000→₪38,302') && rowsTxt.includes('Tracks(fundnumbers)1111→15256') && rowsTxt.includes('Balance₪600,000→₪763,413') && rowsTxt.includes('Lastupdated–→2026-10-31'), 'proposals show old → new per holding: ' + rowsTxt.join(' | '));
-  ok((await txt('#dlgB')).includes('In the report but not in your sheet') && (await txt('#dlgB')).includes('570-911-400001-0'), 'funds in the report but not in the sheet are listed');
+  ok(rowsTxt.includes('Balance₪320,000→₪38,302−₪281,698(−88.0%)') && rowsTxt.includes('Tracks(fundnumbers)1111→15256') && rowsTxt.includes('Balance₪600,000→₪763,413+₪163,413(+27.2%)') && rowsTxt.includes('Lastupdatedempty→31Oct2026') && rowsTxt.includes('Feefrombalance0.2%→0.1%−0.1pts'), 'changes show old → new with the difference: ' + rowsTxt.join(' | '));
+  ok((await page.locator('#dlgB .dlcard.c-upd', { hasText: 'Invest B' }).locator('.dlfacts').textContent())!.includes('since January +14.1%'), 'each matched holding shows what the report says (return since January, deposits, stocks)');
+  ok((await txt('#dlSecNew')).startsWith('In the report, not in your sheet (2)') && (await txt('#dlgB')).includes('570-911-400001-0'), 'funds in the report but not in the sheet are listed');
   ok(writes.length === wd0, 'nothing written before "Write"');
+  await page.locator('#dlgB').evaluate((e) => (e.closest('dialog')!.scrollTop = 0));
+  await page.screenshot({ path: OUT + '/delta-review-top.png' });
+  await page.locator('#dlg').evaluate((d) => (d.scrollTop = d.scrollHeight));
+  await page.screenshot({ path: OUT + '/delta-review-end.png' });
+  await page.locator('#dlg').evaluate((d) => (d.scrollTop = 0));
   await page.locator('#dlg').screenshot({ path: OUT + '/delta-review.png' });
   // Untick the pension's track change, keep the rest.
-  await page.locator('#dlgB .dlrow', { hasText: '(15263,63%),(13909,37%)' }).locator('input').uncheck();
+  await page.locator('#dlgB .dlrow', { hasText: '15263 · 63%' }).locator('input').uncheck();
   const nSel = await page.$$eval('#dlgB [data-dl]', (e) => e.filter((x) => (x as HTMLInputElement).checked).length);
-  ok((await txt('#dlWrite')) === `Write ${nSel} selected changes to the sheet`, 'the write button counts the ticked changes: ' + (await txt('#dlWrite')));
+  ok((await txt('#dlWrite')) === `Write ${nSel} changes`, 'the write button counts the ticked changes: ' + (await txt('#dlWrite')));
   await page.click('#dlWrite');
   await page.waitForFunction(() => document.getElementById('dlgB')!.textContent!.includes('Written to your sheet'));
   const dd = writes.slice(wd0).filter((w) => w.url.endsWith('/values:batchUpdate')).flatMap((w) => (w.body as { data: { range: string; values: unknown[][] }[] }).data);
@@ -431,9 +441,7 @@ const FAKE_GIS = `window.google={accounts:{oauth2:{initTokenClient:function(c){r
   const pc = (k: string) => String.fromCharCode(65 + (pensionX[0] as string[]).indexOf(k));
   ok(dd.some((x) => x.range === `'Holdings'!${hc('current_amount')}3` && x.values[0][0] === 38302) && dd.some((x) => x.range === `'Pension'!${pc('current_amount_ILS')}2` && x.values[0][0] === 763413), 'ticked changes are written to their cells: ' + dd.map((x) => x.range + '=' + x.values[0][0]).join(', '));
   ok(!dd.some((x) => x.range === `'Pension'!${pc('fund_number')}2`) && dd.length === nSel, 'an unticked change is not written, and nothing else is');
-  const done = await txt('#dlgB');
-  await page.locator('#dlg').screenshot({ path: OUT + '/delta-done.png' });
-  ok(/Not in the report \(\d+\)/.test(done) && done.includes('Study A') && done.includes('Pension 2') && !done.includes('Invest B'), 'when done, it lists the holdings the report had no data for: ' + done.replace(/\s+/g, ' ').slice(0, 160));
+  ok((await txt('#dlgB')).startsWith('Written to your sheet: ' + nSel + ' changes.'), 'when done, it says what was written');
   await page.click('#dlClose');
 
   // 5. Hebrew: everything works, including adding a (recurring) goal and saving it.
